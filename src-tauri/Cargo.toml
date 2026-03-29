@@ -1,0 +1,45 @@
+[package]
+name = "power-paste"
+version = "0.2.9"
+description = "Native-feeling clipboard history manager"
+authors = ["Codex"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "power_paste_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+anyhow = "1.0"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tauri = { version = "2.10.3", features = ["tray-icon", "image-png", "devtools"] }
+tauri-plugin-global-shortcut = "2.3.0"
+tauri-plugin-single-instance = "2.4.0"
+thiserror = "2.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Graphics_GdiPlus",
+  "Win32_Globalization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }

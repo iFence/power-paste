@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.pnpm-store/
+
+src-tauri/target/
+src-tauri/gen/
+
+.claude/
+.idea/
+.vscode/
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
