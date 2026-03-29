@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export function useKeyboardShortcuts({
   closeSelect,
+  copyItem,
   filteredHistory,
   openSelectKey,
   pasteItem,
@@ -13,6 +14,14 @@ export function useKeyboardShortcuts({
   showSettings,
   clearEditing,
 }) {
+  function isEditableTarget(target) {
+    return (
+      target instanceof HTMLElement &&
+      (target.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+    );
+  }
+
   async function handleWindowAction(action) {
     const appWindow = getCurrentWindow();
 
@@ -50,6 +59,15 @@ export function useKeyboardShortcuts({
     if (withPrimary && key === "f") {
       event.preventDefault();
       document.getElementById("history-search")?.focus();
+    }
+
+    if (withPrimary && key === "c" && selectedId.value && !showEditModal.value) {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      void copyItem(selectedId.value);
+      return;
     }
 
     if (event.key === "Escape") {

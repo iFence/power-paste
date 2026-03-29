@@ -2,6 +2,7 @@
 import HistoryListItem from "./HistoryListItem.vue";
 
 defineProps({
+  canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
   historyCountLabel: { type: String, required: true },
   historyPanelRef: { type: Object, required: true },
@@ -10,10 +11,11 @@ defineProps({
   locale: { type: String, required: true },
   selectedId: { type: String, default: null },
   t: { type: Function, required: true },
+  unsupportedClipboardWriteMessage: { type: String, required: true },
   unsupportedDirectPasteMessage: { type: String, required: true },
 });
 
-const emit = defineEmits(["edit", "paste", "remove", "select", "toggle-pin"]);
+const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-pin"]);
 </script>
 
 <template>
@@ -31,10 +33,13 @@ const emit = defineEmits(["edit", "paste", "remove", "select", "toggle-pin"]);
           :key="item.id"
           :item="item"
           :locale="locale"
+          :can-clipboard-write="canClipboardWrite"
           :can-direct-paste="canDirectPaste"
           :selected="item.id === selectedId"
           :t="t"
+          :unsupported-clipboard-write-message="unsupportedClipboardWriteMessage"
           :unsupported-direct-paste-message="unsupportedDirectPasteMessage"
+          @copy="emit('copy', $event)"
           @edit="emit('edit', $event)"
           @paste="emit('paste', $event)"
           @remove="emit('remove', $event)"

@@ -142,6 +142,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     try {
       actionFeedback.value = "";
       await copyItemRequest(id);
+      actionFeedback.value = t("statusCopied");
     } catch (error) {
       actionFeedback.value = formatActionError(error, t);
       throw error;

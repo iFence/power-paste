@@ -3,15 +3,17 @@ import { formatRelativeTime } from "../utils/format";
 import { looksLikeCode, previewHtml } from "../utils/codePreview";
 
 defineProps({
+  canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
   item: { type: Object, required: true },
   locale: { type: String, required: true },
   selected: { type: Boolean, required: true },
   t: { type: Function, required: true },
   unsupportedDirectPasteMessage: { type: String, required: true },
+  unsupportedClipboardWriteMessage: { type: String, required: true },
 });
 
-const emit = defineEmits(["edit", "paste", "remove", "select", "toggle-pin"]);
+const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-pin"]);
 </script>
 
 <template>
@@ -77,6 +79,26 @@ const emit = defineEmits(["edit", "paste", "remove", "select", "toggle-pin"]);
 
     <footer class="entry-footer">
       <div class="entry-actions">
+        <button
+          class="entry-action-button icon-only"
+          type="button"
+          :title="canClipboardWrite ? t('copy') : unsupportedClipboardWriteMessage"
+          :aria-label="canClipboardWrite ? t('copy') : unsupportedClipboardWriteMessage"
+          :disabled="!canClipboardWrite"
+          @mousedown.stop
+          @click.stop="emit('copy', item.id)"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M5 3.2A1.8 1.8 0 0 1 6.8 1.4h4.1a1.8 1.8 0 0 1 1.8 1.8v4.1a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 7.3V3.2Zm1.2.1v4a.6.6 0 0 0 .6.6h4a.6.6 0 0 0 .6-.6v-4a.6.6 0 0 0-.6-.6h-4a.6.6 0 0 0-.6.6Z"
+              fill="currentColor"
+            />
+            <path
+              d="M3.3 5A1.3 1.3 0 0 0 2 6.3v5.4A1.3 1.3 0 0 0 3.3 13h5.4A1.3 1.3 0 0 0 10 11.7v-.6H8.8v.6a.1.1 0 0 1-.1.1H3.3a.1.1 0 0 1-.1-.1V6.3a.1.1 0 0 1 .1-.1h.6V5h-.6Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
         <button
           class="entry-action-button icon-only pin-action"
           :class="{ active: item.pinned }"

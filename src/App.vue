@@ -25,6 +25,7 @@ useTheme({
 
 const { handleWindowAction } = useKeyboardShortcuts({
   closeSelect: settingsState.closeSelect,
+  copyItem: historyState.copyItem,
   filteredHistory: historyState.filteredHistory,
   openSelectKey: settingsState.openSelectKey,
   pasteItem: historyState.pasteItem,
@@ -111,6 +112,7 @@ onUnmounted(() => {
       />
 
       <HistoryList
+        :can-clipboard-write="settingsState.platformCapabilities.value.supportsClipboardWrite"
         :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
         :history-count-label="historyState.historyCountLabel.value"
         :history-panel-ref="historyState.historyPanelRef"
@@ -119,7 +121,9 @@ onUnmounted(() => {
         :locale="settingsState.currentLocale.value"
         :selected-id="historyState.selectedId.value"
         :t="settingsState.t"
+        :unsupported-clipboard-write-message="settingsState.t('unsupportedClipboardWrite')"
         :unsupported-direct-paste-message="settingsState.t('unsupportedDirectPaste')"
+        @copy="historyState.copyItem"
         @edit="historyState.openEditModal"
         @paste="historyState.pasteItem"
         @remove="historyState.removeItem"

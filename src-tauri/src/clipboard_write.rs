@@ -1,6 +1,8 @@
-use std::{fs, thread, time::Duration};
+use std::fs;
 
 use anyhow::Result;
+#[cfg(windows)]
+use std::{thread, time::Duration};
 
 use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
 
@@ -10,9 +12,9 @@ use crate::{
     models::CF_DIB,
 };
 #[cfg(windows)]
-use std::{mem, os::windows::ffi::OsStrExt};
-#[cfg(windows)]
 use image::ImageReader;
+#[cfg(windows)]
+use std::{mem, os::windows::ffi::OsStrExt};
 #[cfg(windows)]
 use windows_sys::Win32::{
     Foundation::GlobalFree,
@@ -112,6 +114,135 @@ impl Drop for ClipboardGuard {
 // Plain text writes still go through the unified native payload writer so all clipboard setup stays in one place.
 pub(crate) fn write_unicode_text_to_clipboard(text: &str) -> Result<()> {
     write_clipboard_payload_native(Some(text), None, None, None, None)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn write_unicode_text_to_clipboard(text: &str) -> Result<()> {
+    write_clipboard_payload_macos(Some(text), None, None)
+}
+
+#[cfg(target_os = "macos")]
+fn temporary_clipboard_file(
+    prefix: &str,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<std::path::PathBuf> {
+    let path = std::env::temp_dir().join(format!(
+        "power-paste-{prefix}-{}.{}",
+        uuid::Uuid::new_v4(),
+        extension
+    ));
+    fs::write(&path, bytes)?;
+    Ok(path)
+}
+
+#[cfg(target_os = "macos")]
+fn write_clipboard_payload_macos(
+    text: Option<&str>,
+    html: Option<&str>,
+    image_path: Option<&str>,
+) -> Result<()> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    const SCRIPT: &str = r#"
+import AppKit
+import Foundation
+
+let args = Array(CommandLine.arguments.dropFirst())
+let textPath = args.indices.contains(0) ? args[0] : ""
+let htmlPath = args.indices.contains(1) ? args[1] : ""
+let imagePath = args.indices.contains(2) ? args[2] : ""
+
+let pasteboard = NSPasteboard.general
+pasteboard.clearContents()
+
+var wrote = false
+
+if !textPath.isEmpty {
+    let url = URL(fileURLWithPath: textPath)
+    let text = try String(contentsOf: url, encoding: .utf8)
+    pasteboard.setString(text, forType: .string)
+    wrote = true
+}
+
+if !htmlPath.isEmpty {
+    let url = URL(fileURLWithPath: htmlPath)
+    let data = try Data(contentsOf: url)
+    pasteboard.setData(data, forType: .html)
+    wrote = true
+}
+
+if !imagePath.isEmpty {
+    let url = URL(fileURLWithPath: imagePath)
+    let data = try Data(contentsOf: url)
+    pasteboard.setData(data, forType: NSPasteboard.PasteboardType("public.png"))
+    wrote = true
+}
+
+if !wrote {
+    fputs("clipboard payload is empty\n", stderr)
+    exit(1)
+}
+"#;
+
+    let text_path = text
+        .filter(|value| !value.is_empty())
+        .map(|value| temporary_clipboard_file("text", "txt", value.as_bytes()))
+        .transpose()?;
+    let html_path = html
+        .filter(|value| !value.is_empty())
+        .map(|value| temporary_clipboard_file("html", "html", value.as_bytes()))
+        .transpose()?;
+    let image_path = image_path
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    let args = vec![
+        "-".to_string(),
+        text_path
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        html_path
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        image_path.unwrap_or_default(),
+    ];
+
+    let mut child = Command::new("swift")
+        .env(
+            "CLANG_MODULE_CACHE_PATH",
+            std::env::temp_dir().join("power-paste-swift-cache"),
+        )
+        .args(&args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin.write_all(SCRIPT.as_bytes())?;
+    }
+
+    let output = child.wait_with_output()?;
+
+    if let Some(path) = text_path {
+        let _ = fs::remove_file(path);
+    }
+    if let Some(path) = html_path {
+        let _ = fs::remove_file(path);
+    }
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            anyhow::bail!("failed to write to macOS clipboard");
+        }
+        anyhow::bail!(stderr);
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -426,7 +557,31 @@ pub(crate) fn write_item_to_clipboard_with_profile(
         return write_item_to_clipboard_windows(item, profile);
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        let _ = profile;
+        let html = item.html_text.as_deref().filter(|value| !value.is_empty());
+        let image_path = item.image_path.as_deref().filter(|value| !value.is_empty());
+
+        if item_should_prefer_image_payload(item) {
+            return write_clipboard_payload_macos(None, None, image_path);
+        }
+
+        if item.kind == "mixed" {
+            return write_clipboard_payload_macos(item.full_text.as_deref(), html, image_path);
+        }
+
+        match (item_has_textual_payload(item), item_has_image(item)) {
+            (true, true) => {
+                write_clipboard_payload_macos(item.full_text.as_deref(), html, image_path)
+            }
+            (true, false) => write_clipboard_payload_macos(item.full_text.as_deref(), html, None),
+            (false, true) => write_clipboard_payload_macos(None, None, image_path),
+            (false, false) => Ok(()),
+        }
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = item;
         let _ = profile;
