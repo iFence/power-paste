@@ -1,10 +1,7 @@
 use std::{
     fs,
     path::PathBuf,
-    sync::{
-        atomic::AtomicBool,
-        Arc, Mutex,
-    },
+    sync::{atomic::AtomicBool, Arc, Mutex},
     time::Instant,
 };
 
@@ -190,6 +187,8 @@ pub(crate) struct MonitorState {
     pub(crate) suppress_hash: Option<String>,
     pub(crate) suppress_until: Option<Instant>,
     pub(crate) last_target_window: Option<HwndRaw>,
+    pub(crate) last_target_app_bundle_id: Option<String>,
+    pub(crate) last_target_app_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -244,4 +243,5 @@ pub(crate) struct ForegroundAppResult {
     pub(crate) process_name: String,
     pub(crate) display_name: String,
     pub(crate) icon_png_base64: Option<String>,
+    pub(crate) app_path: Option<String>,
 }

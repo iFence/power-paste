@@ -7,27 +7,26 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::{
     apply_debug_mode,
-    clipboard_write::write_item_to_clipboard_with_profile,
     capture::mark_clipboard_suppressed,
+    clipboard_write::write_item_to_clipboard_with_profile,
     history::{history_to_dto, sort_history},
-    models::{AppError, AppSettings, ClipboardItemDto, PlatformCapabilities, SharedState, PANEL_LABEL},
+    models::{
+        AppError, AppSettings, ClipboardItemDto, PlatformCapabilities, SharedState, PANEL_LABEL,
+    },
     paste_target::{
         focus_last_target_window, last_target_profile, paste_mixed_item_for_profile,
         send_native_paste_shortcut, wait_for_paste_target_focus,
     },
-    preview_text,
-    save_history,
-    save_settings,
+    preview_text, save_history, save_settings, sha256_hex,
     startup::set_launch_on_startup,
-    sha256_hex,
 };
 
 fn platform_capabilities() -> PlatformCapabilities {
     PlatformCapabilities {
         platform: std::env::consts::OS.to_string(),
-        supports_clipboard_write: cfg!(windows),
-        supports_direct_paste: cfg!(windows),
-        supports_launch_on_startup: cfg!(windows),
+        supports_clipboard_write: cfg!(windows) || cfg!(target_os = "macos"),
+        supports_direct_paste: cfg!(windows) || cfg!(target_os = "macos"),
+        supports_launch_on_startup: cfg!(windows) || cfg!(target_os = "macos"),
         supports_mixed_replay: cfg!(windows),
     }
 }
@@ -169,9 +168,7 @@ pub(crate) fn update_text_item(
 }
 
 #[tauri::command]
-pub(crate) fn clear_history(
-    state: State<'_, std::sync::Arc<SharedState>>,
-) -> Result<(), AppError> {
+pub(crate) fn clear_history(state: State<'_, std::sync::Arc<SharedState>>) -> Result<(), AppError> {
     let mut history = state.history.lock().unwrap();
     for item in history.iter().filter(|item| !item.pinned) {
         if let Some(image_path) = &item.image_path {
@@ -189,7 +186,7 @@ pub(crate) fn copy_item(
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    if !cfg!(windows) {
+    if !cfg!(windows) && !cfg!(target_os = "macos") {
         return Err(AppError::Message("unsupported_clipboard_write".into()));
     }
 
@@ -215,7 +212,7 @@ pub(crate) fn paste_item(
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    if !cfg!(windows) {
+    if !cfg!(windows) && !cfg!(target_os = "macos") {
         return Err(AppError::Message("unsupported_direct_paste".into()));
     }
 
@@ -235,12 +232,12 @@ pub(crate) fn paste_item(
     let profile = last_target_profile(&shared);
     mark_clipboard_suppressed(&shared, item.hash.clone());
     focus_last_target_window(&shared);
-    wait_for_paste_target_focus();
-    if paste_mixed_item_for_profile(&item, profile)? {
+    wait_for_paste_target_focus(&shared);
+    if paste_mixed_item_for_profile(&shared, &item, profile)? {
         return Ok(());
     }
     write_item_to_clipboard_with_profile(&item, profile)?;
     thread::sleep(Duration::from_millis(180));
-    send_native_paste_shortcut();
+    send_native_paste_shortcut(&shared)?;
     Ok(())
 }

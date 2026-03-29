@@ -1,8 +1,10 @@
-use std::{fs, thread, time::Duration};
+use std::{collections::HashMap, fs, thread, time::Duration};
 
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
+#[cfg(target_os = "macos")]
+use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 use crate::{
@@ -12,6 +14,85 @@ use crate::{
     },
     storage::{image_hash_from_png_bytes, mixed_hash, preview_text, save_history, text_hash},
 };
+
+#[cfg(target_os = "macos")]
+fn run_macos_command(program: &str, args: &[&str]) -> Result<Option<String>> {
+    let output = std::process::Command::new(program).args(args).output()?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let trimmed = stdout.trim_end_matches(['\r', '\n']);
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed.to_string()))
+    }
+}
+
+#[cfg(target_os = "macos")]
+static MACOS_APP_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+
+#[cfg(target_os = "macos")]
+fn parse_lsappinfo_field(output: &str, key: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        let prefix = format!("\"{key}\"=");
+        line.strip_prefix(&prefix)
+            .map(str::trim)
+            .and_then(|value| value.strip_prefix('"'))
+            .and_then(|value| value.strip_suffix('"'))
+            .map(ToString::to_string)
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn macos_app_icon_base64(app_path: &str) -> Option<String> {
+    let cache = MACOS_APP_ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(icon) = cache.lock().unwrap().get(app_path).cloned() {
+        return icon;
+    }
+
+    const SCRIPT: &str = r#"
+function run(argv) {
+  ObjC.import('AppKit');
+  const path = argv[0];
+  const ws = $.NSWorkspace.sharedWorkspace;
+  const image = ws.iconForFile(path);
+  if (!image) {
+    return '';
+  }
+  const tiff = image.TIFFRepresentation;
+  if (!tiff) {
+    return '';
+  }
+  const rep = $.NSBitmapImageRep.imageRepWithData(tiff);
+  if (!rep) {
+    return '';
+  }
+  const png = rep.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $({}));
+  if (!png) {
+    return '';
+  }
+  return ObjC.unwrap(png.base64EncodedStringWithOptions(0));
+}
+"#;
+
+    let icon = std::process::Command::new("osascript")
+        .args(["-l", "JavaScript", "-e", SCRIPT, app_path])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|output| output.trim().to_string())
+        .filter(|output| !output.is_empty());
+
+    cache
+        .lock()
+        .unwrap()
+        .insert(app_path.to_string(), icon.clone());
+    icon
+}
 
 // Normalizes raw process names into labels that make sense in the UI.
 fn friendly_process_name(name: &str) -> String {
@@ -58,11 +139,22 @@ pub(crate) fn source_app_info(app: ForegroundAppResult) -> Option<(String, Optio
         process_name: app.process_name.clone(),
         display_name: app.display_name.clone(),
         icon_png_base64: app.icon_png_base64.clone(),
+        app_path: app.app_path.clone(),
     })?;
-    let icon = app
+    let icon_base64 = app
         .icon_png_base64
         .filter(|value| !value.is_empty())
-        .map(|value| format!("data:image/png;base64,{value}"));
+        .or_else(|| {
+            #[cfg(target_os = "macos")]
+            {
+                app.app_path.as_deref().and_then(macos_app_icon_base64)
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                None
+            }
+        });
+    let icon = icon_base64.map(|value| format!("data:image/png;base64,{value}"));
     Some((label, icon))
 }
 
@@ -304,6 +396,36 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
 
 #[cfg(not(windows))]
 pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
+    #[cfg(target_os = "macos")]
+    {
+        let Some(front) = run_macos_command("lsappinfo", &["front"])? else {
+            return Ok(None);
+        };
+        let front = front.trim_end_matches(':');
+        let Some(info) =
+            run_macos_command("lsappinfo", &["info", "-only", "bundlepath,name", front])?
+        else {
+            return Ok(None);
+        };
+        let display_name = parse_lsappinfo_field(&info, "LSDisplayName").unwrap_or_default();
+        let app_path = parse_lsappinfo_field(&info, "LSBundlePath");
+        let process_name = app_path
+            .as_deref()
+            .and_then(|path| std::path::Path::new(path).file_stem())
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(display_name.as_str())
+            .to_string();
+
+        if !display_name.is_empty() || !process_name.is_empty() {
+            return Ok(Some(ForegroundAppResult {
+                process_name,
+                display_name,
+                icon_png_base64: None,
+                app_path,
+            }));
+        }
+    }
+
     Ok(None)
 }
 
@@ -371,7 +493,9 @@ pub(crate) fn capture_clipboard(
 
     if let Some(png_bytes) = png_bytes.as_ref() {
         let normalized = text.trim();
-        if (normalized == "[é¥å‰§å¢–]" || normalized == "é¥å‰§å¢–" || is_image_placeholder_text(&text))
+        if (normalized == "[é¥å‰§å¢–]"
+            || normalized == "é¥å‰§å¢–"
+            || is_image_placeholder_text(&text))
             && rich_text_is_empty
         {
             if png_bytes.len() > settings.max_image_bytes {
@@ -446,10 +570,36 @@ pub(crate) fn capture_clipboard(
 
 #[cfg(not(windows))]
 pub(crate) fn capture_clipboard(
-    _settings: &AppSettings,
-    _source_app: Option<&ForegroundAppResult>,
+    settings: &AppSettings,
+    source_app: Option<&ForegroundAppResult>,
 ) -> Result<Option<CapturedClipboard>> {
-    Ok(None)
+    #[cfg(target_os = "macos")]
+    {
+        if should_ignore_app(settings, source_app) {
+            return Ok(None);
+        }
+
+        let Some(text) = run_macos_command("pbpaste", &[])?
+            .map(|value| value.replace("\r\n", "\n").replace('\r', "\n"))
+            .filter(|value| !value.is_empty())
+        else {
+            return Ok(None);
+        };
+
+        return Ok(Some(CapturedClipboard::Text {
+            hash: text_hash(&text, None, None),
+            text,
+            html_text: None,
+            rtf_text: None,
+        }));
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = settings;
+        let _ = source_app;
+        Ok(None)
+    }
 }
 
 // Deduplicates repeated captures, persists image assets, and enforces history size limits.
@@ -579,7 +729,10 @@ pub(crate) fn store_capture(
             item.kind = "image".into();
             item.preview = preview;
             item.image_path = Some(image_path.to_string_lossy().to_string());
-            item.image_data_url = Some(format!("data:image/png;base64,{}", BASE64.encode(&png_bytes)));
+            item.image_data_url = Some(format!(
+                "data:image/png;base64,{}",
+                BASE64.encode(&png_bytes)
+            ));
             item.image_width = Some(image_width);
             item.image_height = Some(image_height);
         }
@@ -600,7 +753,10 @@ pub(crate) fn store_capture(
             item.html_text = html_text;
             item.rtf_text = rtf_text;
             item.image_path = Some(image_path.to_string_lossy().to_string());
-            item.image_data_url = Some(format!("data:image/png;base64,{}", BASE64.encode(&png_bytes)));
+            item.image_data_url = Some(format!(
+                "data:image/png;base64,{}",
+                BASE64.encode(&png_bytes)
+            ));
             item.image_width = Some(image_width);
             item.image_height = Some(image_height);
         }

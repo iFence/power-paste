@@ -1,9 +1,6 @@
 use std::{
     process::Command,
-    sync::{
-        atomic::AtomicBool,
-        Arc, Mutex,
-    },
+    sync::{atomic::AtomicBool, Arc, Mutex},
 };
 
 #[cfg(windows)]
@@ -13,16 +10,14 @@ use anyhow::{Context, Result};
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 #[cfg(windows)]
-use webview2_com::{
-    Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3,
-};
+use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
 #[cfg(windows)]
 use windows_core::Interface;
 
-mod commands;
+mod capture;
 mod clipboard_html;
 mod clipboard_write;
-mod capture;
+mod commands;
 mod history;
 mod models;
 mod paste_target;
@@ -37,10 +32,8 @@ use commands::{
 };
 use models::{MonitorState, SharedState, StoragePaths, DEBUG_CONTEXT_MENU_INIT_SCRIPT};
 use runtime::{configure_window, toggle_panel};
-use storage::{
-    load_history, load_settings, preview_text, save_history, save_settings, sha256_hex,
-};
 use startup::set_launch_on_startup;
+use storage::{load_history, load_settings, preview_text, save_history, save_settings, sha256_hex};
 
 #[cfg(windows)]
 fn powershell(script: &str) -> Result<String> {
@@ -73,6 +66,11 @@ fn apply_debug_mode(window: &tauri::WebviewWindow, enabled: bool) -> Result<()> 
 
     if !enabled && window.is_devtools_open() {
         window.close_devtools();
+    }
+
+    #[cfg(debug_assertions)]
+    if enabled && !window.is_devtools_open() {
+        window.open_devtools();
     }
 
     #[cfg(windows)]
@@ -151,6 +149,16 @@ pub fn run() {
             configure_window(app.handle(), shared.clone())?;
             let locale = settings.lock().unwrap().locale.clone();
             runtime::build_tray(app.handle(), &locale)?;
+
+            #[cfg(debug_assertions)]
+            if let Some(window) = app.get_webview_window(models::PANEL_LABEL) {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+                if !window.is_devtools_open() {
+                    window.open_devtools();
+                }
+            }
 
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;

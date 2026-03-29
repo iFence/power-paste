@@ -1,14 +1,16 @@
 use std::{path::PathBuf, sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
-#[cfg(windows)]
-use tauri::Manager;
 use tauri::AppHandle;
+#[cfg(any(windows, target_os = "macos"))]
+use tauri::Manager;
 
 use crate::models::{ClipboardTargetProfile, SharedState, StoredClipboardItem};
 
 #[cfg(windows)]
 use crate::models::{HwndRaw, PANEL_LABEL};
+#[cfg(target_os = "macos")]
+use std::process::Command;
 
 #[cfg(windows)]
 use std::mem;
@@ -113,6 +115,34 @@ pub(crate) fn last_target_profile(_state: &Arc<SharedState>) -> ClipboardTargetP
     ClipboardTargetProfile::Generic
 }
 
+#[cfg(target_os = "macos")]
+fn current_foreground_app_info() -> Option<(String, String)> {
+    const SCRIPT: &str = r#"ObjC.import("AppKit");
+const app = $.NSWorkspace.sharedWorkspace.frontmostApplication;
+const bundleId = app.bundleIdentifier;
+const name = app.localizedName;
+if (bundleId && name) {
+  console.log(ObjC.unwrap(bundleId) + "\t" + ObjC.unwrap(name));
+}"#;
+
+    let output = Command::new("osascript")
+        .args(["-l", "JavaScript", "-e", SCRIPT])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let output = String::from_utf8(output.stdout).ok()?;
+    let mut parts = output.trim().splitn(2, '\t');
+    let bundle_id = parts.next()?.trim().to_string();
+    let app_name = parts.next()?.trim().to_string();
+    if bundle_id.is_empty() || app_name.is_empty() {
+        None
+    } else {
+        Some((bundle_id, app_name))
+    }
+}
+
 #[cfg(windows)]
 fn current_foreground_window() -> Option<HwndRaw> {
     let hwnd = unsafe { GetForegroundWindow() };
@@ -142,8 +172,26 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
     monitor.last_target_window = Some(foreground);
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub(crate) fn remember_last_target_window(_app: &AppHandle) {}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn remember_last_target_window(app: &AppHandle) {
+    let Some(shared) = app.try_state::<Arc<SharedState>>() else {
+        return;
+    };
+    let Some((bundle_id, app_name)) = current_foreground_app_info() else {
+        return;
+    };
+
+    if bundle_id == "com.yulei.powerpaste" {
+        return;
+    }
+
+    let mut monitor = shared.inner().monitor.lock().unwrap();
+    monitor.last_target_app_bundle_id = Some(bundle_id);
+    monitor.last_target_app_name = Some(app_name);
+}
 
 #[cfg(windows)]
 // Focus is retried because SetForegroundWindow is not always immediate on Windows.
@@ -173,19 +221,69 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 pub(crate) fn focus_last_target_window(_state: &Arc<SharedState>) {}
 
+#[cfg(target_os = "macos")]
+pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
+    let (bundle_id, app_name) = {
+        let monitor = state.monitor.lock().unwrap();
+        (
+            monitor.last_target_app_bundle_id.clone(),
+            monitor.last_target_app_name.clone(),
+        )
+    };
+
+    let (Some(bundle_id), Some(app_name)) = (bundle_id, app_name) else {
+        return;
+    };
+
+    let _ = Command::new("osascript")
+        .args([
+            "-e",
+            &format!(r#"tell application id "{bundle_id}" to activate"#),
+            "-e",
+            &format!(
+                r#"tell application "System Events" to tell process "{}" to set frontmost to true"#,
+                app_name.replace('"', "\\\"")
+            ),
+        ])
+        .status();
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
+    let target_bundle_id = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_app_bundle_id.clone()
+    };
+
+    let Some(target_bundle_id) = target_bundle_id else {
+        thread::sleep(Duration::from_millis(180));
+        return;
+    };
+
+    for _ in 0..12 {
+        if current_foreground_app_info()
+            .map(|(bundle_id, _)| bundle_id == target_bundle_id)
+            .unwrap_or(false)
+        {
+            return;
+        }
+        thread::sleep(Duration::from_millis(40));
+    }
+}
+
 #[cfg(windows)]
-pub(crate) fn wait_for_paste_target_focus() {
+pub(crate) fn wait_for_paste_target_focus(_state: &Arc<SharedState>) {
     thread::sleep(Duration::from_millis(180));
 }
 
-#[cfg(not(windows))]
-pub(crate) fn wait_for_paste_target_focus() {}
+#[cfg(not(any(windows, target_os = "macos")))]
+pub(crate) fn wait_for_paste_target_focus(_state: &Arc<SharedState>) {}
 
 #[cfg(windows)]
-pub(crate) fn send_native_paste_shortcut() {
+pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()> {
     let mut inputs = [
         keyboard_input(VK_CONTROL as u16, 0),
         keyboard_input(VK_V as u16, 0),
@@ -200,10 +298,67 @@ pub(crate) fn send_native_paste_shortcut() {
             mem::size_of::<INPUT>() as i32,
         );
     }
+
+    Ok(())
 }
 
-#[cfg(not(windows))]
-pub(crate) fn send_native_paste_shortcut() {}
+#[cfg(not(any(windows, target_os = "macos")))]
+pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
+    let (bundle_id, app_name) = {
+        let monitor = state.monitor.lock().unwrap();
+        (
+            monitor.last_target_app_bundle_id.clone(),
+            monitor.last_target_app_name.clone(),
+        )
+    };
+
+    let mut args = Vec::new();
+    if let (Some(bundle_id), Some(app_name)) = (
+        bundle_id.filter(|value| !value.is_empty()),
+        app_name.filter(|value| !value.is_empty()),
+    ) {
+        let escaped_bundle_id = bundle_id.replace('"', "\\\"");
+        let escaped_app_name = app_name.replace('"', "\\\"");
+        args.push("-e".to_string());
+        args.push(format!(
+            r#"tell application id "{}" to activate"#,
+            escaped_bundle_id
+        ));
+        args.push("-e".to_string());
+        args.push(format!(
+            r#"tell application "System Events"
+repeat 15 times
+  if exists (first application process whose frontmost is true and name is "{}") then exit repeat
+  delay 0.05
+end repeat
+delay 0.08
+keystroke "v" using command down
+end tell"#,
+            escaped_app_name
+        ));
+    } else {
+        args.push("-e".to_string());
+        args.push(
+            r#"tell application "System Events" to keystroke "v" using command down"#.to_string(),
+        );
+    }
+
+    let output = Command::new("osascript").args(args).output()?;
+    if !output.status.success() {
+        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if message.is_empty() {
+            anyhow::bail!("failed to send macOS paste shortcut");
+        }
+        anyhow::bail!(message);
+    }
+
+    Ok(())
+}
 
 #[cfg(windows)]
 fn keyboard_input(virtual_key: u16, flags: u32) -> INPUT {
@@ -231,7 +386,11 @@ fn item_has_image(item: &StoredClipboardItem) -> bool {
 
 #[cfg(windows)]
 // Markdown/chat targets often need text and image pasted as multiple sequential operations.
-fn paste_mixed_segments(segments: &[crate::clipboard_html::MixedPasteSegment], image_path: &str) -> Result<bool> {
+fn paste_mixed_segments(
+    state: &Arc<SharedState>,
+    segments: &[crate::clipboard_html::MixedPasteSegment],
+    image_path: &str,
+) -> Result<bool> {
     let has_content = segments.iter().any(|segment| match segment {
         crate::clipboard_html::MixedPasteSegment::Text(text) => !text.is_empty(),
         crate::clipboard_html::MixedPasteSegment::Image => true,
@@ -251,7 +410,7 @@ fn paste_mixed_segments(segments: &[crate::clipboard_html::MixedPasteSegment], i
             crate::clipboard_html::MixedPasteSegment::Text(_) => continue,
         }
         thread::sleep(Duration::from_millis(120));
-        send_native_paste_shortcut();
+        send_native_paste_shortcut(state)?;
         thread::sleep(Duration::from_millis(120));
     }
 
@@ -260,6 +419,7 @@ fn paste_mixed_segments(segments: &[crate::clipboard_html::MixedPasteSegment], i
 
 #[cfg(not(windows))]
 fn paste_mixed_segments(
+    _state: &Arc<SharedState>,
     _segments: &[crate::clipboard_html::MixedPasteSegment],
     _image_path: &str,
 ) -> Result<bool> {
@@ -269,6 +429,7 @@ fn paste_mixed_segments(
 #[cfg(windows)]
 // Only a subset of targets need segmented mixed paste; everything else uses the normal clipboard write path.
 pub(crate) fn paste_mixed_item_for_profile(
+    state: &Arc<SharedState>,
     item: &StoredClipboardItem,
     profile: ClipboardTargetProfile,
 ) -> Result<bool> {
@@ -290,7 +451,9 @@ pub(crate) fn paste_mixed_item_for_profile(
                 .unwrap_or_else(|| {
                     let mut segments = Vec::new();
                     if let Some(text) = item.full_text.as_deref().filter(|text| !text.is_empty()) {
-                        segments.push(crate::clipboard_html::MixedPasteSegment::Text(text.to_string()));
+                        segments.push(crate::clipboard_html::MixedPasteSegment::Text(
+                            text.to_string(),
+                        ));
                     }
                     segments.push(crate::clipboard_html::MixedPasteSegment::Image);
                     segments
@@ -302,7 +465,7 @@ pub(crate) fn paste_mixed_item_for_profile(
                 .map(|text| crate::clipboard_html::remap_mixed_text_segments(&segments, text))
                 .unwrap_or(segments);
 
-            paste_mixed_segments(&segments, image_path)
+            paste_mixed_segments(state, &segments, image_path)
         }
         _ => Ok(false),
     }
@@ -310,6 +473,7 @@ pub(crate) fn paste_mixed_item_for_profile(
 
 #[cfg(not(windows))]
 pub(crate) fn paste_mixed_item_for_profile(
+    _state: &Arc<SharedState>,
     _item: &StoredClipboardItem,
     _profile: ClipboardTargetProfile,
 ) -> Result<bool> {

@@ -282,8 +282,8 @@ pub(crate) fn html_to_mixed_segments(html: &str) -> Vec<MixedPasteSegment> {
                 push_text_segment(&mut segments, &mut text);
                 segments.push(MixedPasteSegment::Image);
             }
-            "br" | "p" | "div" | "li" | "tr" | "td" | "th" | "blockquote" | "h1" | "h2"
-            | "h3" | "h4" | "h5" | "h6" => {
+            "br" | "p" | "div" | "li" | "tr" | "td" | "th" | "blockquote" | "h1" | "h2" | "h3"
+            | "h4" | "h5" | "h6" => {
                 if !text.ends_with('\n') {
                     text.push('\n');
                 }
@@ -372,7 +372,9 @@ pub(crate) fn build_mixed_item_html(
 ) -> Option<String> {
     if let Some(html) = item.html_text.as_deref().filter(|value| !value.is_empty()) {
         if let Some(image_src) = item.image_path.as_deref().and_then(file_uri_from_path) {
-            return Some(ensure_cf_html(&rewrite_html_image_sources(html, &image_src)));
+            return Some(ensure_cf_html(&rewrite_html_image_sources(
+                html, &image_src,
+            )));
         }
         return Some(ensure_cf_html(html));
     }

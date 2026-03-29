@@ -1,9 +1,4 @@
-use std::{
-    sync::{
-        atomic::Ordering,
-        Arc, Mutex,
-    },
-};
+use std::sync::{atomic::Ordering, Arc, Mutex};
 
 use anyhow::{Context, Result};
 use tauri::{
@@ -14,8 +9,7 @@ use tauri::{
 
 #[cfg(windows)]
 use webview2_com::{
-    ContextMenuRequestedEventHandler,
-    Microsoft::Web::WebView2::Win32::ICoreWebView2_11,
+    ContextMenuRequestedEventHandler, Microsoft::Web::WebView2::Win32::ICoreWebView2_11,
 };
 #[cfg(windows)]
 use windows_core::Interface;
@@ -173,12 +167,14 @@ fn tray_label(locale: &str, key: &str) -> &'static str {
     if locale == "zh-CN" {
         match key {
             "show" => "显示 Power Paste",
+            "devtools" => "打开 DevTools",
             "quit" => "退出",
             _ => "",
         }
     } else {
         match key {
             "show" => "Show Power Paste",
+            "devtools" => "Open DevTools",
             "quit" => "Quit",
             _ => "",
         }
@@ -195,8 +191,15 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
     let version_text = format!("{version_prefix} {}", app.package_info().version);
     let version = MenuItem::with_id(app, "version", version_text, false, None::<&str>)?;
     let show = MenuItem::with_id(app, "show", tray_label(locale, "show"), true, None::<&str>)?;
+    let devtools = MenuItem::with_id(
+        app,
+        "devtools",
+        tray_label(locale, "devtools"),
+        true,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", tray_label(locale, "quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit, &version])?;
+    let menu = Menu::with_items(app, &[&show, &devtools, &quit, &version])?;
 
     let mut builder = TrayIconBuilder::with_id("power-paste-tray")
         .menu(&menu)
@@ -204,6 +207,16 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
         .on_menu_event(|app, event| match event.id().0.as_str() {
             "show" => {
                 let _ = toggle_panel(app);
+            }
+            "devtools" => {
+                if let Some(window) = app.get_webview_window(PANEL_LABEL) {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                    if !window.is_devtools_open() {
+                        window.open_devtools();
+                    }
+                }
             }
             "quit" => app.exit(0),
             _ => {}
