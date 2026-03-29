@@ -37,10 +37,8 @@ pub(crate) const DEBUG_CONTEXT_MENU_INIT_SCRIPT: &str = r#"
 })();
 "#;
 
-#[cfg(windows)]
 pub(crate) const CF_DIB: u32 = 8;
 
-#[cfg(windows)]
 pub(crate) type HwndRaw = isize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

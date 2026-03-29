@@ -2,11 +2,13 @@ use std::{fs, thread, time::Duration};
 
 use anyhow::Result;
 
+use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
+
+#[cfg(windows)]
 use crate::{
     clipboard_html::{build_mixed_item_html, ensure_cf_html},
-    models::{ClipboardTargetProfile, StoredClipboardItem, CF_DIB},
+    models::CF_DIB,
 };
-
 #[cfg(windows)]
 use std::{mem, os::windows::ffi::OsStrExt};
 #[cfg(windows)]

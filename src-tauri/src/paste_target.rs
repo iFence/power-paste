@@ -1,9 +1,14 @@
 use std::{path::PathBuf, sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
-use tauri::{AppHandle, Manager};
+#[cfg(windows)]
+use tauri::Manager;
+use tauri::AppHandle;
 
-use crate::models::{ClipboardTargetProfile, HwndRaw, SharedState, StoredClipboardItem, PANEL_LABEL};
+use crate::models::{ClipboardTargetProfile, SharedState, StoredClipboardItem};
+
+#[cfg(windows)]
+use crate::models::{HwndRaw, PANEL_LABEL};
 
 #[cfg(windows)]
 use std::mem;
