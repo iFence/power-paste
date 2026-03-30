@@ -1144,7 +1144,8 @@ select {
 .setting-card > .select-wrap,
 .setting-card > .custom-select,
 .setting-card > .setting-toggle,
-.setting-card > .input-with-unit {
+.setting-card > .input-with-unit,
+.setting-card > .setting-actions {
   min-width: 0;
   width: 100%;
   max-width: 208px;
@@ -1163,6 +1164,25 @@ select {
   color: var(--app-muted);
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+.setting-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.setting-actions .ghost,
+.setting-actions .primary {
+  min-width: 0;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  font-size: 0.78rem;
+}
+
+.update-card .setting-head {
+  gap: 4px;
 }
 
 textarea {
@@ -1395,6 +1415,24 @@ textarea {
 
   .search {
     min-width: 0;
+  }
+
+  .setting-card {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-card > .setting-toggle,
+  .setting-card > .input-with-unit,
+  .setting-card > .custom-select,
+  .setting-card > input,
+  .setting-card > .setting-actions {
+    max-width: none;
+    justify-self: stretch;
+  }
+
+  .setting-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .searchbar-shell {

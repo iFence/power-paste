@@ -1,17 +1,19 @@
 <script setup>
 import { onMounted, onUnmounted, watch } from "vue";
-import { onHistoryUpdated } from "./services/tauriApi";
+import { onHistoryUpdated, onUpdateStatus } from "./services/tauriApi";
 import SearchBar from "./components/SearchBar.vue";
 import FilterTabs from "./components/FilterTabs.vue";
 import HistoryList from "./components/HistoryList.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import EditModal from "./components/EditModal.vue";
 import { useSettings } from "./composables/useSettings";
+import { useUpdater } from "./composables/useUpdater";
 import { useHistory } from "./composables/useHistory";
 import { useTheme } from "./composables/useTheme";
 import { useKeyboardShortcuts } from "./composables/useKeyboardShortcuts";
 
 const settingsState = useSettings();
+const updaterState = useUpdater({ t: settingsState.t });
 const historyState = useHistory({
   platformCapabilities: settingsState.platformCapabilities,
   settings: settingsState.settings,
@@ -44,21 +46,29 @@ watch(settingsState.currentLocale, (locale) => {
   document.documentElement.lang = locale;
 });
 
-let unlisten = null;
+let unlistenHistory = null;
+let unlistenUpdate = null;
 
 onMounted(async () => {
   await settingsState.loadAppVersion();
   await settingsState.loadPlatformCapabilities();
   await settingsState.refreshSettings();
+  await updaterState.refreshUpdateState();
   await historyState.refreshHistory();
   document.documentElement.lang = settingsState.currentLocale.value;
-  unlisten = await onHistoryUpdated(async () => {
+  unlistenHistory = await onHistoryUpdated(async () => {
     await historyState.refreshHistory();
+  });
+  unlistenUpdate = await onUpdateStatus((event) => {
+    if (event?.payload) {
+      updaterState.applyUpdateState(event.payload);
+    }
   });
 });
 
 onUnmounted(() => {
-  unlisten?.();
+  unlistenHistory?.();
+  unlistenUpdate?.();
 });
 </script>
 
@@ -141,6 +151,13 @@ onUnmounted(() => {
       :current-locale="settingsState.currentLocale.value"
       :current-theme-mode-options="settingsState.currentThemeModeOptions.value"
       :can-toggle-launch-on-startup="settingsState.canToggleLaunchOnStartup.value"
+      :auto-check-updates-toggle-index="settingsState.autoCheckUpdatesToggleIndex.value"
+      :check-for-updates="updaterState.runUpdateCheck"
+      :install-update="updaterState.runUpdateInstall"
+      :update-busy="updaterState.updateBusy.value"
+      :update-state="updaterState.updateState.value"
+      :update-status-message="updaterState.statusMessage.value"
+      :can-install-update="updaterState.canInstallUpdate.value"
       :debug-toggle-index="settingsState.debugToggleIndex.value"
       :end-shortcut-recording="settingsState.endShortcutRecording"
       :handle-shortcut-keydown="settingsState.handleShortcutKeydown"

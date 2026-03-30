@@ -7,11 +7,13 @@ use std::{
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use tauri_plugin_updater::Update;
 
 pub(crate) const HISTORY_FILE: &str = "history.json";
 pub(crate) const SETTINGS_FILE: &str = "settings.json";
 pub(crate) const IMAGE_DIR: &str = "images";
 pub(crate) const HISTORY_UPDATED_EVENT: &str = "history-updated";
+pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const PANEL_LABEL: &str = "main";
 pub(crate) const WINDOWS_RUN_KEY: &str = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 pub(crate) const WINDOWS_RUN_VALUE_NAME: &str = "Power Paste";
@@ -84,6 +86,7 @@ impl serde::Serialize for AppError {
 pub(crate) struct AppSettings {
     pub(crate) debug_enabled: bool,
     pub(crate) launch_on_startup: bool,
+    pub(crate) auto_check_updates: bool,
     pub(crate) polling_interval_ms: u64,
     pub(crate) max_history_items: usize,
     pub(crate) max_image_bytes: usize,
@@ -104,6 +107,7 @@ impl Default for AppSettings {
         Self {
             debug_enabled: false,
             launch_on_startup: false,
+            auto_check_updates: true,
             polling_interval_ms: 500,
             max_history_items: 200,
             max_image_bytes: 6_000_000,
@@ -191,13 +195,42 @@ pub(crate) struct MonitorState {
     pub(crate) last_target_app_name: Option<String>,
 }
 
-#[derive(Debug)]
 pub(crate) struct SharedState {
     pub(crate) paths: StoragePaths,
     pub(crate) settings: Arc<Mutex<AppSettings>>,
     pub(crate) history: Arc<Mutex<Vec<StoredClipboardItem>>>,
     pub(crate) monitor: Arc<Mutex<MonitorState>>,
     pub(crate) debug_context_menu_enabled: Arc<AtomicBool>,
+    pub(crate) update_status: Arc<Mutex<UpdateStatus>>,
+    pub(crate) pending_update: Arc<Mutex<Option<Update>>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UpdateStatus {
+    pub(crate) status: String,
+    pub(crate) current_version: String,
+    pub(crate) latest_version: Option<String>,
+    pub(crate) body: Option<String>,
+    pub(crate) published_at: Option<String>,
+    pub(crate) downloaded_bytes: Option<u64>,
+    pub(crate) content_length: Option<u64>,
+    pub(crate) error: Option<String>,
+}
+
+impl UpdateStatus {
+    pub(crate) fn idle(current_version: String) -> Self {
+        Self {
+            status: "idle".into(),
+            current_version,
+            latest_version: None,
+            body: None,
+            published_at: None,
+            downloaded_bytes: None,
+            content_length: None,
+            error: None,
+        }
+    }
 }
 
 #[derive(Debug)]

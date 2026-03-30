@@ -22,6 +22,7 @@ export function useSettings() {
   const settings = reactive({
     debugEnabled: false,
     launchOnStartup: false,
+    autoCheckUpdates: true,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
     maxImageBytes: 6_000_000,
@@ -61,6 +62,7 @@ export function useSettings() {
   );
   const debugToggleIndex = computed(() => (settings.debugEnabled ? 0 : 1));
   const launchToggleIndex = computed(() => (settings.launchOnStartup ? 0 : 1));
+  const autoCheckUpdatesToggleIndex = computed(() => (settings.autoCheckUpdates ? 0 : 1));
   const canToggleLaunchOnStartup = computed(
     () => platformCapabilities.value.supportsLaunchOnStartup,
   );
@@ -228,6 +230,7 @@ export function useSettings() {
 
   return {
     appVersion,
+    autoCheckUpdatesToggleIndex,
     beginShortcutRecording,
     canToggleLaunchOnStartup,
     chooseSelectOption,

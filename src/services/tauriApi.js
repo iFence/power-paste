@@ -10,6 +10,10 @@ export function onHistoryUpdated(handler) {
   return listen("history-updated", handler);
 }
 
+export function onUpdateStatus(handler) {
+  return listen("update-status", handler);
+}
+
 export function getHistory(payload) {
   return invoke("get_history", payload);
 }
@@ -20,6 +24,18 @@ export function getSettings() {
 
 export function getPlatformCapabilities() {
   return invoke("get_platform_capabilities");
+}
+
+export function getUpdateState() {
+  return invoke("get_update_state");
+}
+
+export function checkForUpdates() {
+  return invoke("check_for_updates");
+}
+
+export function installUpdate() {
+  return invoke("install_update");
 }
 
 export function updateSettings(payload) {

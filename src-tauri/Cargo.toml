@@ -24,6 +24,7 @@ sha2 = "0.10"
 tauri = { version = "2.10.3", features = ["tray-icon", "image-png", "devtools"] }
 tauri-plugin-global-shortcut = "2.3.0"
 tauri-plugin-single-instance = "2.4.0"
+tauri-plugin-updater = { version = "2.9.1", features = ["rustls-tls"], default-features = false }
 thiserror = "2.0"
 uuid = { version = "1.10", features = ["v4", "serde"] }
 

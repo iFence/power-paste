@@ -1,8 +1,11 @@
 <script setup>
 defineProps({
   appVersion: { type: String, required: true },
+  autoCheckUpdatesToggleIndex: { type: Number, required: true },
   beginShortcutRecording: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
+  canInstallUpdate: { type: Boolean, required: true },
+  checkForUpdates: { type: Function, required: true },
   chooseSelectOption: { type: Function, required: true },
   closeSelect: { type: Function, required: true },
   currentAccentColorOptions: { type: Array, required: true },
@@ -28,6 +31,10 @@ defineProps({
   showSettings: { type: Boolean, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
+  installUpdate: { type: Function, required: true },
+  updateBusy: { type: Boolean, required: true },
+  updateState: { type: Object, required: true },
+  updateStatusMessage: { type: String, required: true },
 });
 
 const emit = defineEmits(["close"]);
@@ -178,6 +185,38 @@ const emit = defineEmits(["close"]);
 
         <section class="setting-card">
           <div class="setting-head">
+            <span class="meta-label">{{ t("autoCheckUpdates") }}</span>
+            <span class="setting-note">
+              {{ t("autoCheckUpdatesHint") }}
+            </span>
+          </div>
+          <div
+            class="setting-toggle"
+            role="group"
+            :aria-label="t('autoCheckUpdates')"
+            :style="segmentedToggleStyle(autoCheckUpdatesToggleIndex, 2)"
+          >
+            <button
+              type="button"
+              class="setting-toggle-option"
+              :class="{ active: settings.autoCheckUpdates }"
+              @click="settings.autoCheckUpdates = true"
+            >
+              {{ t("toggleOn") }}
+            </button>
+            <button
+              type="button"
+              class="setting-toggle-option"
+              :class="{ active: !settings.autoCheckUpdates }"
+              @click="settings.autoCheckUpdates = false"
+            >
+              {{ t("toggleOff") }}
+            </button>
+          </div>
+        </section>
+
+        <section class="setting-card">
+          <div class="setting-head">
             <span class="meta-label">{{ t("maxHistoryItems") }}</span>
           </div>
           <input v-model.number="settings.maxHistoryItems" type="number" min="50" max="2000" step="50" />
@@ -242,6 +281,32 @@ const emit = defineEmits(["close"]);
               @click="settings.debugEnabled = false"
             >
               {{ t("toggleOff") }}
+            </button>
+          </div>
+        </section>
+
+        <section class="setting-card wide update-card">
+          <div class="setting-head">
+            <span class="meta-label">{{ t("checkForUpdates") }}</span>
+            <span class="setting-note">
+              {{ t("currentVersionLabel", { version: updateState.currentVersion || appVersion || "--" }) }}
+            </span>
+            <span class="setting-note">{{ updateStatusMessage }}</span>
+            <span v-if="updateState.latestVersion" class="setting-note">
+              {{ t("latestVersionLabel", { version: updateState.latestVersion }) }}
+            </span>
+          </div>
+          <div class="setting-actions">
+            <button class="ghost" type="button" :disabled="updateBusy" @click="checkForUpdates">
+              {{ t("checkForUpdates") }}
+            </button>
+            <button
+              class="primary"
+              type="button"
+              :disabled="updateBusy || !canInstallUpdate"
+              @click="installUpdate"
+            >
+              {{ t("downloadAndInstall") }}
             </button>
           </div>
         </section>
