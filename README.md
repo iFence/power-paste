@@ -1,7 +1,6 @@
 # Power Paste
 
 Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`, and `Rust`.
-It is currently feature-complete on Windows and intentionally degrades on macOS and Linux while native support is still being built.
 
 ## Platform Status
 

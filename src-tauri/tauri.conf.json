@@ -9,6 +9,14 @@
     "beforeDevCommand": "node scripts/tauri-dev-server.mjs",
     "beforeBuildCommand": "pnpm build"
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwN0RGOTQ1MUNDRTJFMTIKUldRU0xzNGNSZmw5NEdrZDJRNmpIZVBGZHVNejdDSFFyVGFsNXJ1bjNpU252TEF5QlV2Z0RqTUoK",
+      "endpoints": [
+        "https://github.com/iFence/power-paste/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "app": {
     "windows": [
       {

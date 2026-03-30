@@ -1,7 +1,6 @@
 # Power Paste
 
 Power Paste 是一个基于 `Tauri 2`、`Vue 3` 和 `Rust` 构建的桌面剪贴板历史管理器。
-当前版本以 Windows 为完整功能平台，同时为后续的 macOS 和 Linux 原生支持预留了跨平台打包与降级分支。
 
 ## 平台状态
 
