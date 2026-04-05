@@ -80,26 +80,6 @@ const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-p
     <footer class="entry-footer">
       <div class="entry-actions">
         <button
-          class="entry-action-button icon-only"
-          type="button"
-          :title="canClipboardWrite ? t('copy') : unsupportedClipboardWriteMessage"
-          :aria-label="canClipboardWrite ? t('copy') : unsupportedClipboardWriteMessage"
-          :disabled="!canClipboardWrite"
-          @mousedown.stop
-          @click.stop="emit('copy', item.id)"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M5 3.2A1.8 1.8 0 0 1 6.8 1.4h4.1a1.8 1.8 0 0 1 1.8 1.8v4.1a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 7.3V3.2Zm1.2.1v4a.6.6 0 0 0 .6.6h4a.6.6 0 0 0 .6-.6v-4a.6.6 0 0 0-.6-.6h-4a.6.6 0 0 0-.6.6Z"
-              fill="currentColor"
-            />
-            <path
-              d="M3.3 5A1.3 1.3 0 0 0 2 6.3v5.4A1.3 1.3 0 0 0 3.3 13h5.4A1.3 1.3 0 0 0 10 11.7v-.6H8.8v.6a.1.1 0 0 1-.1.1H3.3a.1.1 0 0 1-.1-.1V6.3a.1.1 0 0 1 .1-.1h.6V5h-.6Z"
-              fill="currentColor"
-            />
-          </svg>
-        </button>
-        <button
           class="entry-action-button icon-only pin-action"
           :class="{ active: item.pinned }"
           type="button"
@@ -108,7 +88,12 @@ const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-p
           @mousedown.stop
           @click.stop="emit('toggle-pin', item.id)"
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            class="pin-action-icon"
+            :class="{ active: item.pinned }"
+          >
             <path
               d="M5.2 2.5h5.6l-.8 3 1.9 1.9v1H8.8v4.8l-.8.8-.8-.8V8.4H4.1v-1L6 5.5l-.8-3Z"
               :fill="item.pinned ? 'currentColor' : 'none'"
@@ -120,31 +105,31 @@ const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-p
         </button>
         <button
           v-if="item.kind === 'text'"
-          class="entry-action-button icon-only"
+          class="entry-action-button icon-only edit-action"
           type="button"
           :title="t('editItem')"
           :aria-label="t('editItem')"
           @mousedown.stop
           @click.stop="emit('edit', item)"
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
+          <svg viewBox="0 0 1024 1024" aria-hidden="true">
             <path
-              d="M11.9 2.3 13.7 4a1 1 0 0 1 0 1.4l-6.8 6.8-2.8.9.9-2.8 6.8-6.8a1 1 0 0 1 1.4 0ZM4.8 10.7l.5.5 5.9-5.9-.5-.5-5.9 5.9Z"
+              d="M884.010667 299.989333l-77.994667 77.994667-160-160 77.994667-77.994667q11.989333-11.989333 29.994667-11.989333t29.994667 11.989333l100.010667 100.010667q11.989333 11.989333 11.989333 29.994667t-11.989333 29.994667zM128 736l472.021333-472.021333 160 160-472.021333 472.021333-160 0 0-160z"
               fill="currentColor"
             />
           </svg>
         </button>
         <button
-          class="entry-action-button icon-only danger"
+          class="entry-action-button icon-only danger delete-action"
           type="button"
           :title="t('deleteItem')"
           :aria-label="t('deleteItem')"
           @mousedown.stop
           @click.stop="emit('remove', item.id)"
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
+          <svg viewBox="0 0 1024 1024" aria-hidden="true" class="delete-action-icon">
             <path
-              d="M6.2 2.5h3.6l.5 1.3h2.2v1.1H3.5V3.8h2.2l.5-1.3Zm-1 3.1h5.6l-.5 7.2a1 1 0 0 1-1 .9H6.7a1 1 0 0 1-1-.9l-.5-7.2Zm1.8 1.3v4.8h1.1V6.9H7Zm2 0v4.8h1.1V6.9H9Z"
+              d="M896 352l-73.792 556.608A96 96 0 0 1 727.04 992H296.96a96 96 0 0 1-95.168-83.392L128 352h768zM528 32A80 80 0 0 1 608 112V128h288a64 64 0 1 1 0 128H128a64 64 0 1 1 0-128h320v-16A80 80 0 0 1 528 32z"
               fill="currentColor"
             />
           </svg>

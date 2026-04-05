@@ -22,7 +22,6 @@ export function useSettings() {
   const settings = reactive({
     debugEnabled: false,
     launchOnStartup: false,
-    autoCheckUpdates: true,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
     maxImageBytes: 6_000_000,
@@ -41,10 +40,15 @@ export function useSettings() {
   const appVersion = ref("");
   const platformCapabilities = ref({
     platform: "windows",
-    supportsClipboardWrite: true,
+    supportsClipboardRead: true,
+    supportsClipboardWatch: true,
+    supportsTextWrite: true,
+    supportsHtmlWrite: true,
+    supportsImageWrite: true,
     supportsDirectPaste: true,
     supportsLaunchOnStartup: true,
     supportsMixedReplay: true,
+    preferredClipboardBackend: "plugin+native-fallback",
   });
 
   const currentLocale = computed(() => settings.locale || "zh-CN");
@@ -62,7 +66,6 @@ export function useSettings() {
   );
   const debugToggleIndex = computed(() => (settings.debugEnabled ? 0 : 1));
   const launchToggleIndex = computed(() => (settings.launchOnStartup ? 0 : 1));
-  const autoCheckUpdatesToggleIndex = computed(() => (settings.autoCheckUpdates ? 0 : 1));
   const canToggleLaunchOnStartup = computed(
     () => platformCapabilities.value.supportsLaunchOnStartup,
   );
@@ -192,10 +195,15 @@ export function useSettings() {
   async function loadPlatformCapabilities() {
     platformCapabilities.value = await fetchPlatformCapabilities().catch(() => ({
       platform: "unknown",
-      supportsClipboardWrite: false,
+      supportsClipboardRead: false,
+      supportsClipboardWatch: false,
+      supportsTextWrite: false,
+      supportsHtmlWrite: false,
+      supportsImageWrite: false,
       supportsDirectPaste: false,
       supportsLaunchOnStartup: false,
       supportsMixedReplay: false,
+      preferredClipboardBackend: "unsupported",
     }));
   }
 
@@ -230,7 +238,6 @@ export function useSettings() {
 
   return {
     appVersion,
-    autoCheckUpdatesToggleIndex,
     beginShortcutRecording,
     canToggleLaunchOnStartup,
     chooseSelectOption,

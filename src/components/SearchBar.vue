@@ -37,15 +37,15 @@ const emit = defineEmits(["update:query"]);
         </svg>
       </button>
       <button
-        class="toolbar-icon-button danger"
+        class="toolbar-icon-button danger clear-history-button"
         type="button"
         :title="clearLabel"
         :aria-label="clearLabel"
         @click="onClear"
       >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
+        <svg viewBox="0 0 1024 1024" aria-hidden="true" class="delete-action-icon">
           <path
-            d="M6.2 2.5h3.6l.5 1.3h2.2v1.1H3.5V3.8h2.2l.5-1.3Zm-1 3.1h5.6l-.5 7.2a1 1 0 0 1-1 .9H6.7a1 1 0 0 1-1-.9l-.5-7.2Zm1.8 1.3v4.8h1.1V6.9H7Zm2 0v4.8h1.1V6.9H9Z"
+            d="M896 352l-73.792 556.608A96 96 0 0 1 727.04 992H296.96a96 96 0 0 1-95.168-83.392L128 352h768zM528 32A80 80 0 0 1 608 112V128h288a64 64 0 1 1 0 128H128a64 64 0 1 1 0-128h320v-16A80 80 0 0 1 528 32z"
             fill="currentColor"
           />
         </svg>

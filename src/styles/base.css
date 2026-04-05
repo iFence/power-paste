@@ -629,6 +629,15 @@ select {
   height: 16px;
 }
 
+.edit-action {
+  color: var(--accent-primary);
+}
+
+.delete-action,
+.danger {
+  color: #d95043;
+}
+
 .entry-action-button.active {
   color: inherit;
 }
@@ -642,8 +651,25 @@ select {
   color: var(--accent-primary);
 }
 
-.danger {
-  color: #ffb5a0;
+.pin-action-icon {
+  transform: rotate(45deg);
+  transform-origin: center;
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 180ms ease;
+  will-change: transform;
+}
+
+.pin-action-icon.active {
+  transform: rotate(0deg);
+}
+
+.entry-action-button svg.delete-action-icon,
+.toolbar-icon-button svg.delete-action-icon {
+  width: 16px;
+  height: 16px;
+  transform: scaleX(0.8);
+  transform-origin: center;
 }
 
 .toolbar-icon-button svg,
@@ -1280,8 +1306,9 @@ textarea {
   transform: translateY(-1px);
 }
 
+:root[data-theme="light"] .delete-action,
 :root[data-theme="light"] .danger {
-  color: #b5453e;
+  color: #c43f33;
 }
 
 :root[data-theme="light"] .traffic-light,

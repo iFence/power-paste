@@ -122,7 +122,11 @@ onUnmounted(() => {
       />
 
       <HistoryList
-        :can-clipboard-write="settingsState.platformCapabilities.value.supportsClipboardWrite"
+        :can-clipboard-write="
+          settingsState.platformCapabilities.value.supportsTextWrite ||
+          settingsState.platformCapabilities.value.supportsHtmlWrite ||
+          settingsState.platformCapabilities.value.supportsImageWrite
+        "
         :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
         :history-count-label="historyState.historyCountLabel.value"
         :history-panel-ref="historyState.historyPanelRef"
@@ -151,7 +155,6 @@ onUnmounted(() => {
       :current-locale="settingsState.currentLocale.value"
       :current-theme-mode-options="settingsState.currentThemeModeOptions.value"
       :can-toggle-launch-on-startup="settingsState.canToggleLaunchOnStartup.value"
-      :auto-check-updates-toggle-index="settingsState.autoCheckUpdatesToggleIndex.value"
       :check-for-updates="updaterState.runUpdateCheck"
       :install-update="updaterState.runUpdateInstall"
       :update-busy="updaterState.updateBusy.value"

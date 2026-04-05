@@ -1,7 +1,6 @@
 <script setup>
 defineProps({
   appVersion: { type: String, required: true },
-  autoCheckUpdatesToggleIndex: { type: Number, required: true },
   beginShortcutRecording: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
   canInstallUpdate: { type: Boolean, required: true },
@@ -185,38 +184,6 @@ const emit = defineEmits(["close"]);
 
         <section class="setting-card">
           <div class="setting-head">
-            <span class="meta-label">{{ t("autoCheckUpdates") }}</span>
-            <span class="setting-note">
-              {{ t("autoCheckUpdatesHint") }}
-            </span>
-          </div>
-          <div
-            class="setting-toggle"
-            role="group"
-            :aria-label="t('autoCheckUpdates')"
-            :style="segmentedToggleStyle(autoCheckUpdatesToggleIndex, 2)"
-          >
-            <button
-              type="button"
-              class="setting-toggle-option"
-              :class="{ active: settings.autoCheckUpdates }"
-              @click="settings.autoCheckUpdates = true"
-            >
-              {{ t("toggleOn") }}
-            </button>
-            <button
-              type="button"
-              class="setting-toggle-option"
-              :class="{ active: !settings.autoCheckUpdates }"
-              @click="settings.autoCheckUpdates = false"
-            >
-              {{ t("toggleOff") }}
-            </button>
-          </div>
-        </section>
-
-        <section class="setting-card">
-          <div class="setting-head">
             <span class="meta-label">{{ t("maxHistoryItems") }}</span>
           </div>
           <input v-model.number="settings.maxHistoryItems" type="number" min="50" max="2000" step="50" />
@@ -226,7 +193,11 @@ const emit = defineEmits(["close"]);
           <div class="setting-head">
             <span class="meta-label">{{ t("maxImageBytes") }} ({{ t("megabytesShort") }})</span>
             <span
-              v-if="!platformCapabilities.supportsClipboardWrite"
+              v-if="!(
+                platformCapabilities.supportsTextWrite ||
+                platformCapabilities.supportsHtmlWrite ||
+                platformCapabilities.supportsImageWrite
+              )"
               class="setting-note"
             >
               {{ t("unsupportedClipboardWrite") }}

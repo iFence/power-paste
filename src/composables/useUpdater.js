@@ -6,13 +6,24 @@ import {
 } from "../services/tauriApi";
 
 function formatErrorMessage(error) {
-  if (typeof error === "string") {
-    return error;
+  const raw =
+    typeof error === "string"
+      ? error
+      : error && typeof error === "object" && typeof error.message === "string"
+        ? error.message
+        : "";
+
+  if (!raw) {
+    return "";
   }
-  if (error && typeof error === "object" && typeof error.message === "string") {
-    return error.message;
+
+  if (
+    raw.includes("https://github.com/iFence/power-paste/releases/latest/download/latest.json")
+  ) {
+    return "Unable to load latest.json from GitHub Releases. Confirm the tagged release is published instead of draft, and that the latest release includes the updater artifacts.";
   }
-  return "";
+
+  return raw.replace("error sendingrequest", "error sending request");
 }
 
 export function useUpdater({ t }) {
