@@ -3,7 +3,6 @@ defineProps({
   appVersion: { type: String, required: true },
   beginShortcutRecording: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
-  canInstallUpdate: { type: Boolean, required: true },
   checkForUpdates: { type: Function, required: true },
   chooseSelectOption: { type: Function, required: true },
   closeSelect: { type: Function, required: true },
@@ -30,7 +29,6 @@ defineProps({
   showSettings: { type: Boolean, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
-  installUpdate: { type: Function, required: true },
   updateBusy: { type: Boolean, required: true },
   updateState: { type: Object, required: true },
   updateStatusMessage: { type: String, required: true },
@@ -68,7 +66,7 @@ const emit = defineEmits(["close"]);
               :class="{ active: settings.locale === option.value }"
               @click="settings.locale = option.value"
             >
-              {{ option.value === "zh-CN" ? "ZH" : "EN" }}
+              {{ option.value === "zh-CN" ? "中" : "EN" }}
             </button>
           </div>
         </section>
@@ -270,14 +268,6 @@ const emit = defineEmits(["close"]);
           <div class="setting-actions">
             <button class="ghost" type="button" :disabled="updateBusy" @click="checkForUpdates">
               {{ t("checkForUpdates") }}
-            </button>
-            <button
-              class="primary"
-              type="button"
-              :disabled="updateBusy || !canInstallUpdate"
-              @click="installUpdate"
-            >
-              {{ t("downloadAndInstall") }}
             </button>
           </div>
         </section>

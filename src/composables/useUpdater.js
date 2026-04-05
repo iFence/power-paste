@@ -87,7 +87,17 @@ export function useUpdater({ t }) {
 
   async function runUpdateCheck() {
     try {
-      applyUpdateState(await checkForUpdates());
+      const nextState = await checkForUpdates();
+      applyUpdateState(nextState);
+
+      if (nextState.status === "available") {
+        const message = nextState.latestVersion
+          ? t("updateConfirmInstallVersion", { version: nextState.latestVersion })
+          : t("updateConfirmInstall");
+        if (window.confirm(message)) {
+          await runUpdateInstall();
+        }
+      }
     } catch (error) {
       applyUpdateState({
         status: "error",
