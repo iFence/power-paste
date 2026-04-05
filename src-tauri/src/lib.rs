@@ -8,6 +8,7 @@ use std::os::windows::process::CommandExt;
 
 use anyhow::{Context, Result};
 use tauri::Manager;
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 #[cfg(windows)]
 use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
@@ -15,12 +16,13 @@ use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
 use windows_core::Interface;
 
 mod capture;
+mod clipboard;
 mod clipboard_html;
-mod clipboard_write;
 mod commands;
 mod history;
 mod models;
 mod paste_target;
+mod repository;
 mod runtime;
 mod startup;
 mod storage;
@@ -32,9 +34,10 @@ use commands::{
     paste_item, toggle_favorite, toggle_pin, update_settings, update_text_item,
 };
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, DEBUG_CONTEXT_MENU_INIT_SCRIPT};
+use repository::SqliteHistoryStore;
 use runtime::{configure_window, toggle_panel};
 use startup::set_launch_on_startup;
-use storage::{load_history, load_settings, preview_text, save_history, save_settings, sha256_hex};
+use storage::{load_settings, save_settings};
 
 #[cfg(windows)]
 fn powershell(script: &str) -> Result<String> {
@@ -119,6 +122,12 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let _ = toggle_panel(app);
         }))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None::<Vec<&'static str>>,
+        ))
+        .plugin(tauri_plugin_clipboard_next::init())
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -133,11 +142,14 @@ pub fn run() {
             let root = app.path().app_local_data_dir()?;
             let paths = StoragePaths::new(root)?;
             let settings = Arc::new(Mutex::new(load_settings(&paths).unwrap_or_default()));
-            let history = Arc::new(Mutex::new(load_history(&paths)?));
+            let history_store = SqliteHistoryStore::new(&paths)?;
+            let history = Arc::new(Mutex::new(history_store.list_all()?));
+            let history_store = Arc::new(Mutex::new(history_store));
 
             let shared = Arc::new(SharedState {
                 paths,
                 settings: settings.clone(),
+                history_store: history_store.clone(),
                 history: history.clone(),
                 monitor: Arc::new(Mutex::new(MonitorState::default())),
                 debug_context_menu_enabled: Arc::new(AtomicBool::new(
@@ -150,7 +162,7 @@ pub fn run() {
             });
 
             let launch_on_startup = settings.lock().unwrap().launch_on_startup;
-            let _ = set_launch_on_startup(launch_on_startup);
+            let _ = set_launch_on_startup(app.handle(), launch_on_startup);
 
             configure_window(app.handle(), shared.clone())?;
             let locale = settings.lock().unwrap().locale.clone();

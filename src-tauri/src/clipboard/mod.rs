@@ -1,0 +1,52 @@
+mod backend;
+mod capabilities;
+mod capture_router;
+mod native_writer;
+mod payload;
+mod plugin_reader;
+mod plugin_writer;
+
+use anyhow::Result;
+use tauri::AppHandle;
+
+use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
+
+use self::payload::{payload_for_item, ClipboardPayload};
+
+pub(crate) use native_writer::write_image_to_clipboard;
+pub(crate) use capture_router::capture_clipboard;
+pub(crate) use capabilities::platform_capabilities;
+pub(crate) use plugin_writer::{write_image as write_image_with_plugin, write_text as write_text_with_plugin};
+
+pub(crate) fn write_item_to_clipboard_with_profile(
+    app: &AppHandle,
+    item: &StoredClipboardItem,
+    profile: ClipboardTargetProfile,
+) -> Result<()> {
+    let payload = payload_for_item(item);
+
+    match backend::preferred_backend_for_payload(&payload) {
+        crate::models::ClipboardBackend::Plugin => plugin_writer::write_payload(app, &payload),
+        crate::models::ClipboardBackend::NativeFallback => native_writer::write_payload(item, profile, &payload)
+            .or_else(|_| plugin_writer::write_payload(app, &plugin_fallback_payload(payload))),
+    }
+}
+
+fn plugin_fallback_payload(payload: ClipboardPayload) -> ClipboardPayload {
+    match payload {
+        ClipboardPayload::Mixed {
+            text,
+            html,
+            png_bytes,
+        } => {
+            if let Some(html) = html {
+                ClipboardPayload::Html { text, html }
+            } else if let Some(text) = text {
+                ClipboardPayload::Text { text }
+            } else {
+                ClipboardPayload::Image { png_bytes }
+            }
+        }
+        other => other,
+    }
+}

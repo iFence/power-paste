@@ -1,5 +1,3 @@
-use std::{fs, path::PathBuf};
-
 use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
 
 // Pure helpers for CF_HTML generation and mixed text/image payload reconstruction.
@@ -53,45 +51,6 @@ pub(crate) fn ensure_cf_html(html: &str) -> String {
     } else {
         build_cf_html(html)
     }
-}
-
-fn encode_file_uri_component(text: &str) -> String {
-    let mut encoded = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        match byte {
-            b'A'..=b'Z'
-            | b'a'..=b'z'
-            | b'0'..=b'9'
-            | b'-'
-            | b'_'
-            | b'.'
-            | b'~'
-            | b'/'
-            | b':'
-            | b'!'
-            | b'$'
-            | b'&'
-            | b'('
-            | b')'
-            | b'*'
-            | b'+'
-            | b','
-            | b';'
-            | b'='
-            | b'@' => encoded.push(byte as char),
-            _ => encoded.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    encoded
-}
-
-fn file_uri_from_path(path: &str) -> Option<String> {
-    let absolute = fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
-    let raw = absolute.to_string_lossy().replace('\\', "/");
-    if raw.is_empty() {
-        return None;
-    }
-    Some(format!("file:///{}", encode_file_uri_component(&raw)))
 }
 
 // Rewrites any <img> tag source so stored HTML can point at local image files when replayed.
@@ -371,7 +330,7 @@ pub(crate) fn build_mixed_item_html(
     profile: ClipboardTargetProfile,
 ) -> Option<String> {
     if let Some(html) = item.html_text.as_deref().filter(|value| !value.is_empty()) {
-        if let Some(image_src) = item.image_path.as_deref().and_then(file_uri_from_path) {
+        if let Some(image_src) = item.image_data_url() {
             return Some(ensure_cf_html(&rewrite_html_image_sources(
                 html, &image_src,
             )));
@@ -392,11 +351,7 @@ pub(crate) fn build_mixed_item_html(
     let image_src = match profile {
         ClipboardTargetProfile::Office
         | ClipboardTargetProfile::Wps
-        | ClipboardTargetProfile::Generic => item
-            .image_path
-            .as_deref()
-            .and_then(file_uri_from_path)
-            .or_else(|| item.image_data_url.clone()),
+        | ClipboardTargetProfile::Generic => item.image_data_url(),
         ClipboardTargetProfile::Markdown | ClipboardTargetProfile::Chat => None,
     };
 

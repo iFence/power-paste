@@ -5,7 +5,7 @@ use image::load_from_memory;
 use serde_json::{from_slice, to_vec_pretty};
 use sha2::{Digest, Sha256};
 
-use crate::models::{AppSettings, StoragePaths, StoredClipboardItem};
+use crate::models::{AppSettings, StoragePaths};
 
 pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
     if !paths.settings_path.exists() {
@@ -30,21 +30,6 @@ pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
 
 pub(crate) fn save_settings(paths: &StoragePaths, settings: &AppSettings) -> Result<()> {
     fs::write(&paths.settings_path, to_vec_pretty(settings)?)?;
-    Ok(())
-}
-
-pub(crate) fn load_history(paths: &StoragePaths) -> Result<Vec<StoredClipboardItem>> {
-    if !paths.history_path.exists() {
-        fs::write(&paths.history_path, b"[]")?;
-        return Ok(Vec::new());
-    }
-
-    let bytes = fs::read(&paths.history_path)?;
-    Ok(from_slice(&bytes)?)
-}
-
-pub(crate) fn save_history(paths: &StoragePaths, history: &[StoredClipboardItem]) -> Result<()> {
-    fs::write(&paths.history_path, to_vec_pretty(history)?)?;
     Ok(())
 }
 

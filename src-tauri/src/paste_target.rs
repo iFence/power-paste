@@ -5,7 +5,10 @@ use tauri::AppHandle;
 #[cfg(any(windows, target_os = "macos"))]
 use tauri::Manager;
 
-use crate::models::{ClipboardTargetProfile, SharedState, StoredClipboardItem};
+use crate::{
+    clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin},
+    models::{ClipboardTargetProfile, SharedState, StoredClipboardItem},
+};
 
 #[cfg(windows)]
 use crate::models::{HwndRaw, PANEL_LABEL};
@@ -378,18 +381,19 @@ fn keyboard_input(virtual_key: u16, flags: u32) -> INPUT {
 
 #[cfg(windows)]
 fn item_has_image(item: &StoredClipboardItem) -> bool {
-    item.image_path
-        .as_deref()
-        .map(|path| !path.is_empty())
+    item.image_png
+        .as_ref()
+        .map(|bytes| !bytes.is_empty())
         .unwrap_or(false)
 }
 
 #[cfg(windows)]
 // Markdown/chat targets often need text and image pasted as multiple sequential operations.
 fn paste_mixed_segments(
+    app: &AppHandle,
     state: &Arc<SharedState>,
     segments: &[crate::clipboard_html::MixedPasteSegment],
-    image_path: &str,
+    png_bytes: &[u8],
 ) -> Result<bool> {
     let has_content = segments.iter().any(|segment| match segment {
         crate::clipboard_html::MixedPasteSegment::Text(text) => !text.is_empty(),
@@ -402,10 +406,11 @@ fn paste_mixed_segments(
     for segment in segments {
         match segment {
             crate::clipboard_html::MixedPasteSegment::Text(text) if !text.is_empty() => {
-                crate::clipboard_write::write_unicode_text_to_clipboard(text)?;
+                write_text_with_plugin(app, text)?;
             }
             crate::clipboard_html::MixedPasteSegment::Image => {
-                crate::clipboard_write::write_image_to_clipboard(image_path)?;
+                write_image_with_plugin(app, png_bytes)
+                    .or_else(|_| write_image_to_clipboard(png_bytes))?;
             }
             crate::clipboard_html::MixedPasteSegment::Text(_) => continue,
         }
@@ -419,9 +424,10 @@ fn paste_mixed_segments(
 
 #[cfg(not(windows))]
 fn paste_mixed_segments(
+    _app: &AppHandle,
     _state: &Arc<SharedState>,
     _segments: &[crate::clipboard_html::MixedPasteSegment],
-    _image_path: &str,
+    _png_bytes: &[u8],
 ) -> Result<bool> {
     Ok(false)
 }
@@ -429,6 +435,7 @@ fn paste_mixed_segments(
 #[cfg(windows)]
 // Only a subset of targets need segmented mixed paste; everything else uses the normal clipboard write path.
 pub(crate) fn paste_mixed_item_for_profile(
+    app: &AppHandle,
     state: &Arc<SharedState>,
     item: &StoredClipboardItem,
     profile: ClipboardTargetProfile,
@@ -439,8 +446,8 @@ pub(crate) fn paste_mixed_item_for_profile(
 
     match profile {
         ClipboardTargetProfile::Markdown | ClipboardTargetProfile::Chat => {
-            let image_path = item
-                .image_path
+            let png_bytes = item
+                .image_png
                 .as_deref()
                 .ok_or_else(|| anyhow::anyhow!("Image payload missing"))?;
             let segments = item
@@ -465,7 +472,7 @@ pub(crate) fn paste_mixed_item_for_profile(
                 .map(|text| crate::clipboard_html::remap_mixed_text_segments(&segments, text))
                 .unwrap_or(segments);
 
-            paste_mixed_segments(state, &segments, image_path)
+            paste_mixed_segments(app, state, &segments, png_bytes)
         }
         _ => Ok(false),
     }
@@ -473,6 +480,7 @@ pub(crate) fn paste_mixed_item_for_profile(
 
 #[cfg(not(windows))]
 pub(crate) fn paste_mixed_item_for_profile(
+    _app: &AppHandle,
     _state: &Arc<SharedState>,
     _item: &StoredClipboardItem,
     _profile: ClipboardTargetProfile,

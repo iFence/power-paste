@@ -22,10 +22,7 @@ fn version_of(app: &AppHandle) -> String {
 
 pub(crate) fn spawn_startup_check(app: AppHandle, shared: Arc<SharedState>) {
     tauri::async_runtime::spawn(async move {
-        let auto_check = shared.settings.lock().unwrap().auto_check_updates;
-        if auto_check {
-            let _ = check_for_updates_inner(app, shared).await;
-        }
+        let _ = check_for_updates_inner(app, shared).await;
     });
 }
 

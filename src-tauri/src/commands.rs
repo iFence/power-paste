@@ -1,15 +1,14 @@
-use std::{fs, sync::atomic::Ordering, thread, time::Duration};
-
-use chrono::Utc;
+use std::{sync::atomic::Ordering, thread, time::Duration};
 use tauri::{AppHandle, Manager, State};
 #[cfg(windows)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::{
+    clipboard::platform_capabilities,
     apply_debug_mode,
+    clipboard::write_item_to_clipboard_with_profile,
     capture::mark_clipboard_suppressed,
-    clipboard_write::write_item_to_clipboard_with_profile,
-    history::{history_to_dto, sort_history},
+    history::history_to_dto,
     models::{
         AppError, AppSettings, ClipboardItemDto, PlatformCapabilities, SharedState, PANEL_LABEL,
     },
@@ -17,19 +16,9 @@ use crate::{
         focus_last_target_window, last_target_profile, paste_mixed_item_for_profile,
         send_native_paste_shortcut, wait_for_paste_target_focus,
     },
-    preview_text, save_history, save_settings, sha256_hex,
+    save_settings,
     startup::set_launch_on_startup,
 };
-
-fn platform_capabilities() -> PlatformCapabilities {
-    PlatformCapabilities {
-        platform: std::env::consts::OS.to_string(),
-        supports_clipboard_write: cfg!(windows) || cfg!(target_os = "macos"),
-        supports_direct_paste: cfg!(windows) || cfg!(target_os = "macos"),
-        supports_launch_on_startup: cfg!(windows) || cfg!(target_os = "macos"),
-        supports_mixed_replay: cfg!(windows),
-    }
-}
 
 // History queries always read from in-memory state; persistence is handled on writes.
 #[tauri::command]
@@ -38,7 +27,8 @@ pub(crate) fn get_history(
     query: Option<String>,
     limit: Option<usize>,
 ) -> Result<Vec<ClipboardItemDto>, AppError> {
-    let history = state.history.lock().unwrap();
+    let store = state.history_store.lock().unwrap();
+    let history = store.list_history(query.as_deref(), limit.unwrap_or(500))?;
     Ok(history_to_dto(
         &history,
         query.as_deref(),
@@ -84,7 +74,7 @@ pub(crate) fn update_settings(
         }
     }
 
-    set_launch_on_startup(payload.launch_on_startup)?;
+    set_launch_on_startup(&app, payload.launch_on_startup)?;
     save_settings(&state.paths, &payload)?;
     state
         .debug_context_menu_enabled
@@ -101,13 +91,9 @@ pub(crate) fn toggle_pin(
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    let mut history = state.history.lock().unwrap();
-    if let Some(item) = history.iter_mut().find(|item| item.id == id) {
-        item.pinned = !item.pinned;
-        item.pinned_at = item.pinned.then(|| Utc::now().to_rfc3339());
-    }
-    history.sort_by(sort_history);
-    save_history(&state.paths, &history)?;
+    let store = state.history_store.lock().unwrap();
+    store.toggle_pin(&id)?;
+    *state.history.lock().unwrap() = store.list_all()?;
     Ok(())
 }
 
@@ -116,12 +102,9 @@ pub(crate) fn toggle_favorite(
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    let mut history = state.history.lock().unwrap();
-    if let Some(item) = history.iter_mut().find(|item| item.id == id) {
-        item.favorite = !item.favorite;
-    }
-    history.sort_by(sort_history);
-    save_history(&state.paths, &history)?;
+    let store = state.history_store.lock().unwrap();
+    store.toggle_favorite(&id)?;
+    *state.history.lock().unwrap() = store.list_all()?;
     Ok(())
 }
 
@@ -130,14 +113,9 @@ pub(crate) fn delete_item(
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    let mut history = state.history.lock().unwrap();
-    if let Some(index) = history.iter().position(|item| item.id == id) {
-        if let Some(image_path) = history[index].image_path.clone() {
-            let _ = fs::remove_file(image_path);
-        }
-        history.remove(index);
-        save_history(&state.paths, &history)?;
-    }
+    let store = state.history_store.lock().unwrap();
+    store.delete_item(&id)?;
+    *state.history.lock().unwrap() = store.list_all()?;
     Ok(())
 }
 
@@ -147,61 +125,45 @@ pub(crate) fn update_text_item(
     id: String,
     text: String,
 ) -> Result<(), AppError> {
-    let mut history = state.history.lock().unwrap();
-    let item = history
-        .iter_mut()
-        .find(|item| item.id == id)
-        .ok_or_else(|| AppError::Message("Clipboard item not found".into()))?;
-
-    if item.kind != "text" {
-        return Err(AppError::Message("Only text items can be edited".into()));
-    }
-
-    item.full_text = Some(text.clone());
-    item.html_text = None;
-    item.rtf_text = None;
-    item.preview = preview_text(&text);
-    item.hash = sha256_hex(text.as_bytes());
-    item.created_at = Utc::now().to_rfc3339();
-    save_history(&state.paths, &history)?;
+    let store = state.history_store.lock().unwrap();
+    store.update_text_item(&id, &text)?;
+    *state.history.lock().unwrap() = store.list_all()?;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn clear_history(state: State<'_, std::sync::Arc<SharedState>>) -> Result<(), AppError> {
-    let mut history = state.history.lock().unwrap();
-    for item in history.iter().filter(|item| !item.pinned) {
-        if let Some(image_path) = &item.image_path {
-            let _ = fs::remove_file(image_path);
-        }
-    }
-    history.retain(|item| item.pinned);
-    save_history(&state.paths, &history)?;
+    let store = state.history_store.lock().unwrap();
+    store.clear_history()?;
+    *state.history.lock().unwrap() = store.list_all()?;
     Ok(())
 }
 
 // Copy writes the payload back to the system clipboard but does not trigger paste.
 #[tauri::command]
 pub(crate) fn copy_item(
+    app: AppHandle,
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    if !cfg!(windows) && !cfg!(target_os = "macos") {
+    let capabilities = platform_capabilities();
+    if !(capabilities.supports_text_write
+        || capabilities.supports_html_write
+        || capabilities.supports_image_write)
+    {
         return Err(AppError::Message("unsupported_clipboard_write".into()));
     }
 
-    let history = state.history.lock().unwrap();
-    let item = history
-        .iter()
-        .find(|item| item.id == id)
-        .cloned()
+    let store = state.history_store.lock().unwrap();
+    let item = store
+        .get_item(&id)?
         .ok_or_else(|| AppError::Message("Clipboard item not found".into()))?;
-    drop(history);
+    drop(store);
 
     let shared = state.inner().clone();
     let profile = last_target_profile(&shared);
     mark_clipboard_suppressed(&shared, item.hash.clone());
-    write_item_to_clipboard_with_profile(&item, profile)?;
+    write_item_to_clipboard_with_profile(&app, &item, profile)?;
     Ok(())
 }
 
@@ -212,17 +174,15 @@ pub(crate) fn paste_item(
     state: State<'_, std::sync::Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    if !cfg!(windows) && !cfg!(target_os = "macos") {
+    if !platform_capabilities().supports_direct_paste {
         return Err(AppError::Message("unsupported_direct_paste".into()));
     }
 
-    let history = state.history.lock().unwrap();
-    let item = history
-        .iter()
-        .find(|item| item.id == id)
-        .cloned()
+    let store = state.history_store.lock().unwrap();
+    let item = store
+        .get_item(&id)?
         .ok_or_else(|| AppError::Message("Clipboard item not found".into()))?;
-    drop(history);
+    drop(store);
 
     if let Some(window) = app.get_webview_window(PANEL_LABEL) {
         let _ = window.hide();
@@ -233,10 +193,10 @@ pub(crate) fn paste_item(
     mark_clipboard_suppressed(&shared, item.hash.clone());
     focus_last_target_window(&shared);
     wait_for_paste_target_focus(&shared);
-    if paste_mixed_item_for_profile(&shared, &item, profile)? {
+    if paste_mixed_item_for_profile(&app, &shared, &item, profile)? {
         return Ok(());
     }
-    write_item_to_clipboard_with_profile(&item, profile)?;
+    write_item_to_clipboard_with_profile(&app, &item, profile)?;
     thread::sleep(Duration::from_millis(180));
     send_native_paste_shortcut(&shared)?;
     Ok(())

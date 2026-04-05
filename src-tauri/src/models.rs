@@ -9,14 +9,13 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_updater::Update;
 
-pub(crate) const HISTORY_FILE: &str = "history.json";
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+
 pub(crate) const SETTINGS_FILE: &str = "settings.json";
-pub(crate) const IMAGE_DIR: &str = "images";
+pub(crate) const SQLITE_FILE: &str = "clipdesk.db";
 pub(crate) const HISTORY_UPDATED_EVENT: &str = "history-updated";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const PANEL_LABEL: &str = "main";
-pub(crate) const WINDOWS_RUN_KEY: &str = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-pub(crate) const WINDOWS_RUN_VALUE_NAME: &str = "Power Paste";
 pub(crate) const DEBUG_CONTEXT_MENU_INIT_SCRIPT: &str = r#"
 ;(() => {
   const state = (window.__CLIPDESK_DEBUG_GUARD__ ??= { allowContextMenu: false });
@@ -65,10 +64,21 @@ impl From<anyhow::Error> for AppError {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PlatformCapabilities {
     pub(crate) platform: String,
-    pub(crate) supports_clipboard_write: bool,
+    pub(crate) supports_clipboard_read: bool,
+    pub(crate) supports_clipboard_watch: bool,
+    pub(crate) supports_text_write: bool,
+    pub(crate) supports_html_write: bool,
+    pub(crate) supports_image_write: bool,
     pub(crate) supports_direct_paste: bool,
-    pub(crate) supports_launch_on_startup: bool,
     pub(crate) supports_mixed_replay: bool,
+    pub(crate) supports_launch_on_startup: bool,
+    pub(crate) preferred_clipboard_backend: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ClipboardBackend {
+    Plugin,
+    NativeFallback,
 }
 
 impl serde::Serialize for AppError {
@@ -86,7 +96,6 @@ impl serde::Serialize for AppError {
 pub(crate) struct AppSettings {
     pub(crate) debug_enabled: bool,
     pub(crate) launch_on_startup: bool,
-    pub(crate) auto_check_updates: bool,
     pub(crate) polling_interval_ms: u64,
     pub(crate) max_history_items: usize,
     pub(crate) max_image_bytes: usize,
@@ -107,7 +116,6 @@ impl Default for AppSettings {
         Self {
             debug_enabled: false,
             launch_on_startup: false,
-            auto_check_updates: true,
             polling_interval_ms: 500,
             max_history_items: 200,
             max_image_bytes: 6_000_000,
@@ -136,8 +144,7 @@ pub(crate) struct StoredClipboardItem {
     pub(crate) full_text: Option<String>,
     pub(crate) html_text: Option<String>,
     pub(crate) rtf_text: Option<String>,
-    pub(crate) image_path: Option<String>,
-    pub(crate) image_data_url: Option<String>,
+    pub(crate) image_png: Option<Vec<u8>>,
     pub(crate) image_width: Option<u32>,
     pub(crate) image_height: Option<u32>,
     pub(crate) source_app: Option<String>,
@@ -145,6 +152,15 @@ pub(crate) struct StoredClipboardItem {
     pub(crate) hash: String,
     pub(crate) pinned: bool,
     pub(crate) favorite: bool,
+}
+
+impl StoredClipboardItem {
+    pub(crate) fn image_data_url(&self) -> Option<String> {
+        self.image_png
+            .as_ref()
+            .filter(|bytes| !bytes.is_empty())
+            .map(|bytes| format!("data:image/png;base64,{}", BASE64.encode(bytes)))
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -166,21 +182,17 @@ pub(crate) struct ClipboardItemDto {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StoragePaths {
-    pub(crate) history_path: PathBuf,
+    pub(crate) db_path: PathBuf,
     pub(crate) settings_path: PathBuf,
-    pub(crate) image_dir: PathBuf,
 }
 
 impl StoragePaths {
     pub(crate) fn new(root: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root)?;
-        let image_dir = root.join(IMAGE_DIR);
-        fs::create_dir_all(&image_dir)?;
 
         Ok(Self {
-            history_path: root.join(HISTORY_FILE),
+            db_path: root.join(SQLITE_FILE),
             settings_path: root.join(SETTINGS_FILE),
-            image_dir,
         })
     }
 }
@@ -190,14 +202,18 @@ pub(crate) struct MonitorState {
     pub(crate) last_seen_hash: Option<String>,
     pub(crate) suppress_hash: Option<String>,
     pub(crate) suppress_until: Option<Instant>,
+    #[cfg(windows)]
     pub(crate) last_target_window: Option<HwndRaw>,
+    #[cfg(target_os = "macos")]
     pub(crate) last_target_app_bundle_id: Option<String>,
+    #[cfg(target_os = "macos")]
     pub(crate) last_target_app_name: Option<String>,
 }
 
 pub(crate) struct SharedState {
     pub(crate) paths: StoragePaths,
     pub(crate) settings: Arc<Mutex<AppSettings>>,
+    pub(crate) history_store: Arc<Mutex<crate::repository::SqliteHistoryStore>>,
     pub(crate) history: Arc<Mutex<Vec<StoredClipboardItem>>>,
     pub(crate) monitor: Arc<Mutex<MonitorState>>,
     pub(crate) debug_context_menu_enabled: Arc<AtomicBool>,
@@ -259,16 +275,6 @@ pub(crate) enum CapturedClipboard {
     },
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PowershellClipboardResult {
-    pub(crate) text_base64: Option<String>,
-    pub(crate) html_base64: Option<String>,
-    pub(crate) rtf_base64: Option<String>,
-    pub(crate) png_base64: Option<String>,
-    pub(crate) width: Option<u32>,
-    pub(crate) height: Option<u32>,
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -278,3 +284,4 @@ pub(crate) struct ForegroundAppResult {
     pub(crate) icon_png_base64: Option<String>,
     pub(crate) app_path: Option<String>,
 }
+
