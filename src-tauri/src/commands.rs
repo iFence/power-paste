@@ -1,23 +1,12 @@
-use std::{sync::atomic::Ordering, thread, time::Duration};
-use tauri::{AppHandle, Manager, State};
-#[cfg(windows)]
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+use std::sync::Arc;
+
+use tauri::{AppHandle, State};
 
 use crate::{
     clipboard::platform_capabilities,
-    apply_debug_mode,
-    clipboard::write_item_to_clipboard_with_profile,
-    capture::mark_clipboard_suppressed,
     history::history_to_dto,
-    models::{
-        AppError, AppSettings, ClipboardItemDto, PlatformCapabilities, SharedState, PANEL_LABEL,
-    },
-    paste_target::{
-        focus_last_target_window, last_target_profile, paste_mixed_item_for_profile,
-        send_native_paste_shortcut, wait_for_paste_target_focus,
-    },
-    save_settings,
-    startup::set_launch_on_startup,
+    models::{AppError, AppSettings, ClipboardItemDto, PlatformCapabilities, SharedState},
+    usecases::{execute_copy_item, execute_paste_item, execute_update_settings},
 };
 
 // History queries always read from in-memory state; persistence is handled on writes.
@@ -52,38 +41,10 @@ pub(crate) fn get_platform_capabilities() -> Result<PlatformCapabilities, AppErr
 #[tauri::command]
 pub(crate) fn update_settings(
     app: AppHandle,
-    state: State<'_, std::sync::Arc<SharedState>>,
+    state: State<'_, Arc<SharedState>>,
     payload: AppSettings,
 ) -> Result<(), AppError> {
-    let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
-
-    #[cfg(windows)]
-    {
-        let manager = app.global_shortcut();
-        if let Ok(shortcut) = previous_shortcut.parse::<Shortcut>() {
-            let _ = manager.unregister(shortcut);
-        }
-        if !payload.global_shortcut.trim().is_empty() {
-            let shortcut = payload
-                .global_shortcut
-                .parse::<Shortcut>()
-                .map_err(|error| AppError::Message(format!("Invalid shortcut: {error}")))?;
-            manager
-                .register(shortcut)
-                .map_err(|error| AppError::Message(error.to_string()))?;
-        }
-    }
-
-    set_launch_on_startup(&app, payload.launch_on_startup)?;
-    save_settings(&state.paths, &payload)?;
-    state
-        .debug_context_menu_enabled
-        .store(payload.debug_enabled, Ordering::Relaxed);
-    if let Some(window) = app.get_webview_window(PANEL_LABEL) {
-        apply_debug_mode(&window, payload.debug_enabled)?;
-    }
-    *state.settings.lock().unwrap() = payload;
-    Ok(())
+    execute_update_settings(app, state.inner().clone(), payload)
 }
 
 #[tauri::command]
@@ -143,61 +104,29 @@ pub(crate) fn clear_history(state: State<'_, std::sync::Arc<SharedState>>) -> Re
 #[tauri::command]
 pub(crate) fn copy_item(
     app: AppHandle,
-    state: State<'_, std::sync::Arc<SharedState>>,
+    state: State<'_, Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    let capabilities = platform_capabilities();
-    if !(capabilities.supports_text_write
-        || capabilities.supports_html_write
-        || capabilities.supports_image_write)
-    {
-        return Err(AppError::Message("unsupported_clipboard_write".into()));
-    }
-
-    let store = state.history_store.lock().unwrap();
-    let item = store
-        .get_item(&id)?
-        .ok_or_else(|| AppError::Message("Clipboard item not found".into()))?;
-    drop(store);
-
-    let shared = state.inner().clone();
-    let profile = last_target_profile(&shared);
-    mark_clipboard_suppressed(&shared, item.hash.clone());
-    write_item_to_clipboard_with_profile(&app, &item, profile)?;
-    Ok(())
+    execute_copy_item(app, state.inner().clone(), id)
 }
 
 // Paste re-focuses the previous target window, restores clipboard payload, then sends Ctrl+V.
 #[tauri::command]
 pub(crate) fn paste_item(
     app: AppHandle,
-    state: State<'_, std::sync::Arc<SharedState>>,
+    state: State<'_, Arc<SharedState>>,
     id: String,
 ) -> Result<(), AppError> {
-    if !platform_capabilities().supports_direct_paste {
-        return Err(AppError::Message("unsupported_direct_paste".into()));
-    }
+    execute_paste_item(app, state.inner().clone(), id)
+}
 
+pub(crate) fn load_item_by_id(
+    state: &Arc<SharedState>,
+    id: &str,
+) -> Result<crate::models::StoredClipboardItem, AppError> {
     let store = state.history_store.lock().unwrap();
     let item = store
-        .get_item(&id)?
+        .get_item(id)?
         .ok_or_else(|| AppError::Message("Clipboard item not found".into()))?;
-    drop(store);
-
-    if let Some(window) = app.get_webview_window(PANEL_LABEL) {
-        let _ = window.hide();
-    }
-
-    let shared = state.inner().clone();
-    let profile = last_target_profile(&shared);
-    mark_clipboard_suppressed(&shared, item.hash.clone());
-    focus_last_target_window(&shared);
-    wait_for_paste_target_focus(&shared);
-    if paste_mixed_item_for_profile(&app, &shared, &item, profile)? {
-        return Ok(());
-    }
-    write_item_to_clipboard_with_profile(&app, &item, profile)?;
-    thread::sleep(Duration::from_millis(180));
-    send_native_paste_shortcut(&shared)?;
-    Ok(())
+    Ok(item)
 }

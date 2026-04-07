@@ -12,6 +12,9 @@ pub(crate) fn platform_capabilities() -> PlatformCapabilities {
         supports_mixed_replay: cfg!(windows),
         supports_launch_on_startup: true,
         preferred_clipboard_backend: preferred_clipboard_backend(),
+        clipboard_write_strategy: clipboard_write_strategy(),
+        direct_paste_strategy: direct_paste_strategy(),
+        mixed_replay_strategy: mixed_replay_strategy(),
     }
 }
 
@@ -20,5 +23,31 @@ pub(crate) fn preferred_clipboard_backend() -> &'static str {
         "plugin+native-fallback"
     } else {
         "plugin-only"
+    }
+}
+
+fn clipboard_write_strategy() -> &'static str {
+    if cfg!(windows) || cfg!(target_os = "macos") {
+        "plugin-first-with-native-fallback"
+    } else {
+        "plugin-only"
+    }
+}
+
+fn direct_paste_strategy() -> &'static str {
+    if cfg!(windows) || cfg!(target_os = "macos") {
+        "simulated-native-shortcut"
+    } else {
+        "unsupported"
+    }
+}
+
+fn mixed_replay_strategy() -> &'static str {
+    if cfg!(windows) {
+        "target-aware-segmented-replay"
+    } else if cfg!(target_os = "macos") {
+        "native-fallback-write-only"
+    } else {
+        "unsupported"
     }
 }

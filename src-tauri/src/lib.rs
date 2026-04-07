@@ -22,11 +22,13 @@ mod commands;
 mod history;
 mod models;
 mod paste_target;
+mod ports;
 mod repository;
 mod runtime;
 mod startup;
 mod storage;
 mod update;
+mod usecases;
 
 // Tauri command entrypoints stay thin and delegate to feature modules.
 use commands::{
@@ -70,11 +72,6 @@ fn apply_debug_mode(window: &tauri::WebviewWindow, enabled: bool) -> Result<()> 
 
     if !enabled && window.is_devtools_open() {
         window.close_devtools();
-    }
-
-    #[cfg(debug_assertions)]
-    if enabled && !window.is_devtools_open() {
-        window.open_devtools();
     }
 
     #[cfg(windows)]
@@ -167,16 +164,6 @@ pub fn run() {
             configure_window(app.handle(), shared.clone())?;
             let locale = settings.lock().unwrap().locale.clone();
             runtime::build_tray(app.handle(), &locale)?;
-
-            #[cfg(debug_assertions)]
-            if let Some(window) = app.get_webview_window(models::PANEL_LABEL) {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-                if !window.is_devtools_open() {
-                    window.open_devtools();
-                }
-            }
 
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;

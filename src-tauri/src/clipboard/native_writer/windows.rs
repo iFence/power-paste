@@ -17,7 +17,8 @@ use windows_sys::Win32::{
 
 use crate::{
     clipboard_html::build_mixed_item_html,
-    models::{ClipboardTargetProfile, StoredClipboardItem, CF_DIB},
+    models::{StoredClipboardItem, CF_DIB},
+    paste_target::TargetProfile,
 };
 
 struct ClipboardGuard;
@@ -227,7 +228,7 @@ fn write_clipboard_payload_native(
 
 pub(crate) fn write_mixed_payload(
     item: &StoredClipboardItem,
-    profile: ClipboardTargetProfile,
+    profile: TargetProfile,
 ) -> Result<()> {
     let png_bytes = item
         .image_png

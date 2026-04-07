@@ -9,11 +9,7 @@ use crate::models::{AppSettings, StoragePaths};
 
 pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
     if !paths.settings_path.exists() {
-        let mut settings = AppSettings::default();
-        #[cfg(debug_assertions)]
-        {
-            settings.debug_enabled = true;
-        }
+        let settings = AppSettings::default();
         save_settings(paths, &settings)?;
         return Ok(settings);
     }
@@ -21,10 +17,6 @@ pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
     let bytes = fs::read(&paths.settings_path)?;
     let mut settings: AppSettings = from_slice(&bytes)?;
     settings.polling_interval_ms = 500;
-    #[cfg(debug_assertions)]
-    {
-        settings.debug_enabled = true;
-    }
     Ok(settings)
 }
 

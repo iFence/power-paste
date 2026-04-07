@@ -1,4 +1,4 @@
-use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
+use crate::{models::StoredClipboardItem, paste_target::TargetProfile};
 
 // Pure helpers for CF_HTML generation and mixed text/image payload reconstruction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -327,7 +327,7 @@ pub(crate) fn remap_mixed_text_segments(
 
 pub(crate) fn build_mixed_item_html(
     item: &StoredClipboardItem,
-    profile: ClipboardTargetProfile,
+    profile: TargetProfile,
 ) -> Option<String> {
     if let Some(html) = item.html_text.as_deref().filter(|value| !value.is_empty()) {
         if let Some(image_src) = item.image_data_url() {
@@ -349,10 +349,8 @@ pub(crate) fn build_mixed_item_html(
     }
 
     let image_src = match profile {
-        ClipboardTargetProfile::Office
-        | ClipboardTargetProfile::Wps
-        | ClipboardTargetProfile::Generic => item.image_data_url(),
-        ClipboardTargetProfile::Markdown | ClipboardTargetProfile::Chat => None,
+        TargetProfile::Office | TargetProfile::Wps | TargetProfile::Generic => item.image_data_url(),
+        TargetProfile::Markdown | TargetProfile::Chat => None,
     };
 
     if let Some(image_src) = image_src.filter(|value| !value.is_empty()) {

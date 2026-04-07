@@ -9,7 +9,7 @@ mod plugin_writer;
 use anyhow::Result;
 use tauri::AppHandle;
 
-use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
+use crate::{models::StoredClipboardItem, paste_target::TargetProfile};
 
 use self::payload::{payload_for_item, ClipboardPayload};
 
@@ -21,7 +21,7 @@ pub(crate) use plugin_writer::{write_image as write_image_with_plugin, write_tex
 pub(crate) fn write_item_to_clipboard_with_profile(
     app: &AppHandle,
     item: &StoredClipboardItem,
-    profile: ClipboardTargetProfile,
+    profile: TargetProfile,
 ) -> Result<()> {
     let payload = payload_for_item(item);
 

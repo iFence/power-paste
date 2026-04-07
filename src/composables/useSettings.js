@@ -49,6 +49,9 @@ export function useSettings() {
     supportsLaunchOnStartup: true,
     supportsMixedReplay: true,
     preferredClipboardBackend: "plugin+native-fallback",
+    clipboardWriteStrategy: "plugin-first-with-native-fallback",
+    directPasteStrategy: "simulated-native-shortcut",
+    mixedReplayStrategy: "target-aware-segmented-replay",
   });
 
   const currentLocale = computed(() => settings.locale || "zh-CN");
@@ -204,6 +207,9 @@ export function useSettings() {
       supportsLaunchOnStartup: false,
       supportsMixedReplay: false,
       preferredClipboardBackend: "unsupported",
+      clipboardWriteStrategy: "unsupported",
+      directPasteStrategy: "unsupported",
+      mixedReplayStrategy: "unsupported",
     }));
   }
 

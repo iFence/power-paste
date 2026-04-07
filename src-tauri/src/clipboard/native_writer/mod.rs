@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::models::{ClipboardTargetProfile, StoredClipboardItem};
+use crate::{models::StoredClipboardItem, paste_target::TargetProfile};
 
 use super::payload::ClipboardPayload;
 
@@ -16,7 +16,7 @@ pub(crate) use windows::write_image_to_clipboard;
 
 pub(crate) fn write_payload(
     item: &StoredClipboardItem,
-    profile: ClipboardTargetProfile,
+    profile: TargetProfile,
     payload: &ClipboardPayload,
 ) -> Result<()> {
     #[cfg(windows)]

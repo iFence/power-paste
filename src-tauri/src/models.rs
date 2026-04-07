@@ -39,15 +39,6 @@ pub(crate) const CF_DIB: u32 = 8;
 
 pub(crate) type HwndRaw = isize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ClipboardTargetProfile {
-    Generic,
-    Office,
-    Wps,
-    Markdown,
-    Chat,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum AppError {
     #[error("{0}")]
@@ -73,6 +64,9 @@ pub(crate) struct PlatformCapabilities {
     pub(crate) supports_mixed_replay: bool,
     pub(crate) supports_launch_on_startup: bool,
     pub(crate) preferred_clipboard_backend: &'static str,
+    pub(crate) clipboard_write_strategy: &'static str,
+    pub(crate) direct_paste_strategy: &'static str,
+    pub(crate) mixed_replay_strategy: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

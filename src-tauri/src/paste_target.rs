@@ -7,7 +7,7 @@ use tauri::Manager;
 
 use crate::{
     clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin},
-    models::{ClipboardTargetProfile, SharedState, StoredClipboardItem},
+    models::{SharedState, StoredClipboardItem},
 };
 
 #[cfg(windows)]
@@ -34,6 +34,20 @@ use windows_sys::Win32::{
         },
     },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TargetProfile {
+    Generic,
+    Office,
+    Wps,
+    Markdown,
+    Chat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ResolvedPasteTarget {
+    pub(crate) profile: TargetProfile,
+}
 
 // Tracks the last non-panel foreground app so paste can return to the right target window.
 #[cfg(windows)]
@@ -84,26 +98,26 @@ fn process_name_for_window(hwnd: HwndRaw) -> Option<String> {
 
 #[cfg(windows)]
 // Different targets expect different clipboard payload shapes, especially Office/Markdown/chat apps.
-fn target_profile_for_process_name(process_name: Option<&str>) -> ClipboardTargetProfile {
+fn target_profile_for_process_name(process_name: Option<&str>) -> TargetProfile {
     let Some(process_name) = process_name else {
-        return ClipboardTargetProfile::Generic;
+        return TargetProfile::Generic;
     };
 
     if process_name == "wps" {
-        ClipboardTargetProfile::Wps
+        TargetProfile::Wps
     } else if process_name.contains("winword") {
-        ClipboardTargetProfile::Office
+        TargetProfile::Office
     } else if process_name.contains("obsidian") || process_name.contains("typora") {
-        ClipboardTargetProfile::Markdown
+        TargetProfile::Markdown
     } else if process_name.contains("dingtalk") {
-        ClipboardTargetProfile::Chat
+        TargetProfile::Chat
     } else {
-        ClipboardTargetProfile::Generic
+        TargetProfile::Generic
     }
 }
 
 #[cfg(windows)]
-pub(crate) fn last_target_profile(state: &Arc<SharedState>) -> ClipboardTargetProfile {
+fn last_target_profile(state: &Arc<SharedState>) -> TargetProfile {
     let target = {
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_window
@@ -114,8 +128,14 @@ pub(crate) fn last_target_profile(state: &Arc<SharedState>) -> ClipboardTargetPr
 }
 
 #[cfg(not(windows))]
-pub(crate) fn last_target_profile(_state: &Arc<SharedState>) -> ClipboardTargetProfile {
-    ClipboardTargetProfile::Generic
+fn last_target_profile(_state: &Arc<SharedState>) -> TargetProfile {
+    TargetProfile::Generic
+}
+
+pub(crate) fn resolve_last_target(state: &Arc<SharedState>) -> ResolvedPasteTarget {
+    ResolvedPasteTarget {
+        profile: last_target_profile(state),
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -363,6 +383,11 @@ end tell"#,
     Ok(())
 }
 
+pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) {
+    focus_last_target_window(state);
+    wait_for_paste_target_focus(state);
+}
+
 #[cfg(windows)]
 fn keyboard_input(virtual_key: u16, flags: u32) -> INPUT {
     INPUT {
@@ -438,14 +463,14 @@ pub(crate) fn paste_mixed_item_for_profile(
     app: &AppHandle,
     state: &Arc<SharedState>,
     item: &StoredClipboardItem,
-    profile: ClipboardTargetProfile,
+    profile: TargetProfile,
 ) -> Result<bool> {
     if item.kind != "mixed" || !item_has_image(item) {
         return Ok(false);
     }
 
     match profile {
-        ClipboardTargetProfile::Markdown | ClipboardTargetProfile::Chat => {
+        TargetProfile::Markdown | TargetProfile::Chat => {
             let png_bytes = item
                 .image_png
                 .as_deref()
@@ -483,7 +508,23 @@ pub(crate) fn paste_mixed_item_for_profile(
     _app: &AppHandle,
     _state: &Arc<SharedState>,
     _item: &StoredClipboardItem,
-    _profile: ClipboardTargetProfile,
+    _profile: TargetProfile,
 ) -> Result<bool> {
     Ok(false)
+}
+
+pub(crate) fn paste_item_to_target(
+    app: &AppHandle,
+    state: &Arc<SharedState>,
+    item: &StoredClipboardItem,
+    target: &ResolvedPasteTarget,
+) -> Result<bool> {
+    if paste_mixed_item_for_profile(app, state, item, target.profile)? {
+        return Ok(true);
+    }
+
+    crate::clipboard::write_item_to_clipboard_with_profile(app, item, target.profile)?;
+    thread::sleep(Duration::from_millis(180));
+    send_native_paste_shortcut(state)?;
+    Ok(true)
 }
