@@ -64,7 +64,21 @@ pub(crate) fn image_hash_from_png_bytes(png_bytes: &[u8]) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-pub(crate) fn mixed_hash(text: &str, png_bytes: &[u8]) -> Result<String> {
+pub(crate) fn mixed_hash(
+    text: &str,
+    html_text: Option<&str>,
+    rtf_text: Option<&str>,
+    png_bytes: &[u8],
+) -> Result<String> {
     let image_hash = image_hash_from_png_bytes(png_bytes)?;
-    Ok(sha256_hex(format!("{text}\n{image_hash}").as_bytes()))
+    let text_fingerprint = if !text.is_empty() {
+        text.to_string()
+    } else if let Some(html) = html_text.filter(|value| !value.is_empty()) {
+        html.to_string()
+    } else if let Some(rtf) = rtf_text.filter(|value| !value.is_empty()) {
+        rtf.to_string()
+    } else {
+        String::new()
+    };
+    Ok(sha256_hex(format!("{text_fingerprint}\n{image_hash}").as_bytes()))
 }

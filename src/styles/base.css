@@ -411,7 +411,8 @@ select {
   display: grid;
   gap: 6px;
   width: min(100%, 680px);
-  padding: 9px 11px;
+  position: relative;
+  padding: 9px 11px 46px;
   border-radius: 16px;
   box-shadow: none;
   transition:
@@ -443,6 +444,13 @@ select {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
+}
+
+.entry-footer {
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 9px;
 }
 
 .entry-badges {
@@ -535,6 +543,12 @@ select {
   color: var(--app-muted);
   white-space: nowrap;
   flex: 0 0 auto;
+}
+
+.entry-meta-note {
+  font-size: 0.76rem;
+  color: var(--app-muted);
+  white-space: nowrap;
 }
 
 .source-app-icon {

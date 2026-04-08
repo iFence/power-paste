@@ -14,6 +14,18 @@ defineProps({
 });
 
 const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-pin"]);
+
+function formatImageSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "";
+  }
+
+  if (bytes < 1_000_000) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
 </script>
 
 <template>
@@ -62,10 +74,7 @@ const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-p
         class="entry-thumb"
       />
       <div class="entry-body">
-        <template v-if="item.imageDataUrl && !item.fullText">
-          <span class="image-meta">{{ item.imageWidth }} x {{ item.imageHeight }}</span>
-        </template>
-        <div v-else class="entry-text-preview">
+        <div v-if="!(item.imageDataUrl && !item.fullText)" class="entry-text-preview">
           <pre
             v-if="item.fullText && looksLikeCode(item.fullText ?? item.preview)"
             class="code-preview"
@@ -73,11 +82,13 @@ const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-p
           ></pre>
           <pre v-else class="text-preview">{{ item.fullText ?? item.preview }}</pre>
         </div>
-        <span v-if="item.imageDataUrl && item.fullText" class="image-meta">{{ item.imageWidth }} x {{ item.imageHeight }}</span>
       </div>
     </div>
 
     <footer class="entry-footer">
+      <span v-if="item.imageDataUrl && item.imageByteSize" class="entry-meta-note">
+        {{ formatImageSize(item.imageByteSize) }}
+      </span>
       <div class="entry-actions">
         <button
           class="entry-action-button icon-only pin-action"

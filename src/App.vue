@@ -56,7 +56,11 @@ onMounted(async () => {
   await updaterState.refreshUpdateState();
   await historyState.refreshHistory();
   document.documentElement.lang = settingsState.currentLocale.value;
-  unlistenHistory = await onHistoryUpdated(async () => {
+  unlistenHistory = await onHistoryUpdated(async (event) => {
+    if (event?.payload?.id) {
+      historyState.applyHistoryUpdate(event.payload);
+      return;
+    }
     await historyState.refreshHistory();
   });
   unlistenUpdate = await onUpdateStatus((event) => {

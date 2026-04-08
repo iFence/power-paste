@@ -268,6 +268,15 @@ pub(crate) fn build_captured_clipboard(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<Option<CapturedClipboard>> {
+    let has_text_payload = !text.is_empty()
+        || html_text
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+        || rtf_text
+            .as_deref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false);
     let rich_text_is_empty = html_text
         .as_deref()
         .map(|value| value.trim().is_empty())
@@ -293,7 +302,7 @@ pub(crate) fn build_captured_clipboard(
         }
     }
 
-    if !text.is_empty() && png_bytes.is_some() {
+    if has_text_payload && png_bytes.is_some() {
         let png_bytes = png_bytes.unwrap_or_default();
         if png_bytes.len() > settings.max_image_bytes {
             return Ok(Some(CapturedClipboard::Text {
@@ -303,7 +312,7 @@ pub(crate) fn build_captured_clipboard(
                 rtf_text,
             }));
         }
-        let hash = mixed_hash(&text, &png_bytes)?;
+        let hash = mixed_hash(&text, html_text.as_deref(), rtf_text.as_deref(), &png_bytes)?;
         return Ok(Some(CapturedClipboard::Mixed {
             text,
             html_text,
@@ -378,19 +387,54 @@ pub(crate) fn history_to_dto(
             haystack.contains(&needle)
         })
         .take(limit)
-        .map(|item| ClipboardItemDto {
-            id: item.id.clone(),
-            kind: item.kind.clone(),
-            created_at: item.created_at.clone(),
-            preview: item.preview.clone(),
-            full_text: item.full_text.clone(),
-            image_data_url: item.image_data_url(),
-            image_width: item.image_width,
-            image_height: item.image_height,
-            source_app: item.source_app.clone(),
-            source_icon_data_url: item.source_icon_data_url.clone(),
-            pinned: item.pinned,
-            favorite: item.favorite,
-        })
+        .map(history_item_to_dto)
         .collect()
+}
+
+pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDto {
+    ClipboardItemDto {
+        id: item.id.clone(),
+        kind: item.kind.clone(),
+        created_at: item.created_at.clone(),
+        preview: item.preview.clone(),
+        full_text: item.full_text.clone(),
+        image_data_url: item.image_data_url(),
+        image_byte_size: item.image_png.as_ref().map(|bytes| bytes.len()),
+        image_width: item.image_width,
+        image_height: item.image_height,
+        source_app: item.source_app.clone(),
+        source_icon_data_url: item.source_icon_data_url.clone(),
+        pinned: item.pinned,
+        favorite: item.favorite,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_captured_clipboard;
+    use crate::models::{AppSettings, CapturedClipboard};
+    use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
+
+    #[test]
+    fn classifies_html_plus_image_as_mixed() {
+        let settings = AppSettings::default();
+        let mut png_bytes = Vec::new();
+        DynamicImage::ImageRgba8(RgbaImage::from_pixel(1, 1, Rgba([255, 255, 255, 255])))
+            .write_to(&mut std::io::Cursor::new(&mut png_bytes), ImageFormat::Png)
+            .expect("png");
+
+        let capture = build_captured_clipboard(
+            &settings,
+            String::new(),
+            Some("<p>hello</p><img src=\"x\" />".into()),
+            None,
+            Some(png_bytes),
+            Some(1),
+            Some(1),
+        )
+        .expect("capture")
+        .expect("mixed");
+
+        assert!(matches!(capture, CapturedClipboard::Mixed { .. }));
+    }
 }

@@ -105,6 +105,28 @@ export function useHistory({ platformCapabilities, settings, t }) {
     history.value = [...nextHistory].sort(compareHistoryItems);
   }
 
+  function trimHistoryToLimit() {
+    const limit = Number(settings.maxHistoryItems) || 0;
+    if (limit <= 0) {
+      return;
+    }
+
+    const next = [...history.value];
+    while (next.length > limit) {
+      const removableIndex = [...next]
+        .reverse()
+        .findIndex((item) => !item.pinned);
+
+      if (removableIndex === -1) {
+        break;
+      }
+
+      next.splice(next.length - 1 - removableIndex, 1);
+    }
+
+    history.value = next;
+  }
+
   function updateSelectedAfterListChange(removedId = null) {
     const items = filteredHistory.value;
     if (!items.length) {
@@ -136,6 +158,27 @@ export function useHistory({ platformCapabilities, settings, t }) {
     } finally {
       loading.value = false;
     }
+  }
+
+  function applyHistoryUpdate(item) {
+    if (!item || !item.id) {
+      return;
+    }
+
+    const index = history.value.findIndex((entry) => entry.id === item.id);
+    if (index === -1) {
+      history.value = [item, ...history.value];
+    } else {
+      history.value[index] = {
+        ...history.value[index],
+        ...item,
+      };
+      history.value = [...history.value];
+    }
+
+    reorderHistory();
+    trimHistoryToLimit();
+    updateSelectedAfterListChange();
   }
 
   async function copyItem(id) {
@@ -317,6 +360,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     pasteItem,
     query,
     refreshHistory,
+    applyHistoryUpdate,
     removeItem,
     saveEditedItem,
     selectedId,

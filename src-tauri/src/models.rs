@@ -166,6 +166,7 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) preview: String,
     pub(crate) full_text: Option<String>,
     pub(crate) image_data_url: Option<String>,
+    pub(crate) image_byte_size: Option<usize>,
     pub(crate) image_width: Option<u32>,
     pub(crate) image_height: Option<u32>,
     pub(crate) source_app: Option<String>,

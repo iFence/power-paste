@@ -9,7 +9,7 @@ use tauri_plugin_clipboard_next::ClipboardNextExt;
 
 use crate::{
     clipboard::capture_clipboard,
-    history::{capture_foreground_app, source_app_info, store_capture},
+    history::{capture_foreground_app, history_item_to_dto, source_app_info, store_capture},
     models::{CapturedClipboard, SharedState, HISTORY_UPDATED_EVENT},
 };
 
@@ -68,7 +68,7 @@ fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>) {
                 return;
             }
 
-            monitor.last_seen_hash = Some(hash);
+            monitor.last_seen_hash = Some(hash.clone());
             drop(monitor);
 
             let mut store = shared.history_store.lock().unwrap();
@@ -80,9 +80,11 @@ fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>) {
                 source_app.and_then(source_app_info),
                 &settings,
             )
-            .unwrap_or(false)
+            .is_ok()
             {
-                let _ = app.emit(HISTORY_UPDATED_EVENT, ());
+                if let Some(item) = history.iter().find(|item| item.hash == hash) {
+                    let _ = app.emit(HISTORY_UPDATED_EVENT, history_item_to_dto(item));
+                }
             }
         }
         Ok(None) => {}
