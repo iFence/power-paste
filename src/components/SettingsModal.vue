@@ -3,7 +3,6 @@ defineProps({
   appVersion: { type: String, required: true },
   beginShortcutRecording: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
-  checkForUpdates: { type: Function, required: true },
   chooseSelectOption: { type: Function, required: true },
   clearGlobalShortcut: { type: Function, required: true },
   closeSelect: { type: Function, required: true },
@@ -30,9 +29,6 @@ defineProps({
   showSettings: { type: Boolean, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
-  updateBusy: { type: Boolean, required: true },
-  updateState: { type: Object, required: true },
-  updateStatusMessage: { type: String, required: true },
 });
 
 const emit = defineEmits(["close"]);
@@ -257,23 +253,6 @@ const emit = defineEmits(["close"]);
           </div>
         </section>
 
-        <section class="setting-card wide update-card">
-          <div class="setting-head">
-            <span class="meta-label">{{ t("checkForUpdates") }}</span>
-            <span class="setting-note">
-              {{ t("currentVersionLabel", { version: updateState.currentVersion || appVersion || "--" }) }}
-            </span>
-            <span class="setting-note">{{ updateStatusMessage }}</span>
-            <span v-if="updateState.latestVersion" class="setting-note">
-              {{ t("latestVersionLabel", { version: updateState.latestVersion }) }}
-            </span>
-          </div>
-          <div class="setting-actions">
-            <button class="ghost" type="button" :disabled="updateBusy" @click="checkForUpdates">
-              {{ t("checkForUpdates") }}
-            </button>
-          </div>
-        </section>
       </div>
 
       <footer class="modal-footer">

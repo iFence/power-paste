@@ -1,12 +1,15 @@
 <script setup>
 defineProps({
   actionFeedback: { type: String, default: "" },
+  onInstallUpdate: { type: Function, required: true },
   onWindowAction: { type: Function, required: true },
   onClear: { type: Function, required: true },
   onOpenSettings: { type: Function, required: true },
   placeholder: { type: String, required: true },
   query: { type: String, required: true },
   settingsLabel: { type: String, required: true },
+  showUpdateAction: { type: Boolean, required: true },
+  updateLabel: { type: String, required: true },
   clearLabel: { type: String, required: true },
 });
 
@@ -28,6 +31,21 @@ const emit = defineEmits(["update:query"]);
     </div>
 
     <div class="titlebar-actions searchbar-actions action-cluster">
+      <button
+        v-if="showUpdateAction"
+        class="toolbar-icon-button update-available-button"
+        type="button"
+        :title="updateLabel"
+        :aria-label="updateLabel"
+        @click="onInstallUpdate"
+      >
+        <svg viewBox="0 0 1024 1024" aria-hidden="true">
+          <path
+            d="M245.76 286.72h552.96c124.928 0 225.28 100.352 225.28 225.28s-100.352 225.28-225.28 225.28H0V532.48c0-135.168 110.592-245.76 245.76-245.76z m133.12 348.16V401.408H348.16v178.176l-112.64-178.176H204.8V634.88h30.72v-178.176L348.16 634.88h30.72z m182.272-108.544v-24.576h-96.256v-75.776h110.592v-24.576h-141.312V634.88h143.36v-24.576h-112.64v-83.968h96.256z m100.352 28.672l-34.816-151.552h-34.816l55.296 233.472H675.84l47.104-161.792 4.096-20.48 4.096 20.48 47.104 161.792h28.672l57.344-233.472h-34.816l-32.768 151.552-4.096 30.72-6.144-30.72-40.96-151.552h-30.72l-40.96 151.552-6.144 30.72-6.144-30.72z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
       <button class="toolbar-icon-button" type="button" :title="settingsLabel" :aria-label="settingsLabel" @click="onOpenSettings">
         <svg viewBox="0 0 1024 1024" aria-hidden="true">
           <path

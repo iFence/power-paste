@@ -774,6 +774,15 @@ select {
   height: 16px;
 }
 
+.update-available-button {
+  color: #ee502f;
+}
+
+.update-available-button svg {
+  width: 17px;
+  height: 17px;
+}
+
 .search,
 .setting-card input,
 .setting-card textarea,
@@ -845,8 +854,8 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   padding: 0;
   border-radius: 999px;
   border: 0;
@@ -860,6 +869,11 @@ select {
     transform 140ms ease,
     background-color 140ms ease,
     color 140ms ease;
+}
+
+.shortcut-clear-button span {
+  font-size: 0.58rem;
+  line-height: 1;
 }
 
 .shortcut-input-wrap:hover .shortcut-clear-button,

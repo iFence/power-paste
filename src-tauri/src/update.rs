@@ -26,6 +26,12 @@ pub(crate) fn spawn_startup_check(app: AppHandle, shared: Arc<SharedState>) {
     });
 }
 
+pub(crate) fn spawn_manual_check(app: AppHandle, shared: Arc<SharedState>) {
+    tauri::async_runtime::spawn(async move {
+        let _ = check_for_updates_inner(app, shared).await;
+    });
+}
+
 async fn check_for_updates_inner(app: AppHandle, shared: Arc<SharedState>) -> Result<UpdateStatus> {
     let current = current_status(&shared);
     if matches!(current.status.as_str(), "checking" | "downloading") {

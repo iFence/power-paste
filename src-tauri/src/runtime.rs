@@ -18,6 +18,7 @@ use crate::{
     models::{SharedState, PANEL_LABEL},
     paste_target::remember_last_target_window,
     save_settings,
+    update::spawn_manual_check,
 };
 
 // Toggles the panel near the cursor and remembers the previous app for later paste-back.
@@ -166,15 +167,15 @@ pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Res
 fn tray_label(locale: &str, key: &str) -> &'static str {
     if locale == "zh-CN" {
         match key {
-            "show" => "显示 Power Paste",
-            "devtools" => "打开 DevTools",
+            "show" => "主面板",
+            "check_updates" => "检查更新",
             "quit" => "退出",
             _ => "",
         }
     } else {
         match key {
-            "show" => "Show Power Paste",
-            "devtools" => "Open DevTools",
+            "show" => "Main Panel",
+            "check_updates" => "Check for Updates",
             "quit" => "Quit",
             _ => "",
         }
@@ -191,15 +192,15 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
     let version_text = format!("{version_prefix} {}", app.package_info().version);
     let version = MenuItem::with_id(app, "version", version_text, false, None::<&str>)?;
     let show = MenuItem::with_id(app, "show", tray_label(locale, "show"), true, None::<&str>)?;
-    let devtools = MenuItem::with_id(
+    let check_updates = MenuItem::with_id(
         app,
-        "devtools",
-        tray_label(locale, "devtools"),
+        "check_updates",
+        tray_label(locale, "check_updates"),
         true,
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", tray_label(locale, "quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &devtools, &quit, &version])?;
+    let menu = Menu::with_items(app, &[&show, &check_updates, &quit, &version])?;
 
     let mut builder = TrayIconBuilder::with_id("power-paste-tray")
         .menu(&menu)
@@ -208,15 +209,9 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
             "show" => {
                 let _ = toggle_panel(app);
             }
-            "devtools" => {
-                if let Some(window) = app.get_webview_window(PANEL_LABEL) {
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                    if !window.is_devtools_open() {
-                        window.open_devtools();
-                    }
-                }
+            "check_updates" => {
+                let shared = app.state::<Arc<SharedState>>().inner().clone();
+                spawn_manual_check(app.clone(), shared);
             }
             "quit" => app.exit(0),
             _ => {}
