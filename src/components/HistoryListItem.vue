@@ -14,7 +14,7 @@ defineProps({
   unsupportedClipboardWriteMessage: { type: String, required: true },
 });
 
-const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-pin"]);
+const emit = defineEmits(["copy", "edit", "open-link", "paste", "remove", "select", "toggle-pin"]);
 const entryRef = ref(null);
 const imagePreviewStyle = ref({});
 const showImagePreview = ref(false);
@@ -151,7 +151,7 @@ function handlePreviewMouseLeave() {
           <svg
             viewBox="0 0 16 16"
             aria-hidden="true"
-            class="pin-action-icon"
+            class="pin-action-icon action-icon-balance action-icon-balance-pin"
             :class="{ active: item.pinned }"
           >
             <path
@@ -172,9 +172,25 @@ function handlePreviewMouseLeave() {
           @mousedown.stop
           @click.stop="emit('edit', item)"
         >
-          <svg viewBox="0 0 1024 1024" aria-hidden="true">
+          <svg viewBox="0 0 1024 1024" aria-hidden="true" class="action-icon-balance action-icon-balance-edit">
             <path
               d="M884.010667 299.989333l-77.994667 77.994667-160-160 77.994667-77.994667q11.989333-11.989333 29.994667-11.989333t29.994667 11.989333l100.010667 100.010667q11.989333 11.989333 11.989333 29.994667t-11.989333 29.994667zM128 736l472.021333-472.021333 160 160-472.021333 472.021333-160 0 0-160z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          v-if="item.kind === 'link' && item.fullText"
+          class="entry-action-button icon-only open-link-action"
+          type="button"
+          :title="t('openLink')"
+          :aria-label="t('openLink')"
+          @mousedown.stop
+          @click.stop="emit('open-link', item.fullText)"
+        >
+          <svg viewBox="0 0 1024 1024" aria-hidden="true" class="action-icon-balance action-icon-balance-link">
+            <path
+              d="M593.94368 715.648a10.688 10.688 0 0 0-14.976 0L424.21568 870.4c-71.68 71.68-192.576 79.232-271.68 0-79.232-79.232-71.616-200 0-271.616l154.752-154.752a10.688 10.688 0 0 0 0-15.04l-52.992-52.992a10.688 10.688 0 0 0-15.04 0L84.50368 530.688a287.872 287.872 0 0 0 0 407.488 288 288 0 0 0 407.488 0l154.752-154.752a10.688 10.688 0 0 0 0-15.04l-52.736-52.736z m344.384-631.168a288.256 288.256 0 0 1 0 407.616l-154.752 154.752a10.688 10.688 0 0 1-15.04 0l-52.992-52.992a10.688 10.688 0 0 1 0-15.104l154.752-154.688c71.68-71.68 79.232-192.448 0-271.68-79.104-79.232-200-71.68-271.68 0L443.92768 307.2a10.688 10.688 0 0 1-15.04 0l-52.864-52.864a10.688 10.688 0 0 1 0-15.04l154.88-154.752a287.872 287.872 0 0 1 407.424 0z m-296.32 240.896l52.672 52.736a10.688 10.688 0 0 1 0 15.04l-301.504 301.44a10.688 10.688 0 0 1-15.04 0l-52.736-52.672a10.688 10.688 0 0 1 0-15.04l301.632-301.504a10.688 10.688 0 0 1 15.04 0z"
               fill="currentColor"
             />
           </svg>
@@ -187,7 +203,7 @@ function handlePreviewMouseLeave() {
           @mousedown.stop
           @click.stop="emit('remove', item.id)"
         >
-          <svg viewBox="0 0 1024 1024" aria-hidden="true" class="delete-action-icon">
+          <svg viewBox="0 0 1024 1024" aria-hidden="true" class="delete-action-icon action-icon-balance action-icon-balance-delete">
             <path
               d="M896 352l-73.792 556.608A96 96 0 0 1 727.04 992H296.96a96 96 0 0 1-95.168-83.392L128 352h768zM528 32A80 80 0 0 1 608 112V128h288a64 64 0 1 1 0 128H128a64 64 0 1 1 0-128h320v-16A80 80 0 0 1 528 32z"
               fill="currentColor"

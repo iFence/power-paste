@@ -4,6 +4,7 @@ import {
   copyItem as copyItemRequest,
   deleteItem,
   getHistory,
+  openExternalUrl as openExternalUrlRequest,
   pasteItem as pasteItemRequest,
   toggleFavorite as toggleFavoriteRequest,
   togglePin as togglePinRequest,
@@ -67,7 +68,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
       if (activeFilterTab.value === "mixed" && item.kind !== "mixed") {
         return false;
       }
-      if (activeFilterTab.value === "text" && item.kind !== "text") {
+      if (activeFilterTab.value === "text" && !["text", "link"].includes(item.kind)) {
         return false;
       }
       if (activeFilterTab.value === "image" && item.kind !== "image") {
@@ -217,6 +218,10 @@ export function useHistory({ platformCapabilities, settings, t }) {
       actionFeedback.value = formatActionError(error, t);
       throw error;
     }
+  }
+
+  async function openExternalUrl(url) {
+    await openExternalUrlRequest(url);
   }
 
   async function togglePin(id) {
@@ -378,6 +383,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     historyTabs,
     loading,
     openEditModal,
+    openExternalUrl,
     pasteItem,
     query,
     refreshHistory,

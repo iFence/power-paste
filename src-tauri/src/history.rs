@@ -130,6 +130,23 @@ fn source_app_label(app: ForegroundAppResult) -> Option<String> {
     }
 }
 
+pub(crate) fn normalize_link_url(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.chars().any(char::is_whitespace) {
+        return None;
+    }
+
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Some(trimmed.to_string());
+    }
+
+    if trimmed.starts_with("www.") {
+        return Some(format!("https://{trimmed}"));
+    }
+
+    None
+}
+
 pub(crate) fn source_app_info(app: ForegroundAppResult) -> Option<(String, Option<String>)> {
     let label = source_app_label(ForegroundAppResult {
         process_name: app.process_name.clone(),
@@ -325,8 +342,18 @@ pub(crate) fn build_captured_clipboard(
     }
 
     if !text.is_empty() || html_text.as_deref().is_some() || rtf_text.as_deref().is_some() {
+        let hash = text_hash(&text, html_text.as_deref(), rtf_text.as_deref());
+        if normalize_link_url(&text).is_some() {
+            return Ok(Some(CapturedClipboard::Link {
+                hash,
+                text,
+                html_text,
+                rtf_text,
+            }));
+        }
+
         return Ok(Some(CapturedClipboard::Text {
-            hash: text_hash(&text, html_text.as_deref(), rtf_text.as_deref()),
+            hash,
             text,
             html_text,
             rtf_text,

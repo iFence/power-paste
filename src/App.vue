@@ -143,6 +143,7 @@ onUnmounted(() => {
         :unsupported-direct-paste-message="settingsState.t('unsupportedDirectPaste')"
         @copy="historyState.copyItem"
         @edit="historyState.openEditModal"
+        @open-link="historyState.openExternalUrl"
         @paste="historyState.pasteItem"
         @remove="historyState.removeItem"
         @select="historyState.setSelectedId"

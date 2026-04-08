@@ -33,7 +33,7 @@ mod usecases;
 // Tauri command entrypoints stay thin and delegate to feature modules.
 use commands::{
     clear_history, copy_item, delete_item, get_history, get_platform_capabilities, get_settings,
-    paste_item, toggle_favorite, toggle_pin, update_settings, update_text_item,
+    open_external_url, paste_item, toggle_favorite, toggle_pin, update_settings, update_text_item,
 };
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, DEBUG_CONTEXT_MENU_INIT_SCRIPT};
 use repository::SqliteHistoryStore;
@@ -190,6 +190,7 @@ pub fn run() {
             clear_history,
             copy_item,
             paste_item,
+            open_external_url,
             update::get_update_state,
             update::check_for_updates,
             update::install_update

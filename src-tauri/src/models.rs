@@ -252,6 +252,12 @@ pub(crate) enum CapturedClipboard {
         rtf_text: Option<String>,
         hash: String,
     },
+    Link {
+        text: String,
+        html_text: Option<String>,
+        rtf_text: Option<String>,
+        hash: String,
+    },
     Image {
         png_bytes: Vec<u8>,
         hash: String,

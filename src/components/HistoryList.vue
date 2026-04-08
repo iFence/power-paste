@@ -15,7 +15,7 @@ defineProps({
   unsupportedDirectPasteMessage: { type: String, required: true },
 });
 
-const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-pin"]);
+const emit = defineEmits(["copy", "edit", "open-link", "paste", "remove", "select", "toggle-pin"]);
 </script>
 
 <template>
@@ -41,6 +41,7 @@ const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-p
           :unsupported-direct-paste-message="unsupportedDirectPasteMessage"
           @copy="emit('copy', $event)"
           @edit="emit('edit', $event)"
+          @open-link="emit('open-link', $event)"
           @paste="emit('paste', $event)"
           @remove="emit('remove', $event)"
           @select="emit('select', $event)"

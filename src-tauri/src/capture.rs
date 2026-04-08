@@ -47,6 +47,7 @@ fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>) {
         Ok(Some(capture)) => {
             let hash = match &capture {
                 CapturedClipboard::Text { hash, .. }
+                | CapturedClipboard::Link { hash, .. }
                 | CapturedClipboard::Image { hash, .. }
                 | CapturedClipboard::Mixed { hash, .. } => hash.clone(),
             };

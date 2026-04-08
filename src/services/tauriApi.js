@@ -69,3 +69,7 @@ export function copyItem(id) {
 export function pasteItem(id) {
   return invoke("paste_item", { id });
 }
+
+export function openExternalUrl(url) {
+  return invoke("open_external_url", { url });
+}

@@ -346,6 +346,7 @@ impl SqliteHistoryStore {
 fn capture_hash(capture: &CapturedClipboard) -> &str {
     match capture {
         CapturedClipboard::Text { hash, .. }
+        | CapturedClipboard::Link { hash, .. }
         | CapturedClipboard::Image { hash, .. }
         | CapturedClipboard::Mixed { hash, .. } => hash,
     }
@@ -353,7 +354,9 @@ fn capture_hash(capture: &CapturedClipboard) -> &str {
 
 fn capture_matching_text(capture: &CapturedClipboard) -> Option<String> {
     match capture {
-        CapturedClipboard::Text { text, .. } | CapturedClipboard::Mixed { text, .. }
+        CapturedClipboard::Text { text, .. }
+        | CapturedClipboard::Link { text, .. }
+        | CapturedClipboard::Mixed { text, .. }
             if !text.is_empty() =>
         {
             Some(text.clone())
@@ -381,6 +384,22 @@ fn apply_capture(
             hash,
         } => {
             item.kind = "text".into();
+            item.preview = preview_text(&text);
+            item.full_text = Some(text);
+            item.html_text = html_text;
+            item.rtf_text = rtf_text;
+            item.image_png = None;
+            item.image_width = None;
+            item.image_height = None;
+            item.hash = hash;
+        }
+        CapturedClipboard::Link {
+            text,
+            html_text,
+            rtf_text,
+            hash,
+        } => {
+            item.kind = "link".into();
             item.preview = preview_text(&text);
             item.full_text = Some(text);
             item.html_text = html_text;
