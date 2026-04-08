@@ -1,55 +1,108 @@
 # Power Paste
 
-Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`, and `Rust`.
+Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`, and `Rust`. It is designed around a native-feeling workflow: monitor clipboard changes in the background, open a compact history panel with a global shortcut, then quickly search, preview, copy, edit, or paste previous items back into the last target application.
+
+中文说明见 [README.zh-CN.md](./README.zh-CN.md)。
+
+## Highlights
+
+- Global shortcut to toggle the history panel
+- Capture text, image, and mixed clipboard content
+- Search and filter by `All`, `Pinned`, `Text`, `Image`, and `Image + Text`
+- Pin important entries to keep them at the top
+- Edit plain-text history items in place
+- Restore clipboard content or paste directly back to the previous target app
+- Hover image thumbnails to preview a larger image
+- Settings for language, theme mode, accent color, launch on startup, history size, image size, debug mode, and global shortcut
+- Tray integration, single-instance behavior, and startup update checks
+- Local persistence powered by SQLite plus on-disk image storage
 
 ## Platform Status
 
-- Windows: full support for clipboard capture, clipboard write-back, direct paste to the last target app, launch on startup, tray integration, and global shortcut workflow
-- macOS: app startup and packaging are intended to work, but Windows-native features are currently shown as unsupported
-- Linux: app startup and packaging are intended to work, but Windows-native features are currently shown as unsupported
+- Windows: primary target platform, with full clipboard monitoring, clipboard write-back, direct paste, autostart, tray integration, updater, and global shortcut workflow
+- macOS: app startup and packaging are intended to work, but Windows-specific native clipboard workflows currently degrade to friendly unsupported messages
+- Linux: app startup and packaging are intended to work, but Windows-specific native clipboard workflows currently degrade to friendly unsupported messages
 
-## Current Features
+## Feature Overview
 
-- Clipboard history panel opened with a global shortcut
-- Text, image, and mixed clipboard item capture
-- Search and filter by item type
-- Pin important items to the top
-- Edit plain text history items
-- Source app detection for captured items
-- Theme, accent color, language, and density settings
-- Ignored app list for sensitive applications
-- Tray integration and single-instance behavior
-- Local persistence for history, settings, and captured images
+### History Workflow
 
-## Cross-Platform Behavior
+- The main panel opens as a compact transparent window
+- Arrow keys move through the filtered list and keep the active item in view
+- `Enter` pastes the selected item back to the last target application when supported
+- `Ctrl/Cmd + C` copies the selected history item back to the system clipboard
+- Double-clicking a history item pastes it directly when direct paste is available
 
-These features are currently Windows-only and return friendly unsupported messages on macOS and Linux:
+### Item Types
 
-- Write item content back to the system clipboard
-- Paste directly into the previous target application
+- Text items: searchable, editable, copyable, and directly pasteable
+- Image items: thumbnail preview, large-image hover preview, copy/paste support on supported platforms
+- Mixed items: preserved as combined content where the backend supports mixed replay
+
+### Settings
+
+- Interface language: Simplified Chinese / English
+- Theme: Light / Dark / System
+- Accent color: Ocean / Amber / Jade / Rose
+- Launch on startup
+- Maximum history item count
+- Maximum stored image size
+- Global shortcut recording and clearing
+- Debug mode toggle
+
+### Native Integration
+
+- Single-instance behavior: reuses the existing app instance instead of opening duplicates
+- Tray support: keep the app available in the background
+- Global shortcut registration through Tauri plugin support
+- Update checks through the Tauri updater plugin
+
+## Cross-Platform Degradation
+
+The following capabilities are currently Windows-first and may show unsupported messages on macOS and Linux:
+
+- Writing clipboard item content back to the system clipboard
+- Direct paste into the previously active target application
 - Launch on startup
 - Native mixed clipboard replay
 
-Platform-independent features such as history browsing, search, filtering, pinning, editing, deleting, and settings persistence remain available.
+History browsing, search, filtering, pinning, editing, deleting, settings persistence, and the general UI remain available.
 
-## Stack
+## Tech Stack
 
-- `Tauri 2`
+### Frontend
+
 - `Vue 3`
 - `Vite`
+- Composition API based composables for state and behavior
+
+### Desktop / Backend
+
+- `Tauri 2`
 - `Rust`
-- Windows native clipboard integration via `PowerShell`, Win32 APIs, and `System.Windows.Forms`
+- `tauri-plugin-global-shortcut`
+- `tauri-plugin-autostart`
+- `tauri-plugin-single-instance`
+- `tauri-plugin-updater`
+- `tauri-plugin-sql` with SQLite
+- `tauri-plugin-clipboard-next`
+
+### Windows Integration
+
+- Win32 APIs
+- WebView2
+- PowerShell-based helpers for Windows-specific clipboard and paste workflows
 
 ## Requirements
 
-- Node.js 18+
-- `pnpm` 10+
-- Rust 1.77+
+- Node.js `18+`
+- `pnpm` `10+`
+- Rust `1.77.2+`
 
 Windows development also requires:
 
 - Windows 10 or Windows 11
-- WebView2 Runtime
+- Microsoft WebView2 Runtime
 
 ## Development
 
@@ -73,20 +126,20 @@ pnpm tauri dev
 
 ## Build
 
-Frontend build:
+Build the frontend:
 
 ```bash
 pnpm build
 ```
 
-Rust check:
+Run Rust checks:
 
 ```bash
 cd src-tauri
 cargo check
 ```
 
-Desktop package build:
+Build desktop bundles:
 
 ```bash
 pnpm tauri build
@@ -94,22 +147,47 @@ pnpm tauri build
 
 ## Data Storage
 
-Power Paste stores local data in the Tauri app-local-data directory.
-Typical files include:
+Application data is stored in the Tauri app-local-data directory.
 
-- `history.json`
+Typical persisted data includes:
+
+- SQLite history database
 - `settings.json`
-- `images/`
+- captured images on disk
+
+The repository no longer relies on a plain `history.json` file for the primary history store; history is backed by SQLite in the current implementation.
 
 ## Project Structure
 
 ```text
 .
-- src/                 # Vue UI
-- src/components/      # UI components
-- src/composables/     # Frontend state and behavior
-- src/services/        # Tauri API wrappers
-- src/utils/           # Frontend helpers
-- src/styles/          # Styles
-- src-tauri/src/       # Rust backend
+├── src/
+│   ├── components/      # Reusable Vue UI pieces
+│   ├── composables/     # Frontend state and interaction logic
+│   ├── services/        # Tauri invoke/event wrappers
+│   ├── styles/          # Shared application styles
+│   └── utils/           # Frontend helpers
+├── src-tauri/
+│   ├── src/commands.rs  # Tauri command entrypoints
+│   ├── src/runtime.rs   # Window and runtime behavior
+│   ├── src/update.rs    # App updater flow
+│   ├── src/repository.rs# SQLite history storage
+│   ├── src/storage.rs   # Settings and path storage
+│   └── src/clipboard/   # Clipboard backends and platform capabilities
+└── scripts/             # Local development helper scripts
 ```
+
+## Repository Notes
+
+- Package manager: `pnpm`
+- Default frontend language in code: JavaScript / Vue SFC
+- Native backend language: Rust
+- Current default branch in this workspace: `master`
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0.
+
+See the [LICENSE](./LICENSE) file for the full license text.
+
+If you modify and deploy this project for users over a network, AGPLv3 requires you to provide the corresponding source code of that modified version to those users.
