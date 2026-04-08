@@ -5,6 +5,7 @@ defineProps({
   canToggleLaunchOnStartup: { type: Boolean, required: true },
   checkForUpdates: { type: Function, required: true },
   chooseSelectOption: { type: Function, required: true },
+  clearGlobalShortcut: { type: Function, required: true },
   closeSelect: { type: Function, required: true },
   currentAccentColorOptions: { type: Array, required: true },
   currentLocale: { type: String, required: true },
@@ -98,11 +99,6 @@ const emit = defineEmits(["close"]);
                 @click="chooseSelectOption('themeMode', 'themeMode', option.value)"
               >
                 <span>{{ option.label }}</span>
-                <span
-                  v-if="settings.themeMode === option.value"
-                  class="custom-select-check"
-                  aria-hidden="true"
-                >OK</span>
               </button>
             </div>
           </div>
@@ -135,11 +131,6 @@ const emit = defineEmits(["close"]);
                 @click="chooseSelectOption('accentColor', 'accentColor', option.value)"
               >
                 <span>{{ option.label }}</span>
-                <span
-                  v-if="settings.accentColor === option.value"
-                  class="custom-select-check"
-                  aria-hidden="true"
-                >OK</span>
               </button>
             </div>
           </div>
@@ -214,15 +205,27 @@ const emit = defineEmits(["close"]);
           <div class="setting-head">
             <span class="meta-label">{{ t("globalShortcut") }}</span>
           </div>
-          <input
-            :value="settings.globalShortcut"
-            type="text"
-            readonly
-            :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
-            @focus="beginShortcutRecording"
-            @blur="endShortcutRecording"
-            @keydown="handleShortcutKeydown"
-          />
+          <div class="shortcut-input-wrap">
+            <input
+              :value="settings.globalShortcut"
+              type="text"
+              readonly
+              :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
+              @focus="beginShortcutRecording"
+              @blur="endShortcutRecording"
+              @keydown="handleShortcutKeydown"
+            />
+            <button
+              v-if="settings.globalShortcut"
+              type="button"
+              class="shortcut-clear-button"
+              :aria-label="t('clear')"
+              @mousedown.prevent
+              @click="clearGlobalShortcut"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
         </section>
 
         <section class="setting-card">

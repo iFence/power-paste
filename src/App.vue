@@ -154,6 +154,7 @@ onUnmounted(() => {
       :app-version="settingsState.appVersion.value"
       :begin-shortcut-recording="settingsState.beginShortcutRecording"
       :choose-select-option="settingsState.chooseSelectOption"
+      :clear-global-shortcut="settingsState.clearGlobalShortcut"
       :close-select="settingsState.closeSelect"
       :current-accent-color-options="settingsState.currentAccentColorOptions.value"
       :current-locale="settingsState.currentLocale.value"

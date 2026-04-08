@@ -10,6 +10,8 @@ import {
   updateTextItem,
 } from "../services/tauriApi";
 
+const ACTIVE_FILTER_TAB_STORAGE_KEY = "clipdesk.activeFilterTab";
+
 function formatActionError(error, t) {
   const message =
     typeof error === "string"
@@ -50,7 +52,7 @@ function compareHistoryItems(left, right) {
 
 export function useHistory({ platformCapabilities, settings, t }) {
   const query = ref("");
-  const activeFilterTab = ref("all");
+  const activeFilterTab = ref(window.localStorage.getItem(ACTIVE_FILTER_TAB_STORAGE_KEY) || "all");
   const history = ref([]);
   const loading = ref(true);
   const selectedId = ref(null);
@@ -92,6 +94,16 @@ export function useHistory({ platformCapabilities, settings, t }) {
     { key: "image", label: t("filterImage") },
     { key: "mixed", label: t("filterMixed") },
   ]);
+
+  function syncActiveFilterTab() {
+    const availableTabs = new Set(historyTabs.value.map((tab) => tab.key));
+    if (!availableTabs.has(activeFilterTab.value)) {
+      activeFilterTab.value = "all";
+      return;
+    }
+
+    window.localStorage.setItem(ACTIVE_FILTER_TAB_STORAGE_KEY, activeFilterTab.value);
+  }
 
   const historyCountLabel = computed(() => {
     const count = filteredHistory.value.length;
@@ -315,20 +327,23 @@ export function useHistory({ platformCapabilities, settings, t }) {
       return;
     }
 
-    const panelTop = panel.scrollTop;
-    const panelBottom = panelTop + panel.clientHeight;
-    const itemTop = activeItem.offsetTop;
-    const itemBottom = itemTop + activeItem.offsetHeight;
     const margin = 12;
+    const panelRect = panel.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+    const topDelta = itemRect.top - panelRect.top;
+    const bottomDelta = itemRect.bottom - panelRect.bottom;
 
-    if (itemTop - margin < panelTop) {
-      panel.scrollTo({ top: Math.max(0, itemTop - margin), behavior: "smooth" });
+    if (topDelta < margin) {
+      panel.scrollTo({
+        top: Math.max(0, panel.scrollTop + topDelta - margin),
+        behavior: "smooth",
+      });
       return;
     }
 
-    if (itemBottom + margin > panelBottom) {
+    if (bottomDelta > -margin) {
       panel.scrollTo({
-        top: itemBottom - panel.clientHeight + margin,
+        top: Math.max(0, panel.scrollTop + bottomDelta + margin),
         behavior: "smooth",
       });
     }
@@ -338,11 +353,17 @@ export function useHistory({ platformCapabilities, settings, t }) {
     void scrollSelectedIntoView();
   });
 
+  watch(activeFilterTab, () => {
+    syncActiveFilterTab();
+  });
+
   watch(filteredHistory, (items) => {
     if (!items.some((item) => item.id === selectedId.value)) {
       selectedId.value = items[0]?.id ?? null;
     }
   });
+
+  syncActiveFilterTab();
 
   return {
     activeFilterTab,

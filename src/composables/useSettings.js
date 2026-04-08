@@ -153,6 +153,11 @@ export function useSettings() {
     recordingShortcut.value = false;
   }
 
+  function clearGlobalShortcut() {
+    settings.globalShortcut = "";
+    endShortcutRecording();
+  }
+
   function handleShortcutKeydown(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -163,8 +168,7 @@ export function useSettings() {
     }
 
     if (event.key === "Backspace" || event.key === "Delete") {
-      settings.globalShortcut = "";
-      endShortcutRecording();
+      clearGlobalShortcut();
       return;
     }
 
@@ -247,6 +251,7 @@ export function useSettings() {
     beginShortcutRecording,
     canToggleLaunchOnStartup,
     chooseSelectOption,
+    clearGlobalShortcut,
     closeSelect,
     currentAccentColor,
     currentAccentColorOptions,

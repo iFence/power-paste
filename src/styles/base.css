@@ -4,13 +4,15 @@
   --app-text: #f4efe8;
   --app-muted: rgba(244, 239, 232, 0.68);
   --app-soft-text: rgba(244, 239, 232, 0.52);
-  --app-panel-bg: rgba(255, 255, 255, 0.05);
-  --app-panel-strong-bg: rgba(255, 255, 255, 0.08);
+  --app-panel-bg: rgba(20, 24, 30, 0.54);
+  --app-panel-strong-bg: rgba(30, 35, 43, 0.66);
   --app-panel-border: rgba(255, 255, 255, 0.08);
   --app-list-border: rgba(255, 255, 255, 0.06);
   --app-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
-  --modal-panel-bg: rgba(24, 28, 34, 0.84);
-  --modal-panel-strong-bg: rgba(39, 44, 52, 0.92);
+  --modal-panel-bg: rgba(18, 22, 28, 0.64);
+  --modal-panel-strong-bg: rgba(28, 33, 41, 0.76);
+  --app-glass-blur: 22px;
+  --app-glass-saturate: 114%;
   --app-bg:
     radial-gradient(circle at top left, rgba(230, 141, 67, 0.24), transparent 34%),
     radial-gradient(circle at top right, rgba(96, 134, 255, 0.16), transparent 30%),
@@ -37,13 +39,15 @@
   --app-text: #1d232d;
   --app-muted: rgba(29, 35, 45, 0.72);
   --app-soft-text: rgba(29, 35, 45, 0.52);
-  --app-panel-bg: rgba(255, 255, 255, 0.72);
-  --app-panel-strong-bg: rgba(255, 255, 255, 0.94);
+  --app-panel-bg: rgba(255, 255, 255, 0.62);
+  --app-panel-strong-bg: rgba(255, 255, 255, 0.78);
   --app-panel-border: rgba(24, 36, 50, 0.18);
   --app-list-border: rgba(24, 36, 50, 0.14);
   --app-shadow: 0 16px 36px rgba(20, 27, 38, 0.12);
-  --modal-panel-bg: rgba(255, 255, 255, 0.84);
-  --modal-panel-strong-bg: rgba(255, 255, 255, 0.92);
+  --modal-panel-bg: rgba(255, 255, 255, 0.68);
+  --modal-panel-strong-bg: rgba(255, 255, 255, 0.8);
+  --app-glass-blur: 20px;
+  --app-glass-saturate: 110%;
   --app-button-bg: rgba(255, 255, 255, 0.84);
   --app-button-hover-bg: rgba(255, 255, 255, 0.96);
   --app-input-bg: rgba(255, 255, 255, 0.88);
@@ -62,7 +66,7 @@
 :root:not([data-theme="light"]) {
   --app-button-bg: rgba(255, 255, 255, 0.08);
   --app-button-hover-bg: rgba(255, 255, 255, 0.12);
-  --app-input-bg: rgba(255, 255, 255, 0.045);
+  --app-input-bg: rgba(255, 255, 255, 0.06);
   --app-select-arrow: rgba(244, 239, 232, 0.54);
   --app-select-menu-bg: #181b21;
   --app-select-menu-text: #f4efe8;
@@ -129,6 +133,7 @@ select {
 
 .titlebar,
 .settings-modal,
+.edit-modal,
 .history-entry,
 .search,
 .ghost,
@@ -141,6 +146,15 @@ select {
   border: 1px solid var(--app-panel-border);
   background: var(--app-panel-bg);
   box-shadow: var(--app-shadow);
+}
+
+.titlebar,
+.settings-modal,
+.edit-modal,
+.history-entry,
+.search {
+  backdrop-filter: blur(var(--app-glass-blur)) saturate(var(--app-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur)) saturate(var(--app-glass-saturate));
 }
 
 .window-controls {
@@ -478,6 +492,41 @@ select {
   object-fit: cover;
 }
 
+.image-hover-preview {
+  position: fixed;
+  z-index: 260;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--app-panel-border) 72%, rgba(255, 255, 255, 0.32));
+  background: linear-gradient(180deg, var(--modal-panel-strong-bg), var(--modal-panel-bg));
+  box-shadow:
+    0 18px 42px rgba(8, 11, 18, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(var(--app-glass-blur)) saturate(var(--app-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur)) saturate(var(--app-glass-saturate));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px) scale(0.98);
+  transform-origin: top left;
+  transition:
+    opacity 140ms ease,
+    transform 180ms ease;
+}
+
+.image-hover-preview.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.image-hover-preview-image {
+  display: block;
+  width: 100%;
+  max-height: var(--preview-image-max-height, 320px);
+  border-radius: 12px;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--app-panel-bg) 86%, transparent);
+}
+
 .entry-body {
   display: flex;
   align-items: center;
@@ -749,6 +798,63 @@ select {
   position: relative;
 }
 
+.shortcut-input-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 208px;
+  justify-self: end;
+}
+
+.shortcut-input-wrap input {
+  padding-right: 40px;
+  font-size: 0.72rem;
+}
+
+.shortcut-clear-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 0;
+  background: color-mix(in srgb, var(--app-button-bg) 88%, transparent);
+  color: var(--app-muted);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) scale(0.92);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.shortcut-input-wrap:hover .shortcut-clear-button,
+.shortcut-input-wrap:focus-within .shortcut-clear-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+.shortcut-clear-button:hover {
+  background: color-mix(in srgb, var(--accent-primary-soft) 72%, var(--app-button-bg));
+  color: var(--app-text);
+}
+
+.shortcut-clear-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  color: var(--app-text);
+  box-shadow:
+    0 0 0 1px var(--accent-primary),
+    0 0 0 4px color-mix(in srgb, var(--accent-primary-soft) 80%, transparent);
+}
+
 .custom-select-trigger {
   display: inline-flex;
   align-items: center;
@@ -984,14 +1090,8 @@ select {
   border-radius: 22px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--app-panel-border) 72%, rgba(255, 255, 255, 0.45));
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.06) 18%, transparent 36%),
-    linear-gradient(180deg, color-mix(in srgb, var(--modal-panel-strong-bg) 92%, transparent), var(--modal-panel-bg));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 18px 42px rgba(20, 27, 38, 0.14);
-  backdrop-filter: blur(30px) saturate(150%);
-  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  background: linear-gradient(180deg, var(--modal-panel-strong-bg), var(--modal-panel-bg));
+  box-shadow: 0 18px 42px rgba(20, 27, 38, 0.14);
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
@@ -1006,8 +1106,7 @@ select {
   border-radius: 22px;
   overflow: hidden;
   border: 1px solid var(--app-panel-border);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-panel-strong-bg) 92%, transparent), var(--app-panel-bg));
+  background: linear-gradient(180deg, var(--app-panel-strong-bg), var(--app-panel-bg));
   box-shadow: var(--app-shadow);
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -1183,6 +1282,7 @@ select {
 .setting-card > input,
 .setting-card > .select-wrap,
 .setting-card > .custom-select,
+.setting-card > .shortcut-input-wrap,
 .setting-card > .setting-toggle,
 .setting-card > .input-with-unit,
 .setting-card > .setting-actions {
@@ -1195,9 +1295,19 @@ select {
 .setting-card > input,
 .setting-card > .select-wrap .select,
 .setting-card > .custom-select .custom-select-trigger,
+.setting-card > .shortcut-input-wrap input,
 .setting-card > .input-with-unit input,
 .setting-card > .input-with-unit .input-unit {
   font-size: 0.78rem;
+}
+
+.settings-modal .setting-card > input,
+.settings-modal .setting-card > .custom-select .custom-select-trigger,
+.settings-modal .setting-card > .shortcut-input-wrap input,
+.settings-modal .setting-card > .input-with-unit input,
+.settings-modal .setting-card > .input-with-unit .input-unit {
+  background: color-mix(in srgb, var(--app-input-bg) 94%, var(--modal-panel-strong-bg) 6%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
 }
 
 .input-unit {
@@ -1376,21 +1486,19 @@ textarea {
 
 :root:not([data-theme="light"]) .modal-backdrop {
   background: rgba(5, 8, 12, 0.36);
-  backdrop-filter: blur(16px) saturate(132%);
+  backdrop-filter: blur(16px) saturate(112%);
 }
 
 :root:not([data-theme="light"]) .settings-modal {
   border: 1px solid color-mix(in srgb, rgba(255, 255, 255, 0.42) 58%, var(--app-panel-border) 42%);
-  background:
-    linear-gradient(140deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 22%, transparent 54%),
-    linear-gradient(180deg, color-mix(in srgb, var(--modal-panel-strong-bg) 78%, transparent), color-mix(in srgb, var(--modal-panel-bg) 74%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--modal-panel-strong-bg) 94%, transparent),
+    color-mix(in srgb, var(--modal-panel-bg) 92%, transparent)
+  );
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.46),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
     0 20px 48px rgba(4, 7, 13, 0.42),
     0 0 0 1px rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(34px) saturate(180%) brightness(1.08);
-  -webkit-backdrop-filter: blur(34px) saturate(180%) brightness(1.08);
 }
 
 :root:not([data-theme="light"]) .setting-card input[type="number"] {
@@ -1465,6 +1573,7 @@ textarea {
   .setting-card > .setting-toggle,
   .setting-card > .input-with-unit,
   .setting-card > .custom-select,
+  .setting-card > .shortcut-input-wrap,
   .setting-card > input,
   .setting-card > .setting-actions {
     max-width: none;
@@ -1497,6 +1606,7 @@ textarea {
   .setting-card > input,
   .setting-card > .select-wrap,
   .setting-card > .custom-select,
+  .setting-card > .shortcut-input-wrap,
   .setting-card > .setting-toggle,
   .setting-card > .input-with-unit {
     max-width: 176px;

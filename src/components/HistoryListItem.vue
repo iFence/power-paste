@@ -1,4 +1,5 @@
 <script setup>
+import { computed, ref } from "vue";
 import { formatRelativeTime } from "../utils/format";
 import { looksLikeCode, previewHtml } from "../utils/codePreview";
 
@@ -14,6 +15,10 @@ defineProps({
 });
 
 const emit = defineEmits(["copy", "edit", "paste", "remove", "select", "toggle-pin"]);
+const entryRef = ref(null);
+const imagePreviewStyle = ref({});
+const showImagePreview = ref(false);
+const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? "" : ""));
 
 function formatImageSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -26,11 +31,53 @@ function formatImageSize(bytes) {
 
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
 }
+
+function updateImagePreviewPosition(target) {
+  if (!entryRef.value || !target) {
+    return;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const previewWidth = Math.min(420, Math.max(280, Math.floor(window.innerWidth * 0.28)));
+  const previewHeight = Math.min(320, Math.max(220, Math.floor(window.innerHeight * 0.36)));
+  const gap = 16;
+  const fitsRight = rect.right + gap + previewWidth <= window.innerWidth - 16;
+  const left = fitsRight
+    ? rect.right + gap
+    : Math.max(16, rect.left - gap - previewWidth);
+  const top = Math.min(
+    Math.max(16, rect.top + rect.height / 2 - previewHeight / 2),
+    Math.max(16, window.innerHeight - previewHeight - 16),
+  );
+
+  imagePreviewStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+    width: `${previewWidth}px`,
+    maxHeight: `${previewHeight + 20}px`,
+    "--preview-image-max-height": `${previewHeight}px`,
+  };
+}
+
+function handlePreviewMouseEnter(event) {
+  if (!entryRef.value?.dataset.previewUrl) {
+    return;
+  }
+
+  updateImagePreviewPosition(event.currentTarget);
+  showImagePreview.value = true;
+}
+
+function handlePreviewMouseLeave() {
+  showImagePreview.value = false;
+}
 </script>
 
 <template>
   <article
+    ref="entryRef"
     :data-history-id="item.id"
+    :data-preview-url="item.imageDataUrl || ''"
     class="history-entry"
     :class="{ active: selected, 'is-paste-disabled': !canDirectPaste }"
     :title="canDirectPaste ? undefined : unsupportedDirectPasteMessage"
@@ -72,6 +119,8 @@ function formatImageSize(bytes) {
         :src="item.imageDataUrl"
         alt=""
         class="entry-thumb"
+        @mouseenter="handlePreviewMouseEnter"
+        @mouseleave="handlePreviewMouseLeave"
       />
       <div class="entry-body">
         <div v-if="!(item.imageDataUrl && !item.fullText)" class="entry-text-preview">
@@ -147,5 +196,18 @@ function formatImageSize(bytes) {
         </button>
       </div>
     </footer>
+
   </article>
+
+  <Teleport to="body">
+    <div
+      v-if="imagePreviewUrl"
+      class="image-hover-preview"
+      :class="{ visible: showImagePreview }"
+      :style="imagePreviewStyle"
+      aria-hidden="true"
+    >
+      <img :src="imagePreviewUrl" alt="" class="image-hover-preview-image" />
+    </div>
+  </Teleport>
 </template>

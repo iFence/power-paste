@@ -196,7 +196,7 @@ themeModeOptions["zh-CN"] = [
 accentColorOptions["zh-CN"] = [
   { value: "ocean", label: "\u6d77\u84dd" },
   { value: "amber", label: "\u7425\u73c0" },
-  { value: "jade", label: "\u7fe0\u7eff" },
+  { value: "jade", label: "\u9752\u7389" },
   { value: "rose", label: "\u73ab\u7470" },
 ];
 
