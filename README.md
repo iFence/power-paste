@@ -8,13 +8,14 @@ Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`
 
 - Global shortcut to toggle the history panel
 - Capture text, image, and mixed clipboard content
+- Detect copied links and open them in the default browser from the history item
 - Search and filter by `All`, `Pinned`, `Text`, `Image`, and `Image + Text`
 - Pin important entries to keep them at the top
 - Edit plain-text history items in place
 - Restore clipboard content or paste directly back to the previous target app
 - Hover image thumbnails to preview a larger image
 - Settings for language, theme mode, accent color, launch on startup, history size, image size, debug mode, and global shortcut
-- Tray integration, single-instance behavior, and startup update checks
+- Tray integration, single-instance behavior, startup update checks, and manual update checks from the tray menu
 - Local persistence powered by SQLite plus on-disk image storage
 
 ## Platform Status
@@ -32,10 +33,12 @@ Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`
 - `Enter` pastes the selected item back to the last target application when supported
 - `Ctrl/Cmd + C` copies the selected history item back to the system clipboard
 - Double-clicking a history item pastes it directly when direct paste is available
+- Link items can show an open-link action in the bottom-right corner
 
 ### Item Types
 
 - Text items: searchable, editable, copyable, and directly pasteable
+- Link items: detected from copied URLs and openable in the system default browser
 - Image items: thumbnail preview, large-image hover preview, copy/paste support on supported platforms
 - Mixed items: preserved as combined content where the backend supports mixed replay
 
@@ -50,10 +53,12 @@ Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`
 - Global shortcut recording and clearing
 - Debug mode toggle
 
+Update checks are no longer configured from the settings page. The app checks for updates automatically on startup, shows an update icon in the top bar when a new version is available, and also exposes a manual `Check for Updates` action in the tray menu.
+
 ### Native Integration
 
 - Single-instance behavior: reuses the existing app instance instead of opening duplicates
-- Tray support: keep the app available in the background
+- Tray support: keep the app available in the background and trigger `Main Panel` / `Check for Updates` / `Quit`
 - Global shortcut registration through Tauri plugin support
 - Update checks through the Tauri updater plugin
 
