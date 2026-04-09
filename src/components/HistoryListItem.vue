@@ -1,7 +1,7 @@
 <script setup>
-import { computed, ref } from "vue";
-import { formatRelativeTime } from "../utils/format";
-import { looksLikeCode, previewHtml } from "../utils/codePreview";
+import { computed, ref } from 'vue'
+import { formatRelativeTime } from '../utils/format'
+import { looksLikeCode, previewHtml } from '../utils/codePreview'
 
 defineProps({
   canClipboardWrite: { type: Boolean, required: true },
@@ -12,64 +12,89 @@ defineProps({
   t: { type: Function, required: true },
   unsupportedDirectPasteMessage: { type: String, required: true },
   unsupportedClipboardWriteMessage: { type: String, required: true },
-});
+})
 
-const emit = defineEmits(["copy", "edit", "open-link", "paste", "remove", "select", "toggle-pin"]);
-const entryRef = ref(null);
-const imagePreviewStyle = ref({});
-const showImagePreview = ref(false);
-const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? "" : ""));
+const emit = defineEmits(['copy', 'edit', 'open-link', 'paste', 'remove', 'select', 'toggle-pin'])
+const entryRef = ref(null)
+const imagePreviewStyle = ref({})
+const showImagePreview = ref(false)
+const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
 
 function formatImageSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
-    return "";
+    return ''
   }
 
   if (bytes < 1_000_000) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`
   }
 
-  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  return `${(bytes / 1_000_000).toFixed(1)} MB`
+}
+
+function resolvePreviewFrame(target) {
+  const previewWidth = Math.min(420, Math.max(280, Math.floor(window.innerWidth * 0.28)))
+  const previewMaxHeight = Math.min(320, Math.max(220, Math.floor(window.innerHeight * 0.36)))
+  const imageWidth = Number(target.dataset.imageWidth)
+  const imageHeight = Number(target.dataset.imageHeight)
+
+  if (!Number.isFinite(imageWidth) || !Number.isFinite(imageHeight) || imageWidth <= 0 || imageHeight <= 0) {
+    return {
+      previewWidth,
+      previewMaxHeight,
+      previewFrameHeight: previewMaxHeight + 20,
+    }
+  }
+
+  const aspectRatio = imageWidth / imageHeight
+  const previewAspectRatio = previewWidth / previewMaxHeight
+  const renderedImageHeight =
+    aspectRatio >= previewAspectRatio ? Math.max(96, previewWidth / aspectRatio) : previewMaxHeight
+
+  return {
+    previewWidth,
+    previewMaxHeight,
+    previewFrameHeight: renderedImageHeight + 20,
+  }
 }
 
 function updateImagePreviewPosition(target) {
   if (!entryRef.value || !target) {
-    return;
+    return
   }
 
-  const rect = target.getBoundingClientRect();
-  const previewWidth = Math.min(420, Math.max(280, Math.floor(window.innerWidth * 0.28)));
-  const previewHeight = Math.min(320, Math.max(220, Math.floor(window.innerHeight * 0.36)));
-  const gap = 16;
-  const fitsRight = rect.right + gap + previewWidth <= window.innerWidth - 16;
+  const rect = target.getBoundingClientRect()
+  const { previewWidth, previewMaxHeight, previewFrameHeight } = resolvePreviewFrame(target)
+  const gap = 16
+  const fitsRight = rect.right + gap + previewWidth <= window.innerWidth - 16
   const left = fitsRight
     ? rect.right + gap
-    : Math.max(16, rect.left - gap - previewWidth);
+    : Math.max(16, rect.left - gap - previewWidth)
   const top = Math.min(
-    Math.max(16, rect.top + rect.height / 2 - previewHeight / 2),
-    Math.max(16, window.innerHeight - previewHeight - 16),
-  );
+    Math.max(16, rect.top + rect.height / 2 - previewFrameHeight / 2),
+    Math.max(16, window.innerHeight - previewFrameHeight - 16),
+  )
 
   imagePreviewStyle.value = {
     top: `${top}px`,
     left: `${left}px`,
     width: `${previewWidth}px`,
-    maxHeight: `${previewHeight + 20}px`,
-    "--preview-image-max-height": `${previewHeight}px`,
-  };
+    maxHeight: `${previewFrameHeight}px`,
+    '--preview-image-max-height': `${previewMaxHeight}px`,
+  }
 }
 
 function handlePreviewMouseEnter(event) {
   if (!entryRef.value?.dataset.previewUrl) {
-    return;
+    return
   }
 
-  updateImagePreviewPosition(event.currentTarget);
-  showImagePreview.value = true;
+  updateImagePreviewPosition(event.currentTarget)
+  showImagePreview.value = true
 }
 
 function handlePreviewMouseLeave() {
-  showImagePreview.value = false;
+  showImagePreview.value = false
 }
 </script>
 
@@ -113,23 +138,27 @@ function handlePreviewMouseLeave() {
       <span class="timestamp">{{ formatRelativeTime(item.createdAt, locale) }}</span>
     </div>
 
-    <div class="entry-content">
+    <div class="entry-content" :class="{ 'entry-content-text-only': !item.imageDataUrl }">
       <img
         v-if="item.imageDataUrl"
         :src="item.imageDataUrl"
         alt=""
         class="entry-thumb"
+        :data-image-width="item.imageWidth || ''"
+        :data-image-height="item.imageHeight || ''"
         @mouseenter="handlePreviewMouseEnter"
         @mouseleave="handlePreviewMouseLeave"
       />
       <div class="entry-body">
         <div v-if="!(item.imageDataUrl && !item.fullText)" class="entry-text-preview">
-          <pre
-            v-if="item.fullText && looksLikeCode(item.fullText ?? item.preview)"
-            class="code-preview"
-            v-html="previewHtml(item)"
-          ></pre>
-          <pre v-else class="text-preview">{{ item.fullText ?? item.preview }}</pre>
+          <div class="entry-text-scroll">
+            <pre
+              v-if="item.fullText && looksLikeCode(item.fullText ?? item.preview)"
+              class="code-preview"
+              v-html="previewHtml(item)"
+            ></pre>
+            <pre v-else class="text-preview">{{ item.fullText ?? item.preview }}</pre>
+          </div>
         </div>
       </div>
     </div>
