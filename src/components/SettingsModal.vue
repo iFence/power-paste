@@ -1,5 +1,8 @@
 <script setup>
-defineProps({
+import { computed, ref } from 'vue'
+import checkIcon from '../assets/check.svg'
+
+const props = defineProps({
   appVersion: { type: String, required: true },
   beginShortcutRecording: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
@@ -17,11 +20,14 @@ defineProps({
   localeOptions: { type: Array, required: true },
   maxImageBytesMb: { type: Number, required: true },
   onUpdateMaxImageBytesMb: { type: Function, required: true },
+  onCheckUpdates: { type: Function, required: true },
+  onInstallUpdate: { type: Function, required: true },
   openSelectKey: { type: String, default: null },
   platformCapabilities: { type: Object, required: true },
   recordingShortcut: { type: Boolean, required: true },
   saveSettings: { type: Function, required: true },
   savingSettings: { type: Boolean, required: true },
+  showUpdateAction: { type: Boolean, required: true },
   segmentedToggleStyle: { type: Function, required: true },
   selectedOptionLabel: { type: Function, required: true },
   settings: { type: Object, required: true },
@@ -29,17 +35,72 @@ defineProps({
   showSettings: { type: Boolean, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
-});
+  updateBusy: { type: Boolean, required: true },
+  updateLabel: { type: String, required: true },
+  updateState: { type: Object, required: true },
+})
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(['close'])
+const showUpdateConfirm = ref(false)
+
+const updateNotes = computed(() => {
+  const body = props.updateState?.body
+  if (typeof body !== 'string' || !body.trim()) {
+    return props.t('updateNotesEmpty')
+  }
+
+  return body.trim()
+})
+
+function handleUpdateAction() {
+  if (props.showUpdateAction) {
+    showUpdateConfirm.value = true
+    return
+  }
+
+  props.onCheckUpdates()
+}
+
+function closeUpdateConfirm() {
+  showUpdateConfirm.value = false
+}
+
+async function confirmInstallUpdate() {
+  await props.onInstallUpdate()
+  showUpdateConfirm.value = false
+}
 </script>
 
 <template>
   <div v-if="showSettings" class="modal-backdrop" @click="emit('close')">
     <section class="settings-modal" @click.stop>
       <header class="modal-header">
-        <div>
-          <h2>{{ t("settingsTitle") }}</h2>
+        <div class="modal-title-block">
+          <div class="modal-title-row">
+            <h2>{{ t("settingsTitle") }}</h2>
+            <button
+              v-if="showUpdateAction"
+              class="modal-update-badge"
+              type="button"
+              :disabled="updateBusy"
+              :title="updateLabel"
+              :aria-label="updateLabel"
+              @click="handleUpdateAction"
+            >
+              <span class="modal-update-badge-mark">new</span>
+            </button>
+            <button
+              v-else
+              class="modal-update-badge modal-update-badge-check"
+              type="button"
+              :disabled="updateBusy"
+              :title="t('checkForUpdates')"
+              :aria-label="t('checkForUpdates')"
+              @click="handleUpdateAction"
+            >
+              <img :src="checkIcon" alt="" class="modal-update-badge-icon" />
+            </button>
+          </div>
           <span class="modal-version">{{ t("version") }} {{ appVersion || "--" }}</span>
         </div>
       </header>
@@ -252,7 +313,6 @@ const emit = defineEmits(["close"]);
             </button>
           </div>
         </section>
-
       </div>
 
       <footer class="modal-footer">
@@ -261,6 +321,28 @@ const emit = defineEmits(["close"]);
           {{ t("saveChanges") }}
         </button>
       </footer>
+
+      <div v-if="showUpdateConfirm" class="update-confirm-backdrop" @click="closeUpdateConfirm">
+        <section class="update-confirm-dialog" @click.stop>
+          <header class="update-confirm-header">
+            <div>
+              <h3>{{ t("updateDetailsTitle") }}</h3>
+              <p class="update-confirm-version">
+                {{ updateState.latestVersion ? t("updateAvailableVersion", { version: updateState.latestVersion }) : t("updateAvailable") }}
+              </p>
+            </div>
+          </header>
+          <pre class="update-confirm-notes">{{ updateNotes }}</pre>
+          <footer class="update-confirm-actions">
+            <button class="ghost" type="button" @click="closeUpdateConfirm">
+              {{ t("ignoreUpdate") }}
+            </button>
+            <button class="primary" type="button" :disabled="updateBusy" @click="confirmInstallUpdate">
+              {{ t("installUpdateNow") }}
+            </button>
+          </footer>
+        </section>
+      </div>
     </section>
   </div>
 </template>

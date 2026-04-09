@@ -226,6 +226,10 @@ Object.assign(messages["zh-CN"], {
   updateInstallFailed: "\u5b89\u88c5\u66f4\u65b0\u5931\u8d25",
   currentVersionLabel: "\u5f53\u524d\u7248\u672c\uff1a{version}",
   latestVersionLabel: "\u6700\u65b0\u7248\u672c\uff1a{version}",
+  updateDetailsTitle: "\u66f4\u65b0\u5185\u5bb9",
+  updateNotesEmpty: "\u6682\u65e0\u66f4\u65b0\u8bf4\u660e",
+  ignoreUpdate: "\u5ffd\u7565",
+  installUpdateNow: "\u5b89\u88c5",
   saveSettingsFailed: "\u4fdd\u5b58\u8bbe\u7f6e\u5931\u8d25",
 });
 
@@ -251,6 +255,10 @@ Object.assign(messages["en-US"], {
   updateInstallFailed: "Failed to install the update.",
   currentVersionLabel: "Current version: {version}",
   latestVersionLabel: "Latest version: {version}",
+  updateDetailsTitle: "What's New",
+  updateNotesEmpty: "No release notes were provided for this version.",
+  ignoreUpdate: "Ignore",
+  installUpdateNow: "Install",
   saveSettingsFailed: "Failed to save settings",
 });
 
