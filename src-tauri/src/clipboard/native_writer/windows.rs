@@ -237,11 +237,7 @@ pub(crate) fn write_mixed_payload(
         .as_deref()
         .ok_or_else(|| anyhow::anyhow!("Image payload missing"))?;
     let html = build_mixed_item_html(item, profile);
-    write_clipboard_payload_native(
-        item.full_text.as_deref(),
-        html.as_deref(),
-        Some(png_bytes),
-    )
+    write_clipboard_payload_native(item.full_text.as_deref(), html.as_deref(), Some(png_bytes))
 }
 
 pub(crate) fn write_payload(
@@ -256,7 +252,9 @@ pub(crate) fn write_payload(
             let html = ensure_cf_html(html);
             write_clipboard_payload_native(text.as_deref(), Some(html.as_str()), None)
         }
-        ClipboardPayload::Image { png_bytes } => write_clipboard_payload_native(None, None, Some(png_bytes)),
+        ClipboardPayload::Image { png_bytes } => {
+            write_clipboard_payload_native(None, None, Some(png_bytes))
+        }
         ClipboardPayload::RichText { text, html, rtf: _ } => {
             if let Some(html) = html {
                 let html = ensure_cf_html(html);

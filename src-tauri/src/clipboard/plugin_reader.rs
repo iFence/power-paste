@@ -20,16 +20,12 @@ pub(crate) struct PluginClipboardSnapshot {
     pub(crate) files: Vec<String>,
 }
 
-fn normalize_text(text: String) -> Option<String> {
+pub(crate) fn normalize_text(text: String) -> Option<String> {
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     (!normalized.trim().is_empty()).then_some(normalized)
 }
 
-fn image_from_plugin_read(
-    path: &Path,
-    width: u32,
-    height: u32,
-) -> Result<PluginClipboardImage> {
+fn image_from_plugin_read(path: &Path, width: u32, height: u32) -> Result<PluginClipboardImage> {
     Ok(PluginClipboardImage {
         png_bytes: std::fs::read(path)?,
         width,

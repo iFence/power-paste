@@ -21,7 +21,7 @@ Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`
 ## Platform Status
 
 - Windows: primary target platform, with full clipboard monitoring, clipboard write-back, direct paste, autostart, tray integration, updater, and global shortcut workflow
-- macOS: app startup and packaging are intended to work, but Windows-specific native clipboard workflows currently degrade to friendly unsupported messages
+- macOS: clipboard monitoring, clipboard write-back, and direct paste are supported, but direct paste depends on Accessibility / Automation permission from the system
 - Linux: app startup and packaging are intended to work, but Windows-specific native clipboard workflows currently degrade to friendly unsupported messages
 
 ## Feature Overview
@@ -64,10 +64,8 @@ Update checks are no longer configured from the settings page. The app checks fo
 
 ## Cross-Platform Degradation
 
-The following capabilities are currently Windows-first and may show unsupported messages on macOS and Linux:
+The following capabilities are currently Windows-first and may still degrade on Linux, while macOS direct paste depends on system permission:
 
-- Writing clipboard item content back to the system clipboard
-- Direct paste into the previously active target application
 - Launch on startup
 - Native mixed clipboard replay
 

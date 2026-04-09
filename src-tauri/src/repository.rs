@@ -106,7 +106,8 @@ impl SqliteHistoryStore {
             statement.query_map(params![query, limit], Self::row_to_item)?
         };
 
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(Into::into)
     }
 
     pub(crate) fn get_item(&self, id: &str) -> Result<Option<StoredClipboardItem>> {
@@ -171,7 +172,13 @@ impl SqliteHistoryStore {
 
         match existing {
             Some(existing) => {
-                let next = apply_capture(existing, capture, &now, source_app_name, source_icon_data_url);
+                let next = apply_capture(
+                    existing,
+                    capture,
+                    &now,
+                    source_app_name,
+                    source_icon_data_url,
+                );
                 tx.execute(
                     r#"
                     UPDATE clipboard_items
@@ -577,7 +584,9 @@ mod tests {
 
         let items = store.list_all().expect("all");
         assert_eq!(items.len(), 2);
-        assert!(items.iter().all(|item| item.full_text.as_deref() != Some("alpha")));
+        assert!(items
+            .iter()
+            .all(|item| item.full_text.as_deref() != Some("alpha")));
 
         let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
     }
