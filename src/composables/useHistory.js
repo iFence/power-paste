@@ -30,6 +30,9 @@ function formatActionError(error, t) {
   if (message === "unsupported_launch_on_startup") {
     return t("unsupportedLaunchOnStartup");
   }
+  if (message === "paste_target_focus_failed") {
+    return t("pasteTargetFocusFailed");
+  }
 
   return message || t("unsupportedCurrentPlatform");
 }

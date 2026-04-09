@@ -173,6 +173,30 @@ fn current_foreground_window() -> Option<HwndRaw> {
 }
 
 #[cfg(windows)]
+fn paste_debug_enabled(state: &Arc<SharedState>) -> bool {
+    state.settings.lock().unwrap().debug_enabled
+}
+
+#[cfg(windows)]
+fn debug_log_target_event(
+    state: &Arc<SharedState>,
+    stage: &str,
+    target: Option<HwndRaw>,
+    foreground: Option<HwndRaw>,
+    reason: &str,
+) {
+    if !paste_debug_enabled(state) {
+        return;
+    }
+
+    let target_process = target.and_then(process_name_for_window);
+    let foreground_process = foreground.and_then(process_name_for_window);
+    eprintln!(
+        "[paste-target] stage={stage} target={target:?} target_process={target_process:?} foreground={foreground:?} foreground_process={foreground_process:?} reason={reason}"
+    );
+}
+
+#[cfg(windows)]
 pub(crate) fn remember_last_target_window(app: &AppHandle) {
     let Some(shared) = app.try_state::<Arc<SharedState>>() else {
         return;
@@ -185,14 +209,29 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
     };
     let panel_hwnd = panel_hwnd.0 as HwndRaw;
     let Some(foreground) = current_foreground_window() else {
+        debug_log_target_event(shared.inner(), "remember-skip", None, None, "no-foreground");
         return;
     };
     if foreground == panel_hwnd {
+        debug_log_target_event(
+            shared.inner(),
+            "remember-skip",
+            Some(panel_hwnd),
+            Some(foreground),
+            "panel-foreground",
+        );
         return;
     }
 
     let mut monitor = shared.inner().monitor.lock().unwrap();
     monitor.last_target_window = Some(foreground);
+    debug_log_target_event(
+        shared.inner(),
+        "remember-target",
+        Some(foreground),
+        Some(foreground),
+        "target-updated",
+    );
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
@@ -218,7 +257,7 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
 
 #[cfg(windows)]
 // Focus is retried because SetForegroundWindow is not always immediate on Windows.
-pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
+pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
     const SW_RESTORE: i32 = 9;
     const FOCUS_RETRY_COUNT: usize = 8;
     const FOCUS_RETRY_DELAY_MS: u64 = 5;
@@ -228,27 +267,65 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
         monitor.last_target_window
     };
 
-    if let Some(hwnd) = target.filter(|hwnd| unsafe { IsWindow(*hwnd) != 0 }) {
-        unsafe {
-            if IsIconic(hwnd as HWND) != 0 {
-                ShowWindow(hwnd as HWND, SW_RESTORE);
-            }
-            SetForegroundWindow(hwnd as HWND);
-        }
-        for _ in 0..FOCUS_RETRY_COUNT {
-            if current_foreground_window() == Some(hwnd) {
-                break;
-            }
-            thread::sleep(Duration::from_millis(FOCUS_RETRY_DELAY_MS));
-        }
+    let Some(hwnd) = target else {
+        debug_log_target_event(
+            state,
+            "focus-failed",
+            None,
+            current_foreground_window(),
+            "missing-target",
+        );
+        anyhow::bail!("paste_target_focus_failed");
+    };
+    if unsafe { IsWindow(hwnd) == 0 } {
+        debug_log_target_event(
+            state,
+            "focus-failed",
+            Some(hwnd),
+            current_foreground_window(),
+            "invalid-target",
+        );
+        anyhow::bail!("paste_target_focus_failed");
     }
+
+    unsafe {
+        if IsIconic(hwnd as HWND) != 0 {
+            ShowWindow(hwnd as HWND, SW_RESTORE);
+        }
+        SetForegroundWindow(hwnd as HWND);
+    }
+    for _ in 0..FOCUS_RETRY_COUNT {
+        if current_foreground_window() == Some(hwnd) {
+            debug_log_target_event(
+                state,
+                "focus-success",
+                Some(hwnd),
+                Some(hwnd),
+                "foreground-matched",
+            );
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(FOCUS_RETRY_DELAY_MS));
+    }
+
+    let foreground = current_foreground_window();
+    debug_log_target_event(
+        state,
+        "focus-failed",
+        Some(hwnd),
+        foreground,
+        "foreground-mismatch",
+    );
+    anyhow::bail!("paste_target_focus_failed")
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
-pub(crate) fn focus_last_target_window(_state: &Arc<SharedState>) {}
+pub(crate) fn focus_last_target_window(_state: &Arc<SharedState>) -> Result<()> {
+    Ok(())
+}
 
 #[cfg(target_os = "macos")]
-pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
+pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
     let (bundle_id, app_name) = {
         let monitor = state.monitor.lock().unwrap();
         (
@@ -258,10 +335,10 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
     };
 
     let (Some(bundle_id), Some(app_name)) = (bundle_id, app_name) else {
-        return;
+        anyhow::bail!("paste_target_focus_failed");
     };
 
-    let _ = Command::new("osascript")
+    Command::new("osascript")
         .args([
             "-e",
             &format!(r#"tell application id "{bundle_id}" to activate"#),
@@ -271,7 +348,8 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) {
                 app_name.replace('"', "\\\"")
             ),
         ])
-        .status();
+        .status()?;
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -383,9 +461,28 @@ end tell"#,
     Ok(())
 }
 
-pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) {
-    focus_last_target_window(state);
+pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
+    focus_last_target_window(state)?;
     wait_for_paste_target_focus(state);
+    #[cfg(windows)]
+    {
+        let target = {
+            let monitor = state.monitor.lock().unwrap();
+            monitor.last_target_window
+        };
+        let foreground = current_foreground_window();
+        if target.is_none() || foreground != target {
+            debug_log_target_event(
+                state,
+                "prepare-abort",
+                target,
+                foreground,
+                "focus-verification-failed",
+            );
+            anyhow::bail!("paste_target_focus_failed");
+        }
+    }
+    Ok(())
 }
 
 #[cfg(windows)]

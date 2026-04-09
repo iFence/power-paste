@@ -42,8 +42,8 @@ impl PasteDispatcherPort for DefaultPasteDispatcher {
         platform_capabilities().supports_direct_paste
     }
 
-    fn prepare_target(&self, state: &Arc<SharedState>) {
-        prepare_target_for_paste(state);
+    fn prepare_target(&self, state: &Arc<SharedState>) -> Result<()> {
+        prepare_target_for_paste(state)
     }
 
     fn dispatch_paste(
@@ -154,7 +154,7 @@ pub(crate) fn execute_paste_item(
 
     let target = DefaultTargetTracker.resolve(&state);
     crate::capture::mark_clipboard_suppressed(&state, item.hash.clone());
-    paste.prepare_target(&state);
+    paste.prepare_target(&state).map_err(AppError::from)?;
     paste
         .dispatch_paste(&app, &state, &item, &target)
         .map(|_| ())

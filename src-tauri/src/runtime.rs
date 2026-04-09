@@ -31,6 +31,7 @@ pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
         if window.is_focused()? {
             window.hide()?;
         } else {
+            remember_last_target_window(app);
             window.show()?;
             window.unminimize()?;
             window.set_focus()?;

@@ -13,6 +13,10 @@ mod windows;
 pub(crate) use macos::write_image_to_clipboard;
 #[cfg(windows)]
 pub(crate) use windows::write_image_to_clipboard;
+#[cfg(not(any(windows, target_os = "macos")))]
+pub(crate) fn write_image_to_clipboard(_png_bytes: &[u8]) -> Result<()> {
+    anyhow::bail!("unsupported_clipboard_write")
+}
 
 pub(crate) fn write_payload(
     item: &StoredClipboardItem,

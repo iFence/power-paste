@@ -22,7 +22,7 @@ pub(crate) trait ClipboardWriterPort {
 pub(crate) trait PasteDispatcherPort {
     fn supports_direct_paste(&self) -> bool;
 
-    fn prepare_target(&self, state: &Arc<SharedState>);
+    fn prepare_target(&self, state: &Arc<SharedState>) -> Result<()>;
 
     fn dispatch_paste(
         &self,
