@@ -256,91 +256,38 @@ select {
 }
 
 .traffic-light {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.traffic-light-symbol {
+.traffic-light-icon {
   position: relative;
-  width: 7px;
-  height: 7px;
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.traffic-light-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.traffic-light-svg-active {
   opacity: 0;
   transition:
     opacity 120ms ease,
     transform 120ms ease;
   transform: scale(0.84);
-}
-
-.traffic-light.close .traffic-light-symbol::before,
-.traffic-light.close .traffic-light-symbol::after,
-.traffic-light.minimize .traffic-light-symbol::before,
-.traffic-light.maximize .traffic-light-symbol::before,
-.traffic-light.maximize .traffic-light-symbol::after {
-  content: '';
-  position: absolute;
-  display: block;
-  background: rgba(32, 25, 20, 0.82);
-  border-radius: 999px;
-}
-
-.traffic-light.close .traffic-light-symbol::before,
-.traffic-light.close .traffic-light-symbol::after {
-  top: 3px;
-  left: 0;
-  width: 7px;
-  height: 1.4px;
-}
-
-.traffic-light.close .traffic-light-symbol::before {
-  transform: rotate(45deg);
-}
-
-.traffic-light.close .traffic-light-symbol::after {
-  transform: rotate(-45deg);
-}
-
-.traffic-light.minimize .traffic-light-symbol::before {
-  top: 3px;
-  left: 0;
-  width: 7px;
-  height: 1.4px;
-}
-
-.traffic-light.maximize .traffic-light-symbol::before,
-.traffic-light.maximize .traffic-light-symbol::after {
-  top: 3px;
-  width: 4.6px;
-  height: 1.4px;
-}
-
-.traffic-light.maximize .traffic-light-symbol::before {
-  left: -0.1px;
-  transform: rotate(45deg);
-}
-
-.traffic-light.maximize .traffic-light-symbol::after {
-  right: -0.1px;
-  transform: rotate(-45deg);
-}
-
-.traffic-light.close {
-  background: #ff5f57;
-  border-color: rgba(178, 44, 40, 0.5);
-}
-
-.traffic-light.minimize {
-  background: #febc2e;
-  border-color: rgba(179, 120, 16, 0.46);
-}
-
-.traffic-light.maximize {
-  background: #28c840;
-  border-color: rgba(21, 124, 34, 0.46);
 }
 
 .toolbar-icon-button {
@@ -619,7 +566,7 @@ select {
   width: 100%;
   max-height: calc(1.45em * 4 + 2px);
   overflow: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
@@ -1109,7 +1056,6 @@ select {
 .ghost:hover,
 .toolbar-button:hover,
 .toolbar-icon-button:hover,
-.traffic-light:hover,
 .search:hover,
 .setting-card input:hover,
 .setting-card textarea:hover {
@@ -1132,12 +1078,16 @@ select {
 .ghost:focus-visible,
 .toolbar-button:focus-visible,
 .toolbar-icon-button:focus-visible,
-.traffic-light:focus-visible,
 .primary:focus-visible {
   border-color: var(--accent-primary);
   box-shadow:
     0 0 0 1px var(--accent-primary),
     0 0 0 4px color-mix(in srgb, var(--accent-primary-soft) 80%, transparent);
+}
+
+.traffic-light:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary-soft) 88%, transparent);
 }
 
 .search {
@@ -1721,10 +1671,9 @@ textarea {
   background: var(--action-button-hover-bg);
 }
 
-.window-controls:hover .traffic-light-symbol,
-.window-controls:focus-within .traffic-light-symbol,
-.traffic-light:hover .traffic-light-symbol,
-.traffic-light:focus-visible .traffic-light-symbol {
+.window-controls:hover .traffic-light-svg-active,
+.traffic-light:hover .traffic-light-svg-active,
+.traffic-light:focus-visible .traffic-light-svg-active {
   opacity: 1;
   transform: scale(1);
 }

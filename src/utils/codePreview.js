@@ -38,5 +38,5 @@ export function previewHtml(item) {
     return "";
   }
 
-  return highlightCode(text.split("\n").slice(0, 5).join("\n"));
+  return highlightCode(text);
 }
