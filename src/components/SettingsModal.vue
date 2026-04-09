@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onUnmounted, ref } from 'vue'
 import checkIcon from '../assets/check.svg'
 
 const props = defineProps({
@@ -42,6 +42,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 const showUpdateConfirm = ref(false)
+const showUpdateFeedback = ref(false)
+let updateFeedbackTimer = null
 
 const updateNotes = computed(() => {
   const body = props.updateState?.body
@@ -52,23 +54,51 @@ const updateNotes = computed(() => {
   return body.trim()
 })
 
-function handleUpdateAction() {
-  if (props.showUpdateAction) {
-    showUpdateConfirm.value = true
-    return
-  }
-
-  props.onCheckUpdates()
-}
-
 function closeUpdateConfirm() {
   showUpdateConfirm.value = false
+}
+
+async function showLatestVersionFeedback() {
+  if (updateFeedbackTimer) {
+    clearTimeout(updateFeedbackTimer)
+    updateFeedbackTimer = null
+  }
+
+  if (showUpdateFeedback.value) {
+    showUpdateFeedback.value = false
+    await nextTick()
+  }
+
+  showUpdateFeedback.value = true
+  updateFeedbackTimer = window.setTimeout(() => {
+    showUpdateFeedback.value = false
+    updateFeedbackTimer = null
+  }, 2600)
 }
 
 async function confirmInstallUpdate() {
   await props.onInstallUpdate()
   showUpdateConfirm.value = false
 }
+
+async function handleUpdateAction() {
+  if (props.showUpdateAction) {
+    showUpdateConfirm.value = true
+    return
+  }
+
+  await props.onCheckUpdates()
+
+  if (props.updateState?.status === 'up_to_date') {
+    await showLatestVersionFeedback()
+  }
+}
+
+onUnmounted(() => {
+  if (updateFeedbackTimer) {
+    clearTimeout(updateFeedbackTimer)
+  }
+})
 </script>
 
 <template>
@@ -100,6 +130,11 @@ async function confirmInstallUpdate() {
             >
               <img :src="checkIcon" alt="" class="modal-update-badge-icon" />
             </button>
+            <Transition name="update-feedback">
+              <span v-if="showUpdateFeedback" class="modal-update-feedback">
+                {{ t('upToDate') }}
+              </span>
+            </Transition>
           </div>
           <span class="modal-version">{{ t("version") }} {{ appVersion || "--" }}</span>
         </div>
