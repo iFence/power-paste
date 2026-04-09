@@ -16,10 +16,12 @@ use windows_sys::Win32::{
 };
 
 use crate::{
-    clipboard_html::build_mixed_item_html,
+    clipboard_html::{build_mixed_item_html, ensure_cf_html},
     models::{StoredClipboardItem, CF_DIB},
     paste_target::TargetProfile,
 };
+
+use super::super::payload::ClipboardPayload;
 
 struct ClipboardGuard;
 
@@ -240,6 +242,33 @@ pub(crate) fn write_mixed_payload(
         html.as_deref(),
         Some(png_bytes),
     )
+}
+
+pub(crate) fn write_payload(
+    item: &StoredClipboardItem,
+    profile: TargetProfile,
+    payload: &ClipboardPayload,
+) -> Result<()> {
+    match payload {
+        ClipboardPayload::Empty => Ok(()),
+        ClipboardPayload::Text { text } => write_clipboard_payload_native(Some(text), None, None),
+        ClipboardPayload::Html { text, html } => {
+            let html = ensure_cf_html(html);
+            write_clipboard_payload_native(text.as_deref(), Some(html.as_str()), None)
+        }
+        ClipboardPayload::Image { png_bytes } => write_clipboard_payload_native(None, None, Some(png_bytes)),
+        ClipboardPayload::RichText { text, html, rtf: _ } => {
+            if let Some(html) = html {
+                let html = ensure_cf_html(html);
+                write_clipboard_payload_native(text.as_deref(), Some(html.as_str()), None)
+            } else if let Some(text) = text {
+                write_clipboard_payload_native(Some(text), None, None)
+            } else {
+                Ok(())
+            }
+        }
+        ClipboardPayload::Mixed { .. } => write_mixed_payload(item, profile),
+    }
 }
 
 pub(crate) fn write_image_to_clipboard(png_bytes: &[u8]) -> Result<()> {

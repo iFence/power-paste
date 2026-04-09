@@ -25,8 +25,7 @@ pub(crate) fn write_payload(
 ) -> Result<()> {
     #[cfg(windows)]
     {
-        let _ = payload;
-        return windows::write_mixed_payload(item, profile);
+        return windows::write_payload(item, profile, payload);
     }
 
     #[cfg(target_os = "macos")]

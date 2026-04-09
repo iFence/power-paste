@@ -34,15 +34,37 @@ pub(crate) fn write_item_to_clipboard_with_profile(
 
 fn plugin_fallback_payload(payload: ClipboardPayload) -> ClipboardPayload {
     match payload {
+        ClipboardPayload::Html { text, html } => {
+            if let Some(text) = text {
+                ClipboardPayload::Text { text }
+            } else {
+                ClipboardPayload::Html { text: None, html }
+            }
+        }
+        ClipboardPayload::RichText { text, html, rtf } => {
+            if let Some(text) = text {
+                ClipboardPayload::Text { text }
+            } else if let Some(html) = html {
+                ClipboardPayload::Html { text: None, html }
+            } else if let Some(rtf) = rtf {
+                ClipboardPayload::RichText {
+                    text: None,
+                    html: None,
+                    rtf: Some(rtf),
+                }
+            } else {
+                ClipboardPayload::Empty
+            }
+        }
         ClipboardPayload::Mixed {
             text,
             html,
             png_bytes,
         } => {
-            if let Some(html) = html {
-                ClipboardPayload::Html { text, html }
-            } else if let Some(text) = text {
+            if let Some(text) = text {
                 ClipboardPayload::Text { text }
+            } else if let Some(html) = html {
+                ClipboardPayload::Html { text: None, html }
             } else {
                 ClipboardPayload::Image { png_bytes }
             }
