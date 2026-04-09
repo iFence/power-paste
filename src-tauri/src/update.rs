@@ -188,7 +188,7 @@ pub(crate) async fn install_update(
         ));
     }
 
-    let installed = emit_status(
+    emit_status(
         &app,
         &shared,
         UpdateStatus {
@@ -204,7 +204,12 @@ pub(crate) async fn install_update(
     );
 
     #[cfg(not(windows))]
-    app.restart();
+    {
+        app.restart();
+    }
 
-    Ok(installed)
+    #[cfg(windows)]
+    {
+        Ok(true)
+    }
 }

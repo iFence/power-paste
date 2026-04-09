@@ -163,7 +163,12 @@ onUnmounted(() => {
       <SearchBar
         :action-feedback="historyState.actionFeedback.value"
         :clear-label="settingsState.t('clear')"
+        :clear-search-label="settingsState.t('clearSearch')"
         :on-clear="historyState.clearHistory"
+        :on-clear-query="() => {
+          historyState.query.value = '';
+          historyState.refreshHistory();
+        }"
         :on-open-settings="() => { settingsState.showSettings.value = true; }"
         :on-window-action="handleWindowAction"
         :placeholder="settingsState.t('searchPlaceholder')"

@@ -1,4 +1,6 @@
-use std::sync::{atomic::Ordering, Arc, Mutex};
+use std::sync::{atomic::Ordering, Arc};
+#[cfg(windows)]
+use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use tauri::{
