@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { PhysicalPosition, PhysicalSize, currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 
 export function useKeyboardShortcuts({
   closeSelect,
@@ -14,6 +14,8 @@ export function useKeyboardShortcuts({
   showSettings,
   clearEditing,
 }) {
+  let zoomedWindowBounds = null;
+
   function isEditableTarget(target) {
     return (
       target instanceof HTMLElement &&
@@ -31,7 +33,38 @@ export function useKeyboardShortcuts({
     }
 
     if (action === "maximize") {
-      await appWindow.toggleMaximize();
+      if (zoomedWindowBounds) {
+        await appWindow.setPosition(
+          new PhysicalPosition(zoomedWindowBounds.position.x, zoomedWindowBounds.position.y),
+        );
+        await appWindow.setSize(
+          new PhysicalSize(zoomedWindowBounds.size.width, zoomedWindowBounds.size.height),
+        );
+        zoomedWindowBounds = null;
+        return;
+      }
+
+      const monitor = await currentMonitor();
+      if (!monitor) {
+        return;
+      }
+
+      const [position, size] = await Promise.all([
+        appWindow.outerPosition(),
+        appWindow.outerSize(),
+      ]);
+
+      zoomedWindowBounds = {
+        position,
+        size,
+      };
+
+      await appWindow.setPosition(
+        new PhysicalPosition(monitor.workArea.position.x, monitor.workArea.position.y),
+      );
+      await appWindow.setSize(
+        new PhysicalSize(monitor.workArea.size.width, monitor.workArea.size.height),
+      );
       return;
     }
 

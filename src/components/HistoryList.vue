@@ -4,7 +4,6 @@ import HistoryListItem from "./HistoryListItem.vue";
 defineProps({
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
-  historyCountLabel: { type: String, required: true },
   historyPanelRef: { type: Object, required: true },
   items: { type: Array, required: true },
   loading: { type: Boolean, required: true },
@@ -49,6 +48,5 @@ const emit = defineEmits(["copy", "edit", "open-link", "paste", "remove", "selec
         />
       </div>
     </section>
-    <div class="history-count-bar">{{ historyCountLabel }}</div>
   </main>
 </template>

@@ -85,19 +85,25 @@ onUnmounted(() => {
           type="button"
           title="Close"
           @click="handleWindowAction('close')"
-        />
+        >
+          <span class="traffic-light-symbol" aria-hidden="true"></span>
+        </button>
         <button
           class="traffic-light minimize"
           type="button"
           title="Minimize"
           @click="handleWindowAction('minimize')"
-        />
+        >
+          <span class="traffic-light-symbol" aria-hidden="true"></span>
+        </button>
         <button
           class="traffic-light maximize"
           type="button"
           title="Maximize"
           @click="handleWindowAction('maximize')"
-        />
+        >
+          <span class="traffic-light-symbol" aria-hidden="true"></span>
+        </button>
       </div>
       <div class="titlebar-dragger" data-tauri-drag-region></div>
     </section>
@@ -135,7 +141,6 @@ onUnmounted(() => {
           settingsState.platformCapabilities.value.supportsImageWrite
         "
         :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
-        :history-count-label="historyState.historyCountLabel.value"
         :history-panel-ref="historyState.historyPanelRef"
         :items="historyState.filteredHistory.value"
         :loading="historyState.loading.value"
@@ -152,6 +157,7 @@ onUnmounted(() => {
         @select="historyState.setSelectedId"
         @toggle-pin="historyState.togglePin"
       />
+      <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
     </div>
 
     <SettingsModal

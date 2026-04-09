@@ -40,6 +40,7 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_Graphics_Gdi",
   "Win32_Graphics_GdiPlus",
   "Win32_Globalization",
+  "Win32_UI_Shell",
   "Win32_Storage_FileSystem",
   "Win32_System_DataExchange",
   "Win32_System_Memory",

@@ -10,6 +10,11 @@ use crate::{
     usecases::{execute_copy_item, execute_paste_item, execute_update_settings},
 };
 
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::Shell::ShellExecuteW;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
 // History queries always read from in-memory state; persistence is handled on writes.
 #[tauri::command]
 pub(crate) fn get_history(
@@ -129,10 +134,22 @@ pub(crate) fn open_external_url(url: String) -> Result<(), AppError> {
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &normalized])
-            .spawn()
-            .map_err(anyhow::Error::from)?;
+        let operation: Vec<u16> = "open\0".encode_utf16().collect();
+        let target: Vec<u16> = format!("{normalized}\0").encode_utf16().collect();
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                operation.as_ptr(),
+                target.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+
+        if result as usize <= 32 {
+            return Err(anyhow::anyhow!("failed to open external url: {normalized}").into());
+        }
     }
 
     #[cfg(target_os = "macos")]
