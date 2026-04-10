@@ -13,10 +13,7 @@
   --modal-panel-strong-bg: rgba(28, 33, 41, 0.76);
   --app-glass-blur: 22px;
   --app-glass-saturate: 114%;
-  --app-bg:
-    radial-gradient(circle at top left, rgba(230, 141, 67, 0.24), transparent 34%),
-    radial-gradient(circle at top right, rgba(96, 134, 255, 0.16), transparent 30%),
-    linear-gradient(180deg, #131519 0%, #0d0f13 52%, #16110f 100%);
+  --app-bg: linear-gradient(180deg, #131519 0%, #0d0f13 52%, #12151a 100%);
   --accent-primary: #f0b35f;
   --accent-primary-strong: #dd8648;
   --accent-primary-soft: rgba(240, 179, 95, 0.2);
@@ -53,10 +50,7 @@
   --app-select-arrow: rgba(29, 35, 45, 0.58);
   --app-select-menu-bg: #f6f2ec;
   --app-select-menu-text: #1d232d;
-  --app-bg:
-    radial-gradient(circle at top left, rgba(240, 179, 95, 0.18), transparent 36%),
-    radial-gradient(circle at top right, rgba(101, 165, 255, 0.14), transparent 32%),
-    linear-gradient(180deg, #f7f3ec 0%, #eef3f8 52%, #f6f3ef 100%);
+  --app-bg: linear-gradient(180deg, #f7f4ef 0%, #eff2f6 52%, #f4f6f8 100%);
   --action-cluster-bg: transparent;
   --action-button-bg: transparent;
   --action-button-hover-bg: rgba(255, 255, 255, 0.78);
