@@ -772,7 +772,11 @@ pub(crate) fn paste_item_to_target(
         return Ok(true);
     }
 
-    let written_payload = crate::clipboard::write_item_to_clipboard_with_profile(app, item, target.profile)?;
+    #[cfg(target_os = "macos")]
+    let written_payload =
+        crate::clipboard::write_item_to_clipboard_with_profile(app, item, target.profile)?;
+    #[cfg(not(target_os = "macos"))]
+    crate::clipboard::write_item_to_clipboard_with_profile(app, item, target.profile)?;
     #[cfg(target_os = "macos")]
     {
         wait_for_clipboard_payload(app, &written_payload)?;

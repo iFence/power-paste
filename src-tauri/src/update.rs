@@ -188,7 +188,7 @@ pub(crate) async fn install_update(
         ));
     }
 
-    emit_status(
+    let downloaded_status = emit_status(
         &app,
         &shared,
         UpdateStatus {
@@ -210,6 +210,11 @@ pub(crate) async fn install_update(
 
     #[cfg(windows)]
     {
-        Ok(true)
+        Ok(downloaded_status)
+    }
+
+    #[cfg(not(windows))]
+    {
+        Ok(downloaded_status)
     }
 }
