@@ -19,16 +19,20 @@ pub(crate) fn platform_capabilities() -> PlatformCapabilities {
 }
 
 pub(crate) fn preferred_clipboard_backend() -> &'static str {
-    if cfg!(windows) || cfg!(target_os = "macos") {
+    if cfg!(windows) {
         "plugin+native-fallback"
+    } else if cfg!(target_os = "macos") {
+        "plugin-preferred"
     } else {
         "plugin-only"
     }
 }
 
 fn clipboard_write_strategy() -> &'static str {
-    if cfg!(windows) || cfg!(target_os = "macos") {
+    if cfg!(windows) {
         "plugin-first-with-native-fallback"
+    } else if cfg!(target_os = "macos") {
+        "plugin-first-with-mixed-degradation"
     } else {
         "plugin-only"
     }
@@ -46,7 +50,7 @@ fn mixed_replay_strategy() -> &'static str {
     if cfg!(windows) {
         "target-aware-segmented-replay"
     } else if cfg!(target_os = "macos") {
-        "native-fallback-write-only"
+        "plugin-degraded-single-payload"
     } else {
         "unsupported"
     }

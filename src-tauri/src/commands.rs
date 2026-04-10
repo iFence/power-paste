@@ -3,9 +3,9 @@ use std::sync::Arc;
 use tauri::{AppHandle, State};
 
 use crate::{
-    history::normalize_link_url,
     clipboard::platform_capabilities,
     history::history_to_dto,
+    history::normalize_link_url,
     models::{AppError, AppSettings, ClipboardItemDto, PlatformCapabilities, SharedState},
     usecases::{execute_copy_item, execute_paste_item, execute_update_settings},
 };
@@ -129,8 +129,8 @@ pub(crate) fn paste_item(
 // 使用系统默认浏览器打开链接，仅允许已识别的网页链接格式。
 #[tauri::command]
 pub(crate) fn open_external_url(url: String) -> Result<(), AppError> {
-    let normalized = normalize_link_url(&url)
-        .ok_or_else(|| AppError::Message("invalid_url".into()))?;
+    let normalized =
+        normalize_link_url(&url).ok_or_else(|| AppError::Message("invalid_url".into()))?;
 
     #[cfg(target_os = "windows")]
     {

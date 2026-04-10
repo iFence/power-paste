@@ -1,15 +1,16 @@
-use std::{path::PathBuf, sync::Arc, thread, time::Duration};
+use std::{sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
 use tauri::AppHandle;
 #[cfg(any(windows, target_os = "macos"))]
 use tauri::Manager;
 
-use crate::{
-    clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin},
-    models::{SharedState, StoredClipboardItem},
-};
+use crate::models::{SharedState, StoredClipboardItem};
 
+#[cfg(windows)]
+use crate::clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin};
+#[cfg(target_os = "macos")]
+use crate::clipboard::wait_for_clipboard_payload;
 #[cfg(windows)]
 use crate::models::{HwndRaw, PANEL_LABEL};
 #[cfg(target_os = "macos")]
@@ -17,6 +18,8 @@ use std::process::Command;
 
 #[cfg(windows)]
 use std::mem;
+#[cfg(windows)]
+use std::path::PathBuf;
 #[cfg(windows)]
 use windows_sys::Win32::{
     Foundation::{CloseHandle, HWND},
@@ -38,9 +41,13 @@ use windows_sys::Win32::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TargetProfile {
     Generic,
+    #[cfg(windows)]
     Office,
+    #[cfg(windows)]
     Wps,
+    #[cfg(windows)]
     Markdown,
+    #[cfg(windows)]
     Chat,
 }
 
@@ -140,12 +147,20 @@ pub(crate) fn resolve_last_target(state: &Arc<SharedState>) -> ResolvedPasteTarg
 
 #[cfg(target_os = "macos")]
 fn current_foreground_app_info() -> Option<(String, String)> {
-    const SCRIPT: &str = r#"ObjC.import("AppKit");
-const app = $.NSWorkspace.sharedWorkspace.frontmostApplication;
-const bundleId = app.bundleIdentifier;
-const name = app.localizedName;
-if (bundleId && name) {
-  console.log(ObjC.unwrap(bundleId) + "\t" + ObjC.unwrap(name));
+    const SCRIPT: &str = r#"function run() {
+  ObjC.import("AppKit");
+  const app = $.NSWorkspace.sharedWorkspace.frontmostApplication;
+  if (!app) {
+    return "";
+  }
+
+  const bundleId = app.bundleIdentifier;
+  const name = app.localizedName;
+  if (!bundleId || !name) {
+    return "";
+  }
+
+  return ObjC.unwrap(bundleId) + "\t" + ObjC.unwrap(name);
 }"#;
 
     let output = Command::new("osascript")
@@ -166,6 +181,54 @@ if (bundleId && name) {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn escape_apple_script_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(target_os = "macos")]
+fn normalize_macos_automation_error(message: &str) -> &'static str {
+    let lower = message.to_lowercase();
+    if lower.contains("not authorized")
+        || lower.contains("not permitted")
+        || lower.contains("not allowed")
+        || lower.contains("assistive access")
+        || lower.contains("accessibility")
+        || lower.contains("automation")
+        || lower.contains("system events got an error")
+        || lower.contains("(-1743)")
+        || lower.contains("(-1719)")
+        || lower.contains("(-25211)")
+    {
+        "paste_target_permission_denied"
+    } else {
+        "paste_target_focus_failed"
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn run_macos_osascript(args: &[String]) -> Result<()> {
+    let output = Command::new("osascript").args(args).output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if stderr.is_empty() {
+        anyhow::bail!("paste_target_focus_failed");
+    }
+
+    anyhow::bail!(normalize_macos_automation_error(&stderr))
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_macos_direct_paste_permissions() -> Result<()> {
+    run_macos_osascript(&[
+        "-e".to_string(),
+        r#"tell application "System Events" to count of application processes"#.to_string(),
+    ])
+}
+
 #[cfg(windows)]
 fn current_foreground_window() -> Option<HwndRaw> {
     let hwnd = unsafe { GetForegroundWindow() };
@@ -173,6 +236,11 @@ fn current_foreground_window() -> Option<HwndRaw> {
 }
 
 #[cfg(windows)]
+fn paste_debug_enabled(state: &Arc<SharedState>) -> bool {
+    state.settings.lock().unwrap().debug_enabled
+}
+
+#[cfg(target_os = "macos")]
 fn paste_debug_enabled(state: &Arc<SharedState>) -> bool {
     state.settings.lock().unwrap().debug_enabled
 }
@@ -193,6 +261,23 @@ fn debug_log_target_event(
     let foreground_process = foreground.and_then(process_name_for_window);
     eprintln!(
         "[paste-target] stage={stage} target={target:?} target_process={target_process:?} foreground={foreground:?} foreground_process={foreground_process:?} reason={reason}"
+    );
+}
+
+#[cfg(target_os = "macos")]
+fn debug_log_macos_target_event(
+    state: &Arc<SharedState>,
+    stage: &str,
+    target_bundle_id: Option<&str>,
+    foreground_bundle_id: Option<&str>,
+    reason: &str,
+) {
+    if !paste_debug_enabled(state) {
+        return;
+    }
+
+    eprintln!(
+        "[paste-target] stage={stage} target_bundle_id={target_bundle_id:?} foreground_bundle_id={foreground_bundle_id:?} reason={reason}"
     );
 }
 
@@ -247,12 +332,27 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
     };
 
     if bundle_id == "com.yulei.powerpaste" {
+        debug_log_macos_target_event(
+            shared.inner(),
+            "remember-skip",
+            Some("com.yulei.powerpaste"),
+            Some("com.yulei.powerpaste"),
+            "panel-foreground",
+        );
         return;
     }
 
     let mut monitor = shared.inner().monitor.lock().unwrap();
     monitor.last_target_app_bundle_id = Some(bundle_id);
     monitor.last_target_app_name = Some(app_name);
+    let target_bundle_id = monitor.last_target_app_bundle_id.clone();
+    debug_log_macos_target_event(
+        shared.inner(),
+        "remember-target",
+        target_bundle_id.as_deref(),
+        target_bundle_id.as_deref(),
+        "target-updated",
+    );
 }
 
 #[cfg(windows)]
@@ -334,21 +434,59 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
         )
     };
 
-    let (Some(bundle_id), Some(app_name)) = (bundle_id, app_name) else {
+    let Some(bundle_id) = bundle_id.filter(|value| !value.is_empty()) else {
+        debug_log_macos_target_event(state, "focus-failed", None, None, "missing-target");
         anyhow::bail!("paste_target_focus_failed");
     };
+    let app_name = app_name.filter(|value| !value.is_empty());
 
-    Command::new("osascript")
-        .args([
-            "-e",
-            &format!(r#"tell application id "{bundle_id}" to activate"#),
-            "-e",
-            &format!(
-                r#"tell application "System Events" to tell process "{}" to set frontmost to true"#,
-                app_name.replace('"', "\\\"")
+    let escaped_bundle_id = escape_apple_script_string(&bundle_id);
+    let args = vec![
+        "-l".to_string(),
+        "JavaScript".to_string(),
+        "-e".to_string(),
+        format!(
+            r#"function run(argv) {{
+  ObjC.import('AppKit');
+  const bundleId = "{escaped_bundle_id}";
+  const apps = $.NSRunningApplication.runningApplicationsWithBundleIdentifier($(bundleId));
+  if (!apps || apps.count === 0) {{
+    throw new Error('missing target application');
+  }}
+  const app = apps.objectAtIndex(0);
+  if (!app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps)) {{
+    throw new Error('failed to activate target application');
+  }}
+}}
+"#
+        ),
+    ];
+    run_macos_osascript(&args)?;
+    if let Some(app_name) = app_name.as_deref() {
+        let escaped_app_name = escape_apple_script_string(app_name);
+        run_macos_osascript(&[
+            "-e".to_string(),
+            format!(
+                r#"tell application "System Events"
+repeat 20 times
+  if exists application process "{escaped_app_name}" then exit repeat
+  delay 0.05
+end repeat
+if not (exists application process "{escaped_app_name}") then
+  error "missing target process"
+end if
+set frontmost of application process "{escaped_app_name}" to true
+end tell"#
             ),
-        ])
-        .status()?;
+        ])?;
+    }
+    debug_log_macos_target_event(
+        state,
+        "focus-requested",
+        Some(bundle_id.as_str()),
+        current_foreground_app_info().map(|(id, _)| id).as_deref(),
+        "activation-dispatched",
+    );
     Ok(())
 }
 
@@ -369,10 +507,26 @@ pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
             .map(|(bundle_id, _)| bundle_id == target_bundle_id)
             .unwrap_or(false)
         {
+            debug_log_macos_target_event(
+                state,
+                "focus-success",
+                Some(target_bundle_id.as_str()),
+                Some(target_bundle_id.as_str()),
+                "foreground-matched",
+            );
             return;
         }
         thread::sleep(Duration::from_millis(40));
     }
+
+    let foreground_bundle_id = current_foreground_app_info().map(|(bundle_id, _)| bundle_id);
+    debug_log_macos_target_event(
+        state,
+        "focus-failed",
+        Some(target_bundle_id.as_str()),
+        foreground_bundle_id.as_deref(),
+        "foreground-mismatch",
+    );
 }
 
 #[cfg(windows)]
@@ -410,37 +564,39 @@ pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()
 
 #[cfg(target_os = "macos")]
 pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
-    let (bundle_id, app_name) = {
+    let bundle_id = {
         let monitor = state.monitor.lock().unwrap();
-        (
-            monitor.last_target_app_bundle_id.clone(),
-            monitor.last_target_app_name.clone(),
-        )
+        monitor.last_target_app_bundle_id.clone()
+    };
+    let app_name = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_app_name.clone()
     };
 
+    if current_foreground_app_info()
+        .map(|(foreground_bundle_id, _)| Some(foreground_bundle_id) == bundle_id)
+        != Some(true)
+    {
+        anyhow::bail!("paste_target_focus_failed");
+    }
+
     let mut args = Vec::new();
-    if let (Some(bundle_id), Some(app_name)) = (
-        bundle_id.filter(|value| !value.is_empty()),
-        app_name.filter(|value| !value.is_empty()),
-    ) {
-        let escaped_bundle_id = bundle_id.replace('"', "\\\"");
-        let escaped_app_name = app_name.replace('"', "\\\"");
-        args.push("-e".to_string());
-        args.push(format!(
-            r#"tell application id "{}" to activate"#,
-            escaped_bundle_id
-        ));
+    if let Some(app_name) = app_name.filter(|value| !value.is_empty()) {
+        let escaped_app_name = escape_apple_script_string(&app_name);
         args.push("-e".to_string());
         args.push(format!(
             r#"tell application "System Events"
-repeat 15 times
+repeat 20 times
   if exists (first application process whose frontmost is true and name is "{}") then exit repeat
   delay 0.05
 end repeat
-delay 0.08
+if not (exists (first application process whose frontmost is true and name is "{}")) then
+  error "target app is not frontmost"
+end if
+delay 0.12
 keystroke "v" using command down
 end tell"#,
-            escaped_app_name
+            escaped_app_name, escaped_app_name
         ));
     } else {
         args.push("-e".to_string());
@@ -449,19 +605,14 @@ end tell"#,
         );
     }
 
-    let output = Command::new("osascript").args(args).output()?;
-    if !output.status.success() {
-        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        if message.is_empty() {
-            anyhow::bail!("failed to send macOS paste shortcut");
-        }
-        anyhow::bail!(message);
-    }
-
-    Ok(())
+    run_macos_osascript(&args)
 }
 
 pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        ensure_macos_direct_paste_permissions()?;
+    }
     focus_last_target_window(state)?;
     wait_for_paste_target_focus(state);
     #[cfg(windows)]
@@ -479,6 +630,17 @@ pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
                 foreground,
                 "focus-verification-failed",
             );
+            anyhow::bail!("paste_target_focus_failed");
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let target_bundle_id = {
+            let monitor = state.monitor.lock().unwrap();
+            monitor.last_target_app_bundle_id.clone()
+        };
+        let focused_bundle_id = current_foreground_app_info().map(|(bundle_id, _)| bundle_id);
+        if target_bundle_id.is_none() || focused_bundle_id != target_bundle_id {
             anyhow::bail!("paste_target_focus_failed");
         }
     }
@@ -542,16 +704,6 @@ fn paste_mixed_segments(
     }
 
     Ok(true)
-}
-
-#[cfg(not(windows))]
-fn paste_mixed_segments(
-    _app: &AppHandle,
-    _state: &Arc<SharedState>,
-    _segments: &[crate::clipboard_html::MixedPasteSegment],
-    _png_bytes: &[u8],
-) -> Result<bool> {
-    Ok(false)
 }
 
 #[cfg(windows)]
@@ -620,8 +772,16 @@ pub(crate) fn paste_item_to_target(
         return Ok(true);
     }
 
-    crate::clipboard::write_item_to_clipboard_with_profile(app, item, target.profile)?;
-    thread::sleep(Duration::from_millis(180));
+    let written_payload = crate::clipboard::write_item_to_clipboard_with_profile(app, item, target.profile)?;
+    #[cfg(target_os = "macos")]
+    {
+        wait_for_clipboard_payload(app, &written_payload)?;
+        wait_for_paste_target_focus(state);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        thread::sleep(Duration::from_millis(180));
+    }
     send_native_paste_shortcut(state)?;
     Ok(true)
 }

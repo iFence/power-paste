@@ -34,7 +34,10 @@ fn image_from_file_path(path: &str) -> Option<PluginClipboardImage> {
     let height = image.height();
     let mut png_bytes = Vec::new();
     image::DynamicImage::ImageRgba8(image)
-        .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+        .write_to(
+            &mut std::io::Cursor::new(&mut png_bytes),
+            image::ImageFormat::Png,
+        )
         .ok()?;
 
     Some(PluginClipboardImage {

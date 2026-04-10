@@ -1,12 +1,13 @@
-use std::{
-    process::Command,
-    sync::{atomic::AtomicBool, Arc, Mutex},
-};
+use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
+#[cfg(windows)]
+use std::process::Command;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+#[cfg(windows)]
+use anyhow::Context;
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
@@ -35,7 +36,9 @@ use commands::{
     clear_history, copy_item, delete_item, get_history, get_platform_capabilities, get_settings,
     open_external_url, paste_item, toggle_favorite, toggle_pin, update_settings, update_text_item,
 };
-use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, DEBUG_CONTEXT_MENU_INIT_SCRIPT};
+use models::{
+    MonitorState, SharedState, StoragePaths, UpdateStatus, DEBUG_CONTEXT_MENU_INIT_SCRIPT,
+};
 use repository::SqliteHistoryStore;
 use runtime::{configure_window, toggle_panel};
 use startup::set_launch_on_startup;
@@ -56,11 +59,6 @@ fn powershell(script: &str) -> Result<String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-#[cfg(not(windows))]
-fn powershell(_script: &str) -> Result<String> {
-    anyhow::bail!("clipboard integration is implemented for Windows first")
 }
 
 // Keeps the frontend debug switches and the native WebView settings in sync.
@@ -175,7 +173,10 @@ pub fn run() {
 
             capture::start_clipboard_monitor(app.handle().clone(), shared.clone());
             app.manage(shared);
-            update::spawn_startup_check(app.handle().clone(), app.state::<Arc<SharedState>>().inner().clone());
+            update::spawn_startup_check(
+                app.handle().clone(),
+                app.state::<Arc<SharedState>>().inner().clone(),
+            );
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

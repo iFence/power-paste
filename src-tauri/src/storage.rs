@@ -80,5 +80,7 @@ pub(crate) fn mixed_hash(
     } else {
         String::new()
     };
-    Ok(sha256_hex(format!("{text_fingerprint}\n{image_hash}").as_bytes()))
+    Ok(sha256_hex(
+        format!("{text_fingerprint}\n{image_hash}").as_bytes(),
+    ))
 }

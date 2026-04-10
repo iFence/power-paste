@@ -35,8 +35,10 @@ pub(crate) const DEBUG_CONTEXT_MENU_INIT_SCRIPT: &str = r#"
 })();
 "#;
 
+#[cfg(windows)]
 pub(crate) const CF_DIB: u32 = 8;
 
+#[cfg(windows)]
 pub(crate) type HwndRaw = isize;
 
 #[derive(Debug, thiserror::Error)]
@@ -276,7 +278,6 @@ pub(crate) enum CapturedClipboard {
     },
 }
 
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ForegroundAppResult {
@@ -285,4 +286,3 @@ pub(crate) struct ForegroundAppResult {
     pub(crate) icon_png_base64: Option<String>,
     pub(crate) app_path: Option<String>,
 }
-

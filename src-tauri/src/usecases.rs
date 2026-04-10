@@ -31,7 +31,7 @@ impl ClipboardWriterPort for DefaultClipboardWriter {
         item: &crate::models::StoredClipboardItem,
         target: &ResolvedPasteTarget,
     ) -> Result<()> {
-        write_item_to_clipboard_with_profile(app, item, target.profile)
+        write_item_to_clipboard_with_profile(app, item, target.profile).map(|_| ())
     }
 }
 
@@ -74,10 +74,9 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         state: &Arc<SharedState>,
         settings: &AppSettings,
     ) -> Result<()> {
-        let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
-
         #[cfg(windows)]
         {
+            let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
             let manager = app.global_shortcut();
             if let Ok(shortcut) = previous_shortcut.parse::<Shortcut>() {
                 let _ = manager.unregister(shortcut);

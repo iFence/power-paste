@@ -1,12 +1,15 @@
+#[cfg(windows)]
 use crate::{models::StoredClipboardItem, paste_target::TargetProfile};
 
 // Pure helpers for CF_HTML generation and mixed text/image payload reconstruction.
+#[cfg(windows)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum MixedPasteSegment {
     Text(String),
     Image,
 }
 
+#[cfg(windows)]
 fn escape_html(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     for ch in text.chars() {
@@ -22,6 +25,7 @@ fn escape_html(text: &str) -> String {
     escaped
 }
 
+#[cfg(windows)]
 fn plain_text_html_fragment(text: &str) -> String {
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     let html = escape_html(&normalized).replace('\n', "<br>");
@@ -29,6 +33,7 @@ fn plain_text_html_fragment(text: &str) -> String {
 }
 
 // Windows expects clipboard HTML in CF_HTML format with explicit byte offsets.
+#[cfg(windows)]
 fn build_cf_html(fragment: &str) -> String {
     let prefix = "<html><body><!--StartFragment-->";
     let suffix = "<!--EndFragment--></body></html>";
@@ -45,6 +50,7 @@ fn build_cf_html(fragment: &str) -> String {
     )
 }
 
+#[cfg(windows)]
 pub(crate) fn ensure_cf_html(html: &str) -> String {
     if html.trim_start().starts_with("Version:") {
         html.to_string()
@@ -54,6 +60,7 @@ pub(crate) fn ensure_cf_html(html: &str) -> String {
 }
 
 // Rewrites any <img> tag source so stored HTML can point at local image files when replayed.
+#[cfg(windows)]
 fn rewrite_img_tag_source(tag: &str, new_src: &str) -> String {
     let lower = tag.to_ascii_lowercase();
     let Some(src_pos) = lower.find("src") else {
@@ -129,6 +136,7 @@ fn rewrite_img_tag_source(tag: &str, new_src: &str) -> String {
     )
 }
 
+#[cfg(windows)]
 fn rewrite_html_image_sources(html: &str, new_src: &str) -> String {
     let lower = html.to_ascii_lowercase();
     let mut result = String::with_capacity(html.len() + 64);
@@ -149,6 +157,7 @@ fn rewrite_html_image_sources(html: &str, new_src: &str) -> String {
     result
 }
 
+#[cfg(windows)]
 fn cf_html_fragment(html: &str) -> &str {
     let read_offset = |label: &str| -> Option<usize> {
         let start = html.find(label)? + label.len();
@@ -174,6 +183,7 @@ fn cf_html_fragment(html: &str) -> &str {
     }
 }
 
+#[cfg(windows)]
 fn decode_html_entities(text: &str) -> String {
     text.replace("&nbsp;", " ")
         .replace("&quot;", "\"")
@@ -183,6 +193,7 @@ fn decode_html_entities(text: &str) -> String {
         .replace("&amp;", "&")
 }
 
+#[cfg(windows)]
 fn push_text_segment(segments: &mut Vec<MixedPasteSegment>, text: &mut String) {
     if text.is_empty() {
         return;
@@ -202,6 +213,7 @@ fn push_text_segment(segments: &mut Vec<MixedPasteSegment>, text: &mut String) {
 }
 
 // Converts HTML fragments into alternating text/image segments for chat-style paste targets.
+#[cfg(windows)]
 pub(crate) fn html_to_mixed_segments(html: &str) -> Vec<MixedPasteSegment> {
     let fragment = cf_html_fragment(html);
     let lower = fragment.to_ascii_lowercase();
@@ -257,6 +269,7 @@ pub(crate) fn html_to_mixed_segments(html: &str) -> Vec<MixedPasteSegment> {
     segments
 }
 
+#[cfg(windows)]
 fn split_string_by_char_counts(text: &str, counts: &[usize]) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     let total_chars = chars.len();
@@ -290,6 +303,7 @@ fn split_string_by_char_counts(text: &str, counts: &[usize]) -> Vec<String> {
     result
 }
 
+#[cfg(windows)]
 pub(crate) fn remap_mixed_text_segments(
     segments: &[MixedPasteSegment],
     full_text: &str,
@@ -325,6 +339,7 @@ pub(crate) fn remap_mixed_text_segments(
         .collect()
 }
 
+#[cfg(windows)]
 pub(crate) fn build_mixed_item_html(
     item: &StoredClipboardItem,
     profile: TargetProfile,
@@ -349,7 +364,9 @@ pub(crate) fn build_mixed_item_html(
     }
 
     let image_src = match profile {
-        TargetProfile::Office | TargetProfile::Wps | TargetProfile::Generic => item.image_data_url(),
+        TargetProfile::Office | TargetProfile::Wps | TargetProfile::Generic => {
+            item.image_data_url()
+        }
         TargetProfile::Markdown | TargetProfile::Chat => None,
     };
 

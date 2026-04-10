@@ -332,7 +332,11 @@ pub(crate) fn build_captured_clipboard(
             let image_hash = image_hash_from_png_bytes(png_bytes)?;
             return Ok(Some(CapturedClipboard::Image {
                 hash: image_hash,
-                preview: format!("Image {}x{}", width.unwrap_or_default(), height.unwrap_or_default()),
+                preview: format!(
+                    "Image {}x{}",
+                    width.unwrap_or_default(),
+                    height.unwrap_or_default()
+                ),
                 png_bytes: png_bytes.clone(),
                 image_width: width.unwrap_or_default(),
                 image_height: height.unwrap_or_default(),
@@ -388,7 +392,11 @@ pub(crate) fn build_captured_clipboard(
         let image_hash = image_hash_from_png_bytes(&png_bytes)?;
         return Ok(Some(CapturedClipboard::Image {
             hash: image_hash,
-            preview: format!("Image {}x{}", width.unwrap_or_default(), height.unwrap_or_default()),
+            preview: format!(
+                "Image {}x{}",
+                width.unwrap_or_default(),
+                height.unwrap_or_default()
+            ),
             png_bytes,
             image_width: width.unwrap_or_default(),
             image_height: height.unwrap_or_default(),

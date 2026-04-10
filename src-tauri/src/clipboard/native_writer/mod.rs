@@ -9,8 +9,6 @@ mod macos;
 #[cfg(windows)]
 mod windows;
 
-#[cfg(target_os = "macos")]
-pub(crate) use macos::write_image_to_clipboard;
 #[cfg(windows)]
 pub(crate) use windows::write_image_to_clipboard;
 #[cfg(not(any(windows, target_os = "macos")))]

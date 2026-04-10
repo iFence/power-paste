@@ -33,6 +33,9 @@ function formatActionError(error, t) {
   if (message === "paste_target_focus_failed") {
     return t("pasteTargetFocusFailed");
   }
+  if (message === "paste_target_permission_denied") {
+    return t("pasteTargetPermissionDenied");
+  }
 
   return message || t("unsupportedCurrentPlatform");
 }
