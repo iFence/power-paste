@@ -116,10 +116,18 @@ fn friendly_process_name(name: &str) -> String {
     }
 }
 
+fn normalized_app_display_name(name: &str) -> Option<String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("Program Manager") {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn source_app_label(app: ForegroundAppResult) -> Option<String> {
-    let display_name = app.display_name.trim();
-    if !display_name.is_empty() && !display_name.eq_ignore_ascii_case("Program Manager") {
-        return Some(display_name.to_string());
+    if let Some(display_name) = normalized_app_display_name(&app.display_name) {
+        return Some(display_name);
     }
 
     let process_name = app.process_name.trim();
@@ -185,19 +193,32 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
          $process = Get-Process -Id $processIdValue -ErrorAction SilentlyContinue; \
          if ($null -eq $process) { return }; \
          $name = $process.ProcessName; \
-         $title = $process.MainWindowTitle; \
-         if ([string]::IsNullOrWhiteSpace($title)) { \
-           try { $title = (Get-Process -Id $processIdValue -ErrorAction Stop).MainWindowTitle } catch { $title = '' } \
+         $processPath = $null; \
+         try { \
+           $processPath = $process.Path; \
+         } catch { } \
+         if ([string]::IsNullOrWhiteSpace($processPath)) { \
+           try { \
+             $processPath = (Get-CimInstance Win32_Process -Filter \"ProcessId = $processIdValue\" -ErrorAction Stop).ExecutablePath \
+           } catch { } \
          } \
-         if ([string]::IsNullOrWhiteSpace($title)) { \
-           try { $title = (Get-CimInstance Win32_Process -Filter \"ProcessId = $processIdValue\" -ErrorAction Stop).Name } catch { $title = '' } \
+         $appDisplayName = $null; \
+         if (-not [string]::IsNullOrWhiteSpace($processPath)) { \
+           try { \
+             $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($processPath); \
+             foreach ($candidate in @($versionInfo.ProductName, $versionInfo.FileDescription, $versionInfo.InternalName)) { \
+               if (-not [string]::IsNullOrWhiteSpace($candidate)) { \
+                 $appDisplayName = $candidate; \
+                 break; \
+               } \
+             } \
+           } catch { } \
+         } \
+         if ([string]::IsNullOrWhiteSpace($appDisplayName)) { \
+           $appDisplayName = $name; \
          } \
          $iconBase64 = $null; \
          try { \
-           $processPath = $process.Path; \
-           if ([string]::IsNullOrWhiteSpace($processPath)) { \
-             $processPath = (Get-CimInstance Win32_Process -Filter \"ProcessId = $processIdValue\" -ErrorAction Stop).ExecutablePath \
-           } \
            if (-not [string]::IsNullOrWhiteSpace($processPath)) { \
              Add-Type -AssemblyName System.Drawing; \
              $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($processPath); \
@@ -212,7 +233,7 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
              } \
            } \
          } catch { } \
-         @{ processName = $name; displayName = $title; iconPngBase64 = $iconBase64 } | ConvertTo-Json -Compress",
+         @{ processName = $name; displayName = $appDisplayName; iconPngBase64 = $iconBase64; appPath = $processPath } | ConvertTo-Json -Compress",
     )?;
 
     if output.trim().is_empty() {
@@ -438,9 +459,38 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
 
 #[cfg(test)]
 mod tests {
-    use super::build_captured_clipboard;
-    use crate::models::{AppSettings, CapturedClipboard};
+    use super::{build_captured_clipboard, normalized_app_display_name, source_app_label};
+    use crate::models::{AppSettings, CapturedClipboard, ForegroundAppResult};
     use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
+
+    #[test]
+    fn prefers_stable_display_name_for_source_app_label() {
+        let label = source_app_label(ForegroundAppResult {
+            process_name: "pixpin".into(),
+            display_name: "PixPin".into(),
+            icon_png_base64: None,
+            app_path: Some("C:\\Program Files\\PixPin\\PixPin.exe".into()),
+        });
+
+        assert_eq!(label.as_deref(), Some("PixPin"));
+    }
+
+    #[test]
+    fn falls_back_to_process_name_when_display_name_is_not_usable() {
+        let label = source_app_label(ForegroundAppResult {
+            process_name: "dingtalk".into(),
+            display_name: "Program Manager".into(),
+            icon_png_base64: None,
+            app_path: None,
+        });
+
+        assert_eq!(label.as_deref(), Some("Dingtalk"));
+    }
+
+    #[test]
+    fn rejects_empty_display_name() {
+        assert_eq!(normalized_app_display_name("   "), None);
+    }
 
     #[test]
     fn classifies_html_plus_image_as_mixed() {

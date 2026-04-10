@@ -633,4 +633,32 @@ mod tests {
 
         let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
     }
+
+    #[test]
+    fn updates_source_app_when_same_content_is_captured_again() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        store
+            .upsert_capture(
+                text_capture("alpha"),
+                Some(("PixPin".into(), Some("pixpin-icon".into()))),
+                &settings,
+            )
+            .expect("first");
+        store
+            .upsert_capture(
+                text_capture("alpha"),
+                Some(("DingTalk".into(), Some("dingtalk-icon".into()))),
+                &settings,
+            )
+            .expect("second");
+
+        let item = store.list_all().expect("all").remove(0);
+        assert_eq!(item.source_app.as_deref(), Some("DingTalk"));
+        assert_eq!(item.source_icon_data_url.as_deref(), Some("dingtalk-icon"));
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
 }
