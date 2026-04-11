@@ -1,6 +1,6 @@
 [package]
 name = "power-paste"
-version = "0.3.1"
+version = "0.3.2"
 description = "Native-feeling clipboard history manager"
 authors = ["Codex"]
 edition = "2021"

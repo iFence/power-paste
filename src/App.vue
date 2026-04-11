@@ -87,7 +87,7 @@ onUnmounted(() => {
         <button
           class="traffic-light close"
           type="button"
-          title="Close"
+          aria-label="Close"
           @click="handleWindowAction('close')"
         >
           <span class="traffic-light-icon" aria-hidden="true">
@@ -112,7 +112,7 @@ onUnmounted(() => {
         <button
           class="traffic-light minimize"
           type="button"
-          title="Minimize"
+          aria-label="Minimize"
           @click="handleWindowAction('minimize')"
         >
           <span class="traffic-light-icon" aria-hidden="true">
@@ -137,7 +137,7 @@ onUnmounted(() => {
         <button
           class="traffic-light maximize"
           type="button"
-          title="Maximize"
+          aria-label="Maximize"
           @click="handleWindowAction('maximize')"
         >
           <span class="traffic-light-icon" aria-hidden="true">
