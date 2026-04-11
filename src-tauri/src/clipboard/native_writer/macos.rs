@@ -2,8 +2,8 @@ use anyhow::Result;
 use core::ffi::c_void;
 use objc2::runtime::ProtocolObject;
 use objc2_app_kit::{
-    NSPasteboard, NSPasteboardItem, NSPasteboardTypeHTML, NSPasteboardTypePNG,
-    NSPasteboardTypeRTF, NSPasteboardTypeString,
+    NSPasteboard, NSPasteboardItem, NSPasteboardTypeHTML, NSPasteboardTypePNG, NSPasteboardTypeRTF,
+    NSPasteboardTypeString,
 };
 use objc2_foundation::{NSArray, NSData, NSString};
 
@@ -69,6 +69,9 @@ fn write_clipboard_payload_macos(
 
 pub(crate) fn write_payload(payload: &ClipboardPayload) -> Result<()> {
     match payload {
+        ClipboardPayload::Html { text, html } => {
+            write_clipboard_payload_macos(text.as_deref(), None, Some(html.as_str()), None)
+        }
         ClipboardPayload::Image { png_bytes } => {
             write_clipboard_payload_macos(None, None, None, Some(png_bytes))
         }
@@ -77,12 +80,9 @@ pub(crate) fn write_payload(payload: &ClipboardPayload) -> Result<()> {
             html,
             png_bytes,
         } => write_clipboard_payload_macos(text.as_deref(), None, html.as_deref(), Some(png_bytes)),
-        ClipboardPayload::RichText { text, rtf, html } => write_clipboard_payload_macos(
-            text.as_deref(),
-            rtf.as_deref(),
-            html.as_deref(),
-            None,
-        ),
+        ClipboardPayload::RichText { text, rtf, html } => {
+            write_clipboard_payload_macos(text.as_deref(), rtf.as_deref(), html.as_deref(), None)
+        }
         _ => anyhow::bail!("clipboard payload requires plugin writer"),
     }
 }

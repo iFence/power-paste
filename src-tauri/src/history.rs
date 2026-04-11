@@ -9,6 +9,7 @@ use crate::{
         AppSettings, CapturedClipboard, ClipboardItemDto, ForegroundAppResult, StoredClipboardItem,
     },
     repository::SqliteHistoryStore,
+    rich_text::normalize_rich_text_payload,
     storage::{image_hash_from_png_bytes, mixed_hash, text_hash},
 };
 
@@ -306,6 +307,9 @@ pub(crate) fn build_captured_clipboard(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<Option<CapturedClipboard>> {
+    let (text, html_text) = normalize_rich_text_payload(Some(text), html_text);
+    let text = text.unwrap_or_default();
+
     let has_text_payload = !text.is_empty()
         || html_text
             .as_deref()

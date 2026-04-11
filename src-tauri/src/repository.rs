@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     models::{AppSettings, CapturedClipboard, StoragePaths, StoredClipboardItem},
+    rich_text::normalize_rich_text_payload,
     storage::{preview_text, sha256_hex},
 };
 
@@ -329,7 +330,7 @@ impl SqliteHistoryStore {
     }
 
     fn row_to_item(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredClipboardItem> {
-        Ok(StoredClipboardItem {
+        let mut item = StoredClipboardItem {
             id: row.get(0)?,
             kind: row.get(1)?,
             created_at: row.get(2)?,
@@ -346,7 +347,20 @@ impl SqliteHistoryStore {
             hash: row.get(13)?,
             pinned: row.get::<_, i64>(14)? != 0,
             favorite: row.get::<_, i64>(15)? != 0,
-        })
+        };
+
+        let (full_text, html_text) =
+            normalize_rich_text_payload(item.full_text.take(), item.html_text.take());
+        item.full_text = full_text;
+        item.html_text = html_text;
+
+        if matches!(item.kind.as_str(), "text" | "link" | "mixed") {
+            if let Some(text) = item.full_text.as_deref() {
+                item.preview = preview_text(text);
+            }
+        }
+
+        Ok(item)
     }
 }
 

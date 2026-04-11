@@ -1,13 +1,13 @@
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
 #[cfg(windows)]
-use std::process::Command;
-#[cfg(windows)]
 use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+use std::process::Command;
 
-use anyhow::Result;
 #[cfg(windows)]
 use anyhow::Context;
+use anyhow::Result;
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
@@ -25,6 +25,7 @@ mod models;
 mod paste_target;
 mod ports;
 mod repository;
+mod rich_text;
 mod runtime;
 mod startup;
 mod storage;

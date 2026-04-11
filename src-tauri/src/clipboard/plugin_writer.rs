@@ -53,7 +53,10 @@ pub(crate) fn preferred_payload(payload: &ClipboardPayload) -> ClipboardPayload 
     }
 }
 
-pub(crate) fn write_payload(app: &AppHandle, payload: &ClipboardPayload) -> Result<ClipboardPayload> {
+pub(crate) fn write_payload(
+    app: &AppHandle,
+    payload: &ClipboardPayload,
+) -> Result<ClipboardPayload> {
     let clipboard = app.clipboard_next();
     let payload = preferred_payload(payload);
 

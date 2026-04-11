@@ -39,19 +39,28 @@ pub(crate) fn write_item_to_clipboard_with_profile(
     }
 }
 
-#[cfg(target_os = "macos")]
 pub(crate) fn wait_for_clipboard_payload(
     app: &AppHandle,
     payload: &ClipboardPayload,
 ) -> Result<()> {
-    let _ = app;
-    let delay_ms = match payload {
-        ClipboardPayload::Image { .. } => 120,
-        ClipboardPayload::RichText { .. } | ClipboardPayload::Html { .. } => 80,
-        _ => 40,
-    };
-    std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-    Ok(())
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app;
+        let delay_ms = match payload {
+            ClipboardPayload::Image { .. } => 120,
+            ClipboardPayload::RichText { .. } | ClipboardPayload::Html { .. } => 80,
+            _ => 40,
+        };
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        let _ = payload;
+        Ok(())
+    }
 }
 
 fn plugin_fallback_payload(payload: ClipboardPayload) -> ClipboardPayload {

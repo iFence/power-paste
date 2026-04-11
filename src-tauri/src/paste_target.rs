@@ -7,10 +7,10 @@ use tauri::Manager;
 
 use crate::models::{SharedState, StoredClipboardItem};
 
-#[cfg(windows)]
-use crate::clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin};
 #[cfg(target_os = "macos")]
 use crate::clipboard::wait_for_clipboard_payload;
+#[cfg(windows)]
+use crate::clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin};
 #[cfg(windows)]
 use crate::models::{HwndRaw, PANEL_LABEL};
 #[cfg(target_os = "macos")]
@@ -614,18 +614,11 @@ pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()>
         anyhow::bail!("paste_target_focus_failed");
     }
 
-    if app_name
-        .filter(|value| !value.is_empty())
-        .is_none()
-    {
+    if app_name.filter(|value| !value.is_empty()).is_none() {
         anyhow::bail!("paste_target_focus_failed");
     }
 
-    post_macos_keyboard_event(
-        MACOS_KEYCODE_COMMAND,
-        true,
-        KCG_EVENT_FLAG_MASK_COMMAND,
-    )?;
+    post_macos_keyboard_event(MACOS_KEYCODE_COMMAND, true, KCG_EVENT_FLAG_MASK_COMMAND)?;
     post_macos_keyboard_event(MACOS_KEYCODE_V, true, KCG_EVENT_FLAG_MASK_COMMAND)?;
     post_macos_keyboard_event(MACOS_KEYCODE_V, false, KCG_EVENT_FLAG_MASK_COMMAND)?;
     post_macos_keyboard_event(MACOS_KEYCODE_COMMAND, false, 0)?;

@@ -4,6 +4,8 @@ use anyhow::Result;
 use tauri::AppHandle;
 use tauri_plugin_clipboard_next::ClipboardNextExt;
 
+use crate::rich_text::normalize_clipboard_text;
+
 #[derive(Debug)]
 pub(crate) struct PluginClipboardImage {
     pub(crate) png_bytes: Vec<u8>,
@@ -20,11 +22,6 @@ pub(crate) struct PluginClipboardSnapshot {
     pub(crate) files: Vec<String>,
 }
 
-pub(crate) fn normalize_text(text: String) -> Option<String> {
-    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    (!normalized.trim().is_empty()).then_some(normalized)
-}
-
 fn image_from_plugin_read(path: &Path, width: u32, height: u32) -> Result<PluginClipboardImage> {
     Ok(PluginClipboardImage {
         png_bytes: std::fs::read(path)?,
@@ -35,9 +32,15 @@ fn image_from_plugin_read(path: &Path, width: u32, height: u32) -> Result<Plugin
 
 pub(crate) fn read_snapshot(app: &AppHandle) -> PluginClipboardSnapshot {
     let clipboard = app.clipboard_next();
-    let text = clipboard.read_text().ok().and_then(normalize_text);
-    let html = clipboard.read_html().ok().and_then(normalize_text);
-    let rtf = clipboard.read_rtf().ok().and_then(normalize_text);
+    let text = clipboard
+        .read_text()
+        .ok()
+        .and_then(normalize_clipboard_text);
+    let html = clipboard
+        .read_html()
+        .ok()
+        .and_then(normalize_clipboard_text);
+    let rtf = clipboard.read_rtf().ok().and_then(normalize_clipboard_text);
     let image = clipboard
         .read_image(app.clone(), None)
         .ok()
