@@ -34,13 +34,13 @@ function handleInput(event) {
         />
         <button
           v-if="props.query"
-          class="search-clear-button"
+          class="shortcut-clear-button"
           type="button"
           :title="props.clearSearchLabel"
           :aria-label="props.clearSearchLabel"
           @click="props.onClearQuery"
         >
-          <span aria-hidden="true"></span>
+          <span aria-hidden="true">×</span>
         </button>
       </div>
       <p v-if="actionFeedback" class="action-feedback">{{ actionFeedback }}</p>
