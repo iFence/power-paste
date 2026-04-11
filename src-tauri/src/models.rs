@@ -216,6 +216,7 @@ pub(crate) struct SharedState {
     pub(crate) debug_context_menu_enabled: Arc<AtomicBool>,
     pub(crate) update_status: Arc<Mutex<UpdateStatus>>,
     pub(crate) pending_update: Arc<Mutex<Option<Update>>>,
+    pub(crate) update_debug_override: Arc<Mutex<Option<UpdateStatus>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -244,6 +245,18 @@ impl UpdateStatus {
             error: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UpdateDebugStatePayload {
+    pub(crate) status: String,
+    pub(crate) latest_version: Option<String>,
+    pub(crate) body: Option<String>,
+    pub(crate) published_at: Option<String>,
+    pub(crate) downloaded_bytes: Option<u64>,
+    pub(crate) content_length: Option<u64>,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Debug)]

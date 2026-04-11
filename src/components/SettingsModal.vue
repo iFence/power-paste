@@ -21,7 +21,9 @@ const props = defineProps({
   maxImageBytesMb: { type: Number, required: true },
   onUpdateMaxImageBytesMb: { type: Function, required: true },
   onCheckUpdates: { type: Function, required: true },
+  onClearUpdateDebugStatus: { type: Function, required: true },
   onInstallUpdate: { type: Function, required: true },
+  onSetUpdateDebugStatus: { type: Function, required: true },
   openSelectKey: { type: String, default: null },
   platformCapabilities: { type: Object, required: true },
   recordingShortcut: { type: Boolean, required: true },
@@ -35,8 +37,11 @@ const props = defineProps({
   showSettings: { type: Boolean, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
+  updateDebugEnabled: { type: Boolean, required: true },
+  updateDebugStatus: { type: String, default: null },
   updateBusy: { type: Boolean, required: true },
   updateLabel: { type: String, required: true },
+  updateStatusMessage: { type: String, required: true },
   updateState: { type: Object, required: true },
 })
 
@@ -52,6 +57,30 @@ const updateNotes = computed(() => {
   }
 
   return body.trim()
+})
+
+const updateDebugOptions = computed(() => [
+  { value: 'available', label: props.t('updateDebugAvailable') },
+  { value: 'downloading', label: props.t('updateDebugDownloading') },
+  { value: 'downloaded', label: props.t('updateDebugDownloaded') },
+  { value: 'up_to_date', label: props.t('updateDebugUpToDate') },
+  { value: 'error', label: props.t('updateDebugError') },
+])
+
+const updateHeaderMessage = computed(() => {
+  if (!props.updateState || props.updateState.status !== 'downloading') {
+    return ''
+  }
+
+  return props.updateStatusMessage
+})
+
+const updateBadgeLabel = computed(() => {
+  if (props.updateState?.status === 'downloading' && updateHeaderMessage.value) {
+    return updateHeaderMessage.value
+  }
+
+  return props.showUpdateAction ? props.updateLabel : props.t('checkForUpdates')
 })
 
 function closeUpdateConfirm() {
@@ -94,6 +123,14 @@ async function handleUpdateAction() {
   }
 }
 
+async function selectUpdateDebugStatus(status) {
+  await props.onSetUpdateDebugStatus(status)
+}
+
+async function clearUpdateDebugStatus() {
+  await props.onClearUpdateDebugStatus()
+}
+
 onUnmounted(() => {
   if (updateFeedbackTimer) {
     clearTimeout(updateFeedbackTimer)
@@ -110,11 +147,11 @@ onUnmounted(() => {
             <h2>{{ t("settingsTitle") }}</h2>
             <button
               v-if="showUpdateAction"
-              class="modal-update-badge"
+              class="modal-update-badge modal-update-badge-new"
               type="button"
               :disabled="updateBusy"
-              :title="updateLabel"
-              :aria-label="updateLabel"
+              :title="updateBadgeLabel"
+              :aria-label="updateBadgeLabel"
               @click="handleUpdateAction"
             >
               <span class="modal-update-badge-mark">new</span>
@@ -124,8 +161,8 @@ onUnmounted(() => {
               class="modal-update-badge modal-update-badge-check"
               type="button"
               :disabled="updateBusy"
-              :title="t('checkForUpdates')"
-              :aria-label="t('checkForUpdates')"
+              :title="updateBadgeLabel"
+              :aria-label="updateBadgeLabel"
               @click="handleUpdateAction"
             >
               <img :src="checkIcon" alt="" class="modal-update-badge-icon" />
@@ -135,6 +172,9 @@ onUnmounted(() => {
                 {{ t('upToDate') }}
               </span>
             </Transition>
+            <span v-if="updateHeaderMessage" class="modal-update-status">
+              {{ updateHeaderMessage }}
+            </span>
           </div>
           <span class="modal-version">{{ t("version") }} {{ appVersion || "--" }}</span>
         </div>
@@ -345,6 +385,27 @@ onUnmounted(() => {
               @click="settings.debugEnabled = false"
             >
               {{ t("toggleOff") }}
+            </button>
+          </div>
+        </section>
+
+        <section v-if="updateDebugEnabled" class="setting-card wide">
+          <div class="setting-head">
+            <span class="meta-label">{{ t("updateDebugTitle") }}</span>
+            <span class="setting-note">{{ t("updateDebugHint") }}</span>
+          </div>
+          <div class="setting-actions">
+            <button
+              v-for="option in updateDebugOptions"
+              :key="option.value"
+              type="button"
+              :class="updateDebugStatus === option.value ? 'primary' : 'ghost'"
+              @click="selectUpdateDebugStatus(option.value)"
+            >
+              {{ option.label }}
+            </button>
+            <button class="ghost" type="button" @click="clearUpdateDebugStatus">
+              {{ t("updateDebugClear") }}
             </button>
           </div>
         </section>

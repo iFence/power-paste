@@ -77,7 +77,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell" :data-density="settingsState.currentDensity.value">
+  <div
+    class="app-shell"
+    :data-density="settingsState.currentDensity.value"
+    :data-platform="settingsState.platformCapabilities.value.platform"
+  >
     <section class="titlebar-row">
       <div class="window-controls">
         <button
@@ -231,7 +235,9 @@ onUnmounted(() => {
       :locale-options="settingsState.localeOptions"
       :max-image-bytes-mb="settingsState.maxImageBytesMb.value"
       :on-check-updates="updaterState.runUpdateCheck"
+      :on-clear-update-debug-status="updaterState.clearUpdateDebugStatus"
       :on-install-update="updaterState.runUpdateInstall"
+      :on-set-update-debug-status="updaterState.setUpdateDebugStatus"
       :on-update-max-image-bytes-mb="settingsState.setMaxImageBytesMb"
       :open-select-key="settingsState.openSelectKey.value"
       :recording-shortcut="settingsState.recordingShortcut.value"
@@ -246,8 +252,11 @@ onUnmounted(() => {
       :platform-capabilities="settingsState.platformCapabilities.value"
       :t="settingsState.t"
       :toggle-select="settingsState.toggleSelect"
+      :update-debug-enabled="updaterState.updateDebugEnabled"
+      :update-debug-status="updaterState.updateDebugStatus.value"
       :update-busy="updaterState.updateBusy.value"
       :update-label="settingsState.t('downloadAndInstall')"
+      :update-status-message="updaterState.statusMessage.value"
       :update-state="updaterState.updateState.value"
       @close="settingsState.showSettings.value = false"
     />

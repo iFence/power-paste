@@ -110,12 +110,15 @@ select {
   width: 100%;
   height: 100vh;
   background: var(--app-bg);
-  border-radius: 14px;
   overflow: hidden;
   position: relative;
   user-select: none;
   -webkit-user-select: none;
   overscroll-behavior: none;
+}
+
+.app-shell[data-platform='macos'] {
+  border-radius: 14px;
   clip-path: inset(0 round 14px);
 }
 
@@ -1293,6 +1296,15 @@ select {
   color: var(--app-muted);
 }
 
+.modal-update-status {
+  display: inline-flex;
+  margin-left: auto;
+  font-size: 0.78rem;
+  text-align: right;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--accent-primary) 74%, var(--app-text) 26%);
+}
+
 .modal-update-badge {
   display: inline-flex;
   align-items: center;
@@ -1309,6 +1321,11 @@ select {
   transition:
     opacity 140ms ease,
     transform 140ms ease;
+}
+
+.modal-update-badge-new {
+  animation: update-badge-glimmer 1.7s ease-in-out infinite;
+  transform-origin: center;
 }
 
 .modal-update-badge:hover:not(:disabled) {
@@ -1328,6 +1345,33 @@ select {
 .modal-update-badge-mark {
   flex: 0 0 auto;
   letter-spacing: 0.04em;
+}
+
+@keyframes update-badge-glimmer {
+  0%,
+  100% {
+    opacity: 0.92;
+    text-shadow: 0 0 0 rgba(238, 80, 47, 0);
+    transform: scale(1);
+  }
+
+  45% {
+    opacity: 1;
+    text-shadow: 0 0 10px rgba(238, 80, 47, 0.28);
+    transform: scale(1.04);
+  }
+
+  60% {
+    opacity: 0.7;
+    text-shadow: 0 0 12px rgba(238, 80, 47, 0.1);
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-update-badge-new {
+    animation: none;
+  }
 }
 
 .modal-update-badge-icon {
@@ -1456,6 +1500,7 @@ select {
   border: 1px solid color-mix(in srgb, var(--accent-primary) 18%, var(--app-panel-border) 82%);
   background: linear-gradient(180deg, var(--modal-panel-strong-bg), var(--modal-panel-bg));
   box-shadow: var(--app-shadow);
+  overflow: hidden;
 }
 
 .update-confirm-header h3 {
@@ -1471,18 +1516,37 @@ select {
 
 .update-confirm-notes {
   margin: 0;
-  min-height: 120px;
-  max-height: min(44vh, 360px);
+  min-height: 0;
+  height: 100%;
   overflow: auto;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--app-panel-border);
-  background: color-mix(in srgb, var(--app-input-bg) 92%, var(--modal-panel-strong-bg) 8%);
+  padding: 4px 6px 2px 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--app-text);
   font-size: 0.8rem;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent-primary) 36%, var(--app-panel-border) 64%) transparent;
+  overscroll-behavior: contain;
+}
+
+.update-confirm-notes::-webkit-scrollbar {
+  width: 8px;
+}
+
+.update-confirm-notes::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.update-confirm-notes::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary) 30%, var(--app-panel-border) 70%);
+}
+
+.update-confirm-notes::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent-primary) 44%, var(--app-panel-border) 56%);
 }
 
 .update-confirm-actions {
@@ -1490,6 +1554,16 @@ select {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.update-confirm-actions .ghost,
+.update-confirm-actions .primary {
+  min-width: 0;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 0.8rem;
 }
 
 .toggle-card {

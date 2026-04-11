@@ -38,6 +38,10 @@ export function installUpdate() {
   return invoke("install_update");
 }
 
+export function setUpdateDebugState(payload) {
+  return invoke("set_update_debug_state", { payload });
+}
+
 export function updateSettings(payload) {
   return invoke("update_settings", { payload });
 }

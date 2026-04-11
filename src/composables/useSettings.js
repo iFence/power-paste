@@ -8,6 +8,20 @@ import {
 } from "../services/tauriApi";
 import { normalizeShortcutKey } from "../utils/shortcut";
 
+function detectClientPlatform() {
+  const userAgent = window.navigator.userAgent.toLowerCase();
+
+  if (userAgent.includes("mac os x") || userAgent.includes("macintosh")) {
+    return "macos";
+  }
+
+  if (userAgent.includes("windows")) {
+    return "windows";
+  }
+
+  return "unknown";
+}
+
 function extractErrorCode(error) {
   if (typeof error === "string") {
     return error;
@@ -19,6 +33,7 @@ function extractErrorCode(error) {
 }
 
 export function useSettings() {
+  const detectedPlatform = detectClientPlatform();
   const settings = reactive({
     debugEnabled: false,
     launchOnStartup: false,
@@ -39,15 +54,15 @@ export function useSettings() {
   const settingsSaveError = ref("");
   const appVersion = ref("");
   const platformCapabilities = ref({
-    platform: "windows",
+    platform: detectedPlatform,
     supportsClipboardRead: true,
     supportsClipboardWatch: true,
     supportsTextWrite: true,
     supportsHtmlWrite: true,
     supportsImageWrite: true,
-    supportsDirectPaste: true,
-    supportsLaunchOnStartup: true,
-    supportsMixedReplay: true,
+    supportsDirectPaste: detectedPlatform === "windows" || detectedPlatform === "macos",
+    supportsLaunchOnStartup: detectedPlatform === "windows" || detectedPlatform === "macos",
+    supportsMixedReplay: detectedPlatform === "windows",
     preferredClipboardBackend: "plugin+native-fallback",
     clipboardWriteStrategy: "plugin-first-with-native-fallback",
     directPasteStrategy: "simulated-native-shortcut",

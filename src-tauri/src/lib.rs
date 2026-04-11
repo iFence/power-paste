@@ -154,6 +154,7 @@ pub fn run() {
                     app.package_info().version.to_string(),
                 ))),
                 pending_update: Arc::new(Mutex::new(None)),
+                update_debug_override: Arc::new(Mutex::new(None)),
             });
 
             let launch_on_startup = settings.lock().unwrap().launch_on_startup;
@@ -194,7 +195,8 @@ pub fn run() {
             open_external_url,
             update::get_update_state,
             update::check_for_updates,
-            update::install_update
+            update::install_update,
+            update::set_update_debug_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running Power Paste");

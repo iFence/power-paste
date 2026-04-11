@@ -233,6 +233,14 @@ Object.assign(messages["zh-CN"], {
   updateNotesEmpty: "\u6682\u65e0\u66f4\u65b0\u8bf4\u660e",
   ignoreUpdate: "\u5ffd\u7565",
   installUpdateNow: "\u5b89\u88c5",
+  updateDebugTitle: "\u66f4\u65b0\u8c03\u8bd5",
+  updateDebugHint: "\u4ec5\u5f00\u53d1\u6a21\u5f0f\u53ef\u89c1\uff0c\u7528\u4e8e\u9884\u89c8 new \u5fbd\u6807\u548c\u66f4\u65b0\u72b6\u6001\u3002",
+  updateDebugAvailable: "\u65b0\u7248\u672c",
+  updateDebugDownloading: "\u4e0b\u8f7d\u4e2d",
+  updateDebugDownloaded: "\u5df2\u4e0b\u8f7d",
+  updateDebugUpToDate: "\u5df2\u662f\u6700\u65b0",
+  updateDebugError: "\u9519\u8bef",
+  updateDebugClear: "\u6062\u590d\u771f\u5b9e\u68c0\u67e5",
   saveSettingsFailed: "\u4fdd\u5b58\u8bbe\u7f6e\u5931\u8d25",
 });
 
@@ -263,6 +271,14 @@ Object.assign(messages["en-US"], {
   updateNotesEmpty: "No release notes were provided for this version.",
   ignoreUpdate: "Ignore",
   installUpdateNow: "Install",
+  updateDebugTitle: "Update Debug",
+  updateDebugHint: "Visible in development only to preview the new badge and update states.",
+  updateDebugAvailable: "Available",
+  updateDebugDownloading: "Downloading",
+  updateDebugDownloaded: "Downloaded",
+  updateDebugUpToDate: "Up to Date",
+  updateDebugError: "Error",
+  updateDebugClear: "Use Real Check",
   saveSettingsFailed: "Failed to save settings",
 });
 
