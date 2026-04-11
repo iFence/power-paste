@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { onHistoryUpdated, onUpdateStatus } from "./services/tauriApi";
 import SearchBar from "./components/SearchBar.vue";
 import FilterTabs from "./components/FilterTabs.vue";
@@ -48,31 +48,52 @@ watch(settingsState.currentLocale, (locale) => {
 
 let unlistenHistory = null;
 let unlistenUpdate = null;
+const startupBusy = ref(false);
+
+function cleanupListeners() {
+  unlistenHistory?.();
+  unlistenUpdate?.();
+  unlistenHistory = null;
+  unlistenUpdate = null;
+}
+
+async function initializeApp() {
+  startupBusy.value = true;
+  settingsState.clearStartupError();
+  cleanupListeners();
+
+  try {
+    await settingsState.loadAppVersion();
+    await settingsState.loadPlatformCapabilities();
+    await settingsState.refreshSettings();
+    await updaterState.refreshUpdateState();
+    await historyState.refreshHistory();
+    document.documentElement.lang = settingsState.currentLocale.value;
+    unlistenHistory = await onHistoryUpdated(async (event) => {
+      if (event?.payload?.id) {
+        historyState.applyHistoryUpdate(event.payload);
+        return;
+      }
+      await historyState.refreshHistory();
+    });
+    unlistenUpdate = await onUpdateStatus((event) => {
+      if (event?.payload) {
+        updaterState.applyUpdateState(event.payload);
+      }
+    });
+  } catch (error) {
+    settingsState.setStartupError(error);
+  } finally {
+    startupBusy.value = false;
+  }
+}
 
 onMounted(async () => {
-  await settingsState.loadAppVersion();
-  await settingsState.loadPlatformCapabilities();
-  await settingsState.refreshSettings();
-  await updaterState.refreshUpdateState();
-  await historyState.refreshHistory();
-  document.documentElement.lang = settingsState.currentLocale.value;
-  unlistenHistory = await onHistoryUpdated(async (event) => {
-    if (event?.payload?.id) {
-      historyState.applyHistoryUpdate(event.payload);
-      return;
-    }
-    await historyState.refreshHistory();
-  });
-  unlistenUpdate = await onUpdateStatus((event) => {
-    if (event?.payload) {
-      updaterState.applyUpdateState(event.payload);
-    }
-  });
+  await initializeApp();
 });
 
 onUnmounted(() => {
-  unlistenHistory?.();
-  unlistenUpdate?.();
+  cleanupListeners();
 });
 </script>
 
@@ -164,60 +185,73 @@ onUnmounted(() => {
     </section>
 
     <div class="window-shell">
-      <SearchBar
-        :action-feedback="historyState.actionFeedback.value"
-        :clear-label="settingsState.t('clear')"
-        :clear-search-label="settingsState.t('clearSearch')"
-        :on-clear="historyState.clearHistory"
-        :on-clear-query="() => {
-          historyState.query.value = '';
-          historyState.refreshHistory();
-        }"
-        :on-open-settings="() => { settingsState.showSettings.value = true; }"
-        :on-window-action="handleWindowAction"
-        :placeholder="settingsState.t('searchPlaceholder')"
-        :query="historyState.query.value"
-        :settings-label="settingsState.t('settingsTitle')"
-        @update:query="
-          historyState.query.value = $event;
-          historyState.refreshHistory();
-        "
-      />
+      <div v-if="settingsState.startupError.value" class="startup-error-panel">
+        <div class="startup-error-state">
+          <strong>{{ settingsState.t("startupLoadFailed") }}</strong>
+          <p>{{ settingsState.startupError.value }}</p>
+          <button class="primary" type="button" :disabled="startupBusy" @click="initializeApp">
+            {{ settingsState.t("retryAction") }}
+          </button>
+        </div>
+      </div>
 
-      <FilterTabs
-        :active-filter-tab="historyState.activeFilterTab.value"
-        :aria-label="settingsState.t('searchPlaceholder')"
-        :tabs="historyState.historyTabs.value"
-        @select="historyState.activeFilterTab.value = $event"
-      />
+      <template v-else>
+        <SearchBar
+          :action-feedback="historyState.actionFeedback.value"
+          :clear-label="settingsState.t('clear')"
+          :clear-search-label="settingsState.t('clearSearch')"
+          :on-clear="historyState.clearHistory"
+          :on-clear-query="() => {
+            historyState.query.value = '';
+            historyState.refreshHistory();
+          }"
+          :on-open-settings="() => { settingsState.showSettings.value = true; }"
+          :on-window-action="handleWindowAction"
+          :placeholder="settingsState.t('searchPlaceholder')"
+          :query="historyState.query.value"
+          :settings-label="settingsState.t('settingsTitle')"
+          @update:query="
+            historyState.query.value = $event;
+            historyState.refreshHistory();
+          "
+        />
 
-      <HistoryList
-        :can-clipboard-write="
-          settingsState.platformCapabilities.value.supportsTextWrite ||
-          settingsState.platformCapabilities.value.supportsHtmlWrite ||
-          settingsState.platformCapabilities.value.supportsImageWrite
-        "
-        :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
-        :history-panel-ref="historyState.historyPanelRef"
-        :items="historyState.filteredHistory.value"
-        :loading="historyState.loading.value"
-        :locale="settingsState.currentLocale.value"
-        :selected-id="historyState.selectedId.value"
-        :t="settingsState.t"
-        :unsupported-clipboard-write-message="settingsState.t('unsupportedClipboardWrite')"
-        :unsupported-direct-paste-message="settingsState.t('unsupportedDirectPaste')"
-        @copy="historyState.copyItem"
-        @edit="historyState.openEditModal"
-        @open-link="historyState.openExternalUrl"
-        @paste="historyState.pasteItem"
-        @remove="historyState.removeItem"
-        @select="historyState.setSelectedId"
-        @toggle-pin="historyState.togglePin"
-      />
-      <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
+        <FilterTabs
+          :active-filter-tab="historyState.activeFilterTab.value"
+          :aria-label="settingsState.t('searchPlaceholder')"
+          :tabs="historyState.historyTabs.value"
+          @select="historyState.activeFilterTab.value = $event"
+        />
+
+        <HistoryList
+          :can-clipboard-write="
+            settingsState.platformCapabilities.value.supportsTextWrite ||
+            settingsState.platformCapabilities.value.supportsHtmlWrite ||
+            settingsState.platformCapabilities.value.supportsImageWrite
+          "
+          :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
+          :history-panel-ref="historyState.historyPanelRef"
+          :items="historyState.filteredHistory.value"
+          :loading="historyState.loading.value"
+          :locale="settingsState.currentLocale.value"
+          :selected-id="historyState.selectedId.value"
+          :t="settingsState.t"
+          :unsupported-clipboard-write-message="settingsState.t('unsupportedClipboardWrite')"
+          :unsupported-direct-paste-message="settingsState.t('unsupportedDirectPaste')"
+          @copy="historyState.copyItem"
+          @edit="historyState.openEditModal"
+          @open-link="historyState.openExternalUrl"
+          @paste="historyState.pasteItem"
+          @remove="historyState.removeItem"
+          @select="historyState.setSelectedId"
+          @toggle-pin="historyState.togglePin"
+        />
+        <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
+      </template>
     </div>
 
     <SettingsModal
+      v-if="!settingsState.startupError.value"
       :app-version="settingsState.appVersion.value"
       :begin-shortcut-recording="settingsState.beginShortcutRecording"
       :choose-select-option="settingsState.chooseSelectOption"
@@ -262,6 +296,7 @@ onUnmounted(() => {
     />
 
     <EditModal
+      v-if="!settingsState.startupError.value"
       :draft="historyState.editDraft.value"
       :show="historyState.showEditModal.value"
       :t="settingsState.t"

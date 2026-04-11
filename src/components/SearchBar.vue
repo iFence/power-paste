@@ -1,23 +1,21 @@
-<script setup lang="ts">
-const props = defineProps<{
-  actionFeedback?: string
-  clearLabel: string
-  clearSearchLabel: string
-  onClear: () => void
-  onClearQuery: () => void
-  onOpenSettings: () => void
-  onWindowAction: (action: string) => void
-  placeholder: string
-  query: string
-  settingsLabel: string
-}>()
+<script setup>
+const props = defineProps({
+  actionFeedback: { type: String, default: '' },
+  clearLabel: { type: String, required: true },
+  clearSearchLabel: { type: String, required: true },
+  onClear: { type: Function, required: true },
+  onClearQuery: { type: Function, required: true },
+  onOpenSettings: { type: Function, required: true },
+  onWindowAction: { type: Function, required: true },
+  placeholder: { type: String, required: true },
+  query: { type: String, required: true },
+  settingsLabel: { type: String, required: true },
+})
 
-const emit = defineEmits<{
-  'update:query': [value: string]
-}>()
+const emit = defineEmits(['update:query'])
 
-function handleInput(event: Event) {
-  const target = event.target as HTMLInputElement
+function handleInput(event) {
+  const target = event.target
   emit('update:query', target.value)
 }
 </script>

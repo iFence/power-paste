@@ -1224,6 +1224,34 @@ select {
   min-height: 180px;
 }
 
+.startup-error-panel {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 320px;
+  padding: 24px;
+}
+
+.startup-error-state {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+
+.startup-error-state strong {
+  font-size: 1rem;
+  color: var(--app-text);
+}
+
+.startup-error-state p {
+  margin: 0;
+  color: var(--app-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

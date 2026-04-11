@@ -15,8 +15,7 @@ pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
     }
 
     let bytes = fs::read(&paths.settings_path)?;
-    let mut settings: AppSettings = from_slice(&bytes)?;
-    settings.polling_interval_ms = 500;
+    let settings: AppSettings = from_slice(&bytes)?;
     Ok(settings)
 }
 
@@ -83,4 +82,53 @@ pub(crate) fn mixed_hash(
     Ok(sha256_hex(
         format!("{text_fingerprint}\n{image_hash}").as_bytes(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{load_settings, save_settings};
+    use crate::models::{AppSettings, StoragePaths};
+    use std::fs;
+    use uuid::Uuid;
+
+    fn test_paths() -> StoragePaths {
+        let root = std::env::temp_dir().join(format!("clipdesk-storage-test-{}", Uuid::new_v4()));
+        StoragePaths::new(root).expect("storage paths")
+    }
+
+    #[test]
+    fn preserves_polling_interval_on_roundtrip() {
+        let paths = test_paths();
+        let mut settings = AppSettings::default();
+        settings.polling_interval_ms = 1250;
+
+        save_settings(&paths, &settings).expect("save settings");
+        let loaded = load_settings(&paths).expect("load settings");
+
+        assert_eq!(loaded.polling_interval_ms, 1250);
+
+        let _ = fs::remove_dir_all(
+            paths
+                .settings_path
+                .parent()
+                .unwrap_or(paths.settings_path.as_path()),
+        );
+    }
+
+    #[test]
+    fn returns_error_for_invalid_settings_file() {
+        let paths = test_paths();
+
+        fs::write(&paths.settings_path, b"{invalid json").expect("write invalid settings");
+        let result = load_settings(&paths);
+
+        assert!(result.is_err());
+
+        let _ = fs::remove_dir_all(
+            paths
+                .settings_path
+                .parent()
+                .unwrap_or(paths.settings_path.as_path()),
+        );
+    }
 }

@@ -52,6 +52,7 @@ export function useSettings() {
   const openSelectKey = ref(null);
   const savingSettings = ref(false);
   const settingsSaveError = ref("");
+  const startupError = ref("");
   const appVersion = ref("");
   const platformCapabilities = ref({
     platform: detectedPlatform,
@@ -132,7 +133,7 @@ export function useSettings() {
     }
   }
 
-  function formatErrorMessage(error) {
+  function formatErrorMessage(error, fallbackKey = "saveSettingsFailed") {
     const code = extractErrorCode(error);
     if (code === "unsupported_launch_on_startup") {
       return t("unsupportedLaunchOnStartup");
@@ -157,7 +158,15 @@ export function useSettings() {
         }
       }
     }
-    return t("saveSettingsFailed");
+    return t(fallbackKey);
+  }
+
+  function setStartupError(error) {
+    startupError.value = formatErrorMessage(error, "startupLoadFailed");
+  }
+
+  function clearStartupError() {
+    startupError.value = "";
   }
 
   function beginShortcutRecording() {
@@ -211,25 +220,11 @@ export function useSettings() {
   }
 
   async function loadAppVersion() {
-    appVersion.value = (await getAppVersion().catch(() => "")) || "";
+    appVersion.value = (await getAppVersion()) || "";
   }
 
   async function loadPlatformCapabilities() {
-    platformCapabilities.value = await fetchPlatformCapabilities().catch(() => ({
-      platform: "unknown",
-      supportsClipboardRead: false,
-      supportsClipboardWatch: false,
-      supportsTextWrite: false,
-      supportsHtmlWrite: false,
-      supportsImageWrite: false,
-      supportsDirectPaste: false,
-      supportsLaunchOnStartup: false,
-      supportsMixedReplay: false,
-      preferredClipboardBackend: "unsupported",
-      clipboardWriteStrategy: "unsupported",
-      directPasteStrategy: "unsupported",
-      mixedReplayStrategy: "unsupported",
-    }));
+    platformCapabilities.value = await fetchPlatformCapabilities();
   }
 
   async function refreshSettings() {
@@ -266,6 +261,7 @@ export function useSettings() {
     beginShortcutRecording,
     canToggleLaunchOnStartup,
     chooseSelectOption,
+    clearStartupError,
     clearGlobalShortcut,
     closeSelect,
     currentAccentColor,
@@ -291,10 +287,12 @@ export function useSettings() {
     savingSettings,
     segmentedToggleStyle,
     selectedOptionLabel,
+    setStartupError,
     setMaxImageBytesMb,
     settings,
     settingsSaveError,
     showSettings,
+    startupError,
     t,
     toggleSelect,
   };

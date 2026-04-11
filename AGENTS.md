@@ -38,11 +38,11 @@
 
 ### Vue 3
 
-- 组件统一使用 `<script setup lang="ts">` 语法。
-- Props 必须使用 `defineProps<{}>()` 泛型形式，禁止 `defineProps([])` 数组形式。
-- Emits 必须使用 `defineEmits<{}>()` 泛型形式。
+- 组件统一使用 `<script setup>` 语法，前端默认使用 JavaScript。
+- Props 必须使用 `defineProps({})` 运行时声明形式，禁止 `defineProps([])` 数组形式。
+- Emits 使用 `defineEmits([])` 或对象校验形式，按组件对外事件显式声明。
 - 组件文件名使用 PascalCase，例如 `UserProfile.vue`。
-- 组合式函数（Composables）统一放在 `src/composables/` 目录，文件名以 `use` 开头，例如 `useWindowState.ts`。
+- 组合式函数（Composables）统一放在 `src/composables/` 目录，文件名以 `use` 开头，例如 `useWindowState.js`。
 - 禁止在 `<template>` 中编写业务逻辑，复杂逻辑须提取到 `<script setup>` 或 Composable 中。
 
 ### Rust（Tauri Command）
@@ -76,7 +76,7 @@ src-tauri/
 2. **组件分层**：`components/` 只放与业务无关的 UI 组件；业务组件放在对应 `views/` 子目录内。
 3. **Store 按域拆分**：每个业务域对应一个 pinia store 文件，禁止创建单一全局大 store。
 4. **前后端边界清晰**：前端不处理系统级逻辑，系统级操作统一通过 Tauri command 调用；Tauri command 不处理 UI 状态。
-5. **禁止硬编码**：常量统一定义在 `src/utils/constants.ts` 或各模块的 `constants.ts` 中。
+5. **禁止硬编码**：常量统一定义在 `src/utils/constants.js` 或各模块的 `constants.js` 中。
 6. **禁止 fallback 掩盖错误**：代码应快速失败（Fail-Fast），不得添加吞掉错误的 try-catch 或默认值来掩盖异常。
 
 ---

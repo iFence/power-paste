@@ -290,14 +290,22 @@ export function useUpdater({ t }) {
   }
 
   async function refreshUpdateState() {
-    const debugState = await syncUpdateDebugOverride();
-    if (debugState) {
-      return debugState;
-    }
+    try {
+      const debugState = await syncUpdateDebugOverride();
+      if (debugState) {
+        return debugState;
+      }
 
-    const nextState = await getUpdateState();
-    applyUpdateState(nextState);
-    return nextState;
+      const nextState = await getUpdateState();
+      applyUpdateState(nextState);
+      return nextState;
+    } catch (error) {
+      applyUpdateState({
+        status: "error",
+        error: formatErrorMessage(error) || t("updateCheckFailed"),
+      });
+      return updateState.value;
+    }
   }
 
   async function runUpdateCheck() {

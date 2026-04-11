@@ -5,9 +5,7 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 use std::process::Command;
 
-#[cfg(windows)]
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
@@ -137,7 +135,9 @@ pub fn run() {
         .setup(|app| {
             let root = app.path().app_local_data_dir()?;
             let paths = StoragePaths::new(root)?;
-            let settings = Arc::new(Mutex::new(load_settings(&paths).unwrap_or_default()));
+            let settings = Arc::new(Mutex::new(
+                load_settings(&paths).context("failed to load settings")?,
+            ));
             let history_store = SqliteHistoryStore::new(&paths)?;
             let history = Arc::new(Mutex::new(history_store.list_all()?));
             let history_store = Arc::new(Mutex::new(history_store));

@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tauri::{AppHandle, Manager};
-#[cfg(windows)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::{
@@ -74,20 +73,17 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         state: &Arc<SharedState>,
         settings: &AppSettings,
     ) -> Result<()> {
-        #[cfg(windows)]
-        {
-            let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
-            let manager = app.global_shortcut();
-            if let Ok(shortcut) = previous_shortcut.parse::<Shortcut>() {
-                let _ = manager.unregister(shortcut);
-            }
-            if !settings.global_shortcut.trim().is_empty() {
-                let shortcut = settings
-                    .global_shortcut
-                    .parse::<Shortcut>()
-                    .map_err(|error| anyhow::anyhow!("Invalid shortcut: {error}"))?;
-                manager.register(shortcut)?;
-            }
+        let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
+        let manager = app.global_shortcut();
+        if let Ok(shortcut) = previous_shortcut.parse::<Shortcut>() {
+            let _ = manager.unregister(shortcut);
+        }
+        if !settings.global_shortcut.trim().is_empty() {
+            let shortcut = settings
+                .global_shortcut
+                .parse::<Shortcut>()
+                .map_err(|error| anyhow::anyhow!("Invalid shortcut: {error}"))?;
+            manager.register(shortcut)?;
         }
 
         set_launch_on_startup(app, settings.launch_on_startup)?;
