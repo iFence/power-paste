@@ -1927,11 +1927,6 @@ textarea {
   border-color: rgba(24, 36, 50, 0.12);
 }
 
-:root[data-theme="light"] .text-preview {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(24, 36, 50, 0.12);
-}
-
 :root[data-theme="light"] .code-string {
   color: #1c8f72;
 }

@@ -214,6 +214,7 @@ pub(crate) struct SharedState {
     pub(crate) history: Arc<Mutex<Vec<StoredClipboardItem>>>,
     pub(crate) monitor: Arc<Mutex<MonitorState>>,
     pub(crate) debug_context_menu_enabled: Arc<AtomicBool>,
+    pub(crate) macos_direct_paste_permission_verified: Arc<AtomicBool>,
     pub(crate) update_status: Arc<Mutex<UpdateStatus>>,
     pub(crate) pending_update: Arc<Mutex<Option<Update>>>,
     pub(crate) update_debug_override: Arc<Mutex<Option<UpdateStatus>>>,

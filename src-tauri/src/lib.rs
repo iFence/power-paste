@@ -150,6 +150,7 @@ pub fn run() {
                 debug_context_menu_enabled: Arc::new(AtomicBool::new(
                     settings.lock().unwrap().debug_enabled,
                 )),
+                macos_direct_paste_permission_verified: Arc::new(AtomicBool::new(false)),
                 update_status: Arc::new(Mutex::new(UpdateStatus::idle(
                     app.package_info().version.to_string(),
                 ))),
