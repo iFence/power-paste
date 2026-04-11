@@ -2,7 +2,22 @@
 
 Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`, and `Rust`. It is designed around a native-feeling workflow: monitor clipboard changes in the background, open a compact history panel with a global shortcut, then quickly search, preview, copy, edit, or paste previous items back into the last target application.
 
+It is not only a utility that gets the job done. Power Paste is also built as a polished desktop product: a translucent panel, light and dark themes, accent colors, and a compact visual language that aims to make a high-frequency productivity tool feel refined enough to keep open every day.
+
 中文说明见 [README.zh-CN.md](./README.zh-CN.md)。
+
+## Product Preview
+
+| Main Panel (Light) | Main Panel (Dark) | Setting |
+|---|---|---|
+| ![Power Paste light theme](./docs/light.png) | ![Power Paste dark theme](./docs/dark.png) |![Power Paste settings panel](./docs/settings.png)|
+
+## Why Power Paste
+
+- Fast: open the panel with a global shortcut and bring previous clipboard content back in seconds
+- Native-feeling: designed around desktop workflows instead of browser-like interaction patterns
+- Good-looking: translucent surfaces, theme switching, and accent colors are part of the product value
+- Meant to stay around: tray support, single-instance behavior, and update checks make it practical as an always-available companion
 
 ## Highlights
 
