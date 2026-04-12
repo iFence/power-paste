@@ -1,6 +1,11 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref } from 'vue'
+import { openExternalUrl } from '../services/tauriApi'
 import checkIcon from '../assets/check.svg'
+
+const ABOUT_INFO = {
+  repositoryUrl: 'https://github.com/iFence/power-paste',
+}
 
 const props = defineProps({
   appVersion: { type: String, required: true },
@@ -129,6 +134,10 @@ async function selectUpdateDebugStatus(status) {
 
 async function clearUpdateDebugStatus() {
   await props.onClearUpdateDebugStatus()
+}
+
+async function openRepositoryUrl() {
+  await openExternalUrl(ABOUT_INFO.repositoryUrl)
 }
 
 onUnmounted(() => {
@@ -385,6 +394,28 @@ onUnmounted(() => {
               @click="settings.debugEnabled = false"
             >
               {{ t("toggleOff") }}
+            </button>
+          </div>
+        </section>
+
+        <section class="setting-card about-card wide">
+          <div class="setting-head">
+            <span class="meta-label">{{ t("aboutTitle") }}</span>
+          </div>
+          <div class="about-content">
+            <button
+              class="about-link about-link-icon"
+              type="button"
+              :aria-label="t('githubRepoLabel')"
+              :title="t('githubRepoLabel')"
+              @click="openRepositoryUrl"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="about-link-github-icon">
+                <path
+                  d="M12 .5C5.65.5.5 5.66.5 12.02c0 5.09 3.29 9.41 7.86 10.94.58.11.79-.25.79-.56 0-.28-.01-1.19-.02-2.15-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.02 1.77 2.69 1.26 3.35.96.11-.75.4-1.26.73-1.55-2.56-.29-5.25-1.29-5.25-5.73 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.17 1.18a10.9 10.9 0 0 1 5.77 0c2.2-1.5 3.17-1.18 3.17-1.18.62 1.59.23 2.76.11 3.05.73.8 1.18 1.82 1.18 3.08 0 4.45-2.69 5.44-5.26 5.73.41.36.78 1.08.78 2.19 0 1.58-.01 2.85-.01 3.24 0 .31.21.68.8.56a11.53 11.53 0 0 0 7.85-10.94C23.5 5.66 18.35.5 12 .5Z"
+                  fill="currentColor"
+                />
+              </svg>
             </button>
           </div>
         </section>
