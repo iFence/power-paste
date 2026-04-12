@@ -20,6 +20,9 @@ pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
 }
 
 pub(crate) fn save_settings(paths: &StoragePaths, settings: &AppSettings) -> Result<()> {
+    if let Some(parent) = paths.settings_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     fs::write(&paths.settings_path, to_vec_pretty(settings)?)?;
     Ok(())
 }
@@ -130,5 +133,25 @@ mod tests {
                 .parent()
                 .unwrap_or(paths.settings_path.as_path()),
         );
+    }
+
+    #[test]
+    fn recreates_parent_directory_before_saving_settings() {
+        let paths = test_paths();
+        let parent = paths
+            .settings_path
+            .parent()
+            .unwrap_or(paths.settings_path.as_path())
+            .to_path_buf();
+        let mut settings = AppSettings::default();
+        settings.polling_interval_ms = 1750;
+
+        fs::remove_dir_all(&parent).expect("remove settings parent");
+        save_settings(&paths, &settings).expect("save settings after parent recreation");
+
+        let loaded = load_settings(&paths).expect("load settings after parent recreation");
+        assert_eq!(loaded.polling_interval_ms, 1750);
+
+        let _ = fs::remove_dir_all(parent);
     }
 }
