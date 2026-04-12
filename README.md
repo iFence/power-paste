@@ -37,7 +37,7 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 
 - Windows: primary target platform, with full clipboard monitoring, clipboard write-back, direct paste, autostart, tray integration, updater, and global shortcut workflow
 - macOS: clipboard monitoring, clipboard write-back, and direct paste are supported, but direct paste depends on Accessibility / Automation permission from the system
-- Linux: clipboard monitoring, clipboard write-back, history browsing, tray integration, updater checks, and global shortcut workflow are supported; direct paste, mixed replay, and launch on startup currently remain unavailable so behavior stays consistent across desktop environments
+- Linux: clipboard monitoring, clipboard write-back, history browsing, tray integration, updater checks, global shortcut workflow, and launch on startup are supported; direct paste is supported in X11 sessions with `xdotool`, while Wayland remains in explicit degraded mode
 
 ## Feature Overview
 
@@ -79,13 +79,13 @@ Update checks are no longer configured from the settings page. The app checks fo
 
 ## Cross-Platform Degradation
 
-The following capabilities are currently platform-limited, while macOS direct paste depends on system permission:
+The following capabilities remain platform-limited, while macOS direct paste depends on system permission:
 
-- Direct paste back to the previous target app on Linux
-- Launch on startup
-- Native mixed clipboard replay outside Windows
+- Direct paste on Linux requires an X11 session plus `xdotool`
+- Direct paste in Wayland sessions is still unsupported
+- Native mixed clipboard replay remains Windows-only; Linux falls back to a single preferred payload when replaying mixed content
 
-History browsing, clipboard monitoring, search, filtering, pinning, editing, deleting, tray usage, update checks, settings persistence, and the general UI remain available on Linux.
+History browsing, clipboard monitoring, search, filtering, pinning, editing, deleting, tray usage, update checks, settings persistence, launch on startup, and the general UI remain available on Linux.
 
 ## Tech Stack
 
@@ -117,6 +117,11 @@ History browsing, clipboard monitoring, search, filtering, pinning, editing, del
 - Node.js `18+`
 - `pnpm` `10+`
 - Rust `1.77.2+`
+
+Linux direct paste also requires:
+
+- an X11 desktop session
+- `xdotool`
 
 Windows development also requires:
 

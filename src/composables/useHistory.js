@@ -24,6 +24,12 @@ function formatActionError(error, t) {
   if (message === "unsupported_clipboard_write") {
     return t("unsupportedClipboardWrite");
   }
+  if (message === "linux_x11_tools_missing") {
+    return t("linuxX11ToolsMissing");
+  }
+  if (message === "linux_wayland_unsupported") {
+    return t("linuxWaylandUnsupported");
+  }
   if (message === "unsupported_direct_paste") {
     return t("unsupportedDirectPaste");
   }

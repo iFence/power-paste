@@ -5,6 +5,8 @@ use tauri::AppHandle;
 #[cfg(any(windows, target_os = "macos"))]
 use tauri::Manager;
 
+#[cfg(target_os = "linux")]
+use crate::clipboard::{linux_session_backend, linux_x11_tooling_available};
 use crate::models::{SharedState, StoredClipboardItem};
 
 #[cfg(target_os = "macos")]
@@ -316,7 +318,7 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
     );
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub(crate) fn remember_last_target_window(_app: &AppHandle) {}
 
 #[cfg(target_os = "macos")]
@@ -350,6 +352,37 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
         target_bundle_id.as_deref(),
         "target-updated",
     );
+}
+
+#[cfg(target_os = "linux")]
+fn current_foreground_window_id() -> Option<String> {
+    if linux_session_backend() != "x11" || !linux_x11_tooling_available() {
+        return None;
+    }
+
+    let output = std::process::Command::new("xdotool")
+        .args(["getactivewindow"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let window_id = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    (!window_id.is_empty()).then_some(window_id)
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn remember_last_target_window(app: &AppHandle) {
+    let Some(shared) = app.try_state::<Arc<SharedState>>() else {
+        return;
+    };
+    let Some(window_id) = current_foreground_window_id() else {
+        return;
+    };
+
+    let mut monitor = shared.inner().monitor.lock().unwrap();
+    monitor.last_target_window_id = Some(window_id);
 }
 
 #[cfg(windows)]
@@ -416,7 +449,7 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
     anyhow::bail!("paste_target_focus_failed")
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub(crate) fn focus_last_target_window(_state: &Arc<SharedState>) -> Result<()> {
     Ok(())
 }
@@ -463,6 +496,42 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
         "activation-dispatched",
     );
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn run_linux_xdotool(args: &[&str]) -> Result<()> {
+    if linux_session_backend() == "wayland" {
+        anyhow::bail!("linux_wayland_unsupported");
+    }
+    if !linux_x11_tooling_available() {
+        anyhow::bail!("linux_x11_tools_missing");
+    }
+
+    let output = std::process::Command::new("xdotool").args(args).output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if stderr.is_empty() {
+        anyhow::bail!("paste_target_focus_failed");
+    }
+
+    anyhow::bail!(stderr)
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
+    let window_id = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_window_id.clone()
+    };
+
+    let Some(window_id) = window_id.filter(|value| !value.is_empty()) else {
+        anyhow::bail!("paste_target_focus_failed");
+    };
+
+    run_linux_xdotool(&["windowactivate", "--sync", window_id.as_str()])
 }
 
 #[cfg(target_os = "macos")]
@@ -512,8 +581,34 @@ pub(crate) fn wait_for_paste_target_focus(_state: &Arc<SharedState>) {
     thread::sleep(Duration::from_millis(180));
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub(crate) fn wait_for_paste_target_focus(_state: &Arc<SharedState>) {}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
+    const FOCUS_RETRY_COUNT: usize = 10;
+    const FOCUS_RETRY_DELAY_MS: u64 = 20;
+
+    let target_window_id = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_window_id.clone()
+    };
+
+    let Some(target_window_id) = target_window_id else {
+        thread::sleep(Duration::from_millis(120));
+        return;
+    };
+
+    for _ in 0..FOCUS_RETRY_COUNT {
+        if current_foreground_window_id()
+            .map(|window_id| window_id == target_window_id)
+            .unwrap_or(false)
+        {
+            return;
+        }
+        thread::sleep(Duration::from_millis(FOCUS_RETRY_DELAY_MS));
+    }
+}
 
 #[cfg(windows)]
 pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()> {
@@ -535,9 +630,33 @@ pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()
     Ok(())
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()> {
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
+    let window_id = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_window_id.clone()
+    };
+
+    let Some(window_id) = window_id.filter(|value| !value.is_empty()) else {
+        anyhow::bail!("paste_target_focus_failed");
+    };
+
+    if current_foreground_window_id().as_deref() != Some(window_id.as_str()) {
+        anyhow::bail!("paste_target_focus_failed");
+    }
+
+    run_linux_xdotool(&[
+        "key",
+        "--window",
+        window_id.as_str(),
+        "--clearmodifiers",
+        "ctrl+v",
+    ])
 }
 
 #[cfg(target_os = "macos")]
@@ -658,6 +777,17 @@ pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
         };
         let focused_bundle_id = current_foreground_app_info().map(|(bundle_id, _)| bundle_id);
         if target_bundle_id.is_none() || focused_bundle_id != target_bundle_id {
+            anyhow::bail!("paste_target_focus_failed");
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let target_window_id = {
+            let monitor = state.monitor.lock().unwrap();
+            monitor.last_target_window_id.clone()
+        };
+        let focused_window_id = current_foreground_window_id();
+        if target_window_id.is_none() || focused_window_id != target_window_id {
             anyhow::bail!("paste_target_focus_failed");
         }
     }

@@ -19,6 +19,10 @@ function detectClientPlatform() {
     return "windows";
   }
 
+  if (userAgent.includes("linux")) {
+    return "linux";
+  }
+
   return "unknown";
 }
 
@@ -154,6 +158,12 @@ export function useSettings() {
 
   function formatErrorMessage(error, fallbackKey = "saveSettingsFailed") {
     const code = extractErrorCode(error);
+    if (code === "linux_x11_tools_missing") {
+      return t("linuxX11ToolsMissing");
+    }
+    if (code === "linux_wayland_unsupported") {
+      return t("linuxWaylandUnsupported");
+    }
     if (code === "unsupported_launch_on_startup") {
       return t("unsupportedLaunchOnStartup");
     }

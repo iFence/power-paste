@@ -1,6 +1,8 @@
 use anyhow::Result;
 #[cfg(target_os = "macos")]
 use std::collections::HashMap;
+#[cfg(target_os = "linux")]
+use std::fs;
 #[cfg(target_os = "macos")]
 use std::sync::{Mutex, OnceLock};
 
@@ -15,6 +17,22 @@ use crate::{
 
 #[cfg(target_os = "macos")]
 fn run_macos_command(program: &str, args: &[&str]) -> Result<Option<String>> {
+    let output = std::process::Command::new(program).args(args).output()?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let trimmed = stdout.trim_end_matches(['\r', '\n']);
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed.to_string()))
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn run_linux_command(program: &str, args: &[&str]) -> Result<Option<String>> {
     let output = std::process::Command::new(program).args(args).output()?;
     if !output.status.success() {
         return Ok(None);
@@ -265,6 +283,54 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
             .and_then(|stem| stem.to_str())
             .unwrap_or(display_name.as_str())
             .to_string();
+
+        if !display_name.is_empty() || !process_name.is_empty() {
+            return Ok(Some(ForegroundAppResult {
+                process_name,
+                display_name,
+                icon_png_base64: None,
+                app_path,
+            }));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if crate::clipboard::linux_session_backend() != "x11"
+            || !crate::clipboard::linux_x11_tooling_available()
+        {
+            return Ok(None);
+        }
+
+        let Some(window_id) = run_linux_command("xdotool", &["getactivewindow"])? else {
+            return Ok(None);
+        };
+        let Some(pid) = run_linux_command("xdotool", &["getwindowpid", window_id.as_str()])? else {
+            return Ok(None);
+        };
+        let app_path = fs::read_link(format!("/proc/{pid}/exe"))
+            .ok()
+            .map(|path| path.to_string_lossy().to_string());
+        let process_name = fs::read_to_string(format!("/proc/{pid}/comm"))
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                app_path
+                    .as_deref()
+                    .and_then(|path| std::path::Path::new(path).file_stem())
+                    .and_then(|stem| stem.to_str())
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_default();
+        let display_name =
+            run_linux_command("xdotool", &["getwindowclassname", window_id.as_str()])?
+                .or_else(|| {
+                    run_linux_command("xdotool", &["getwindowname", window_id.as_str()])
+                        .ok()
+                        .flatten()
+                })
+                .unwrap_or_else(|| process_name.clone());
 
         if !display_name.is_empty() || !process_name.is_empty() {
             return Ok(Some(ForegroundAppResult {

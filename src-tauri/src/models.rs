@@ -201,6 +201,8 @@ pub(crate) struct MonitorState {
     pub(crate) suppress_until: Option<Instant>,
     #[cfg(windows)]
     pub(crate) last_target_window: Option<HwndRaw>,
+    #[cfg(target_os = "linux")]
+    pub(crate) last_target_window_id: Option<String>,
     #[cfg(target_os = "macos")]
     pub(crate) last_target_app_bundle_id: Option<String>,
     #[cfg(target_os = "macos")]

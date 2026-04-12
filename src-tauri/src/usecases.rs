@@ -6,7 +6,10 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::{
     apply_debug_mode,
-    clipboard::{platform_capabilities, write_item_to_clipboard_with_profile},
+    clipboard::{
+        direct_paste_unavailable_reason, platform_capabilities,
+        write_item_to_clipboard_with_profile,
+    },
     commands::load_item_by_id,
     models::{AppError, AppSettings, SharedState, PANEL_LABEL},
     paste_target::{
@@ -144,7 +147,7 @@ pub(crate) fn execute_paste_item(
 ) -> Result<(), AppError> {
     let paste = DefaultPasteDispatcher;
     if !paste.supports_direct_paste() {
-        return Err(AppError::Message("unsupported_direct_paste".into()));
+        return Err(AppError::Message(direct_paste_unavailable_reason().into()));
     }
 
     let item = load_item_by_id(&state, &id)?;
