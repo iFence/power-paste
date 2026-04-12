@@ -31,13 +31,13 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 - Hover image thumbnails to preview a larger image
 - Settings for language, theme mode, accent color, launch on startup, history size, image size, debug mode, and global shortcut
 - Tray integration, single-instance behavior, startup update checks, and manual update checks from the tray menu
-- Local persistence powered by SQLite plus on-disk image storage
+- Local persistence powered by SQLite
 
 ## Platform Status
 
-- Windows: primary target platform, with full clipboard monitoring, clipboard write-back, direct paste, autostart, tray integration, updater, and global shortcut workflow
-- macOS: clipboard monitoring, clipboard write-back, and direct paste are supported, but direct paste depends on Accessibility / Automation permission from the system
-- Linux: clipboard monitoring, clipboard write-back, history browsing, tray integration, updater checks, global shortcut workflow, and launch on startup are supported; direct paste is supported in X11 sessions with `xdotool`, while Wayland remains in explicit degraded mode
+- Windows: primary target platform, and currently the only platform with native mixed clipboard replay plus target-aware segmented paste for some apps
+- macOS: direct paste depends on Accessibility / Automation permission from the system
+- Linux: direct paste requires an X11 session plus `xdotool`; Wayland remains in explicit degraded mode, and mixed content replay falls back to a single preferred payload
 
 ## Feature Overview
 
@@ -175,9 +175,8 @@ Application data is stored in the Tauri app-local-data directory.
 
 Typical persisted data includes:
 
-- SQLite history database
+- SQLite history database with embedded text, rich text, and image payloads
 - `settings.json`
-- captured images on disk
 
 The repository no longer relies on a plain `history.json` file for the primary history store; history is backed by SQLite in the current implementation.
 
