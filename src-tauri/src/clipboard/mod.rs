@@ -13,7 +13,7 @@ use crate::{models::StoredClipboardItem, paste_target::TargetProfile};
 
 use self::payload::{payload_for_item, ClipboardPayload};
 
-pub(crate) use capabilities::platform_capabilities;
+pub(crate) use capabilities::{launch_on_startup_supported, platform_capabilities};
 pub(crate) use capture_router::capture_clipboard;
 #[cfg(windows)]
 pub(crate) use native_writer::write_image_to_clipboard;
@@ -30,7 +30,10 @@ pub(crate) fn write_item_to_clipboard_with_profile(
     let payload = payload_for_item(item);
 
     match backend::preferred_backend_for_payload(&payload) {
-        crate::models::ClipboardBackend::Plugin => plugin_writer::write_payload(app, &payload),
+        crate::models::ClipboardBackend::Plugin => {
+            let payload = degrade_plugin_only_payload(payload);
+            plugin_writer::write_payload(app, &payload)
+        }
         crate::models::ClipboardBackend::NativeFallback => {
             native_writer::write_payload(item, profile, &payload)
                 .map(|_| payload.clone())
@@ -101,5 +104,56 @@ fn plugin_fallback_payload(payload: ClipboardPayload) -> ClipboardPayload {
             }
         }
         other => other,
+    }
+}
+
+fn degrade_plugin_only_payload(payload: ClipboardPayload) -> ClipboardPayload {
+    if cfg!(any(windows, target_os = "macos")) {
+        payload
+    } else {
+        match payload {
+            ClipboardPayload::Mixed { .. } => plugin_fallback_payload(payload),
+            other => other,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::degrade_plugin_only_payload;
+    use crate::clipboard::payload::ClipboardPayload;
+
+    #[test]
+    fn degrades_mixed_payload_to_single_payload_on_plugin_only_platforms() {
+        let payload = ClipboardPayload::Mixed {
+            text: Some("plain".into()),
+            html: Some("<b>plain</b>".into()),
+            png_bytes: vec![1, 2, 3],
+        };
+
+        let next = degrade_plugin_only_payload(payload);
+
+        if cfg!(windows) || cfg!(target_os = "macos") {
+            assert!(matches!(next, ClipboardPayload::Mixed { .. }));
+        } else {
+            assert!(matches!(next, ClipboardPayload::Text { .. }));
+        }
+    }
+
+    #[test]
+    fn degrades_image_only_mixed_payload_to_image_on_plugin_only_platforms() {
+        let payload = ClipboardPayload::Mixed {
+            text: None,
+            html: None,
+            png_bytes: vec![1, 2, 3],
+        };
+
+        let next = degrade_plugin_only_payload(payload);
+
+        if cfg!(windows) || cfg!(target_os = "macos") {
+            assert!(matches!(next, ClipboardPayload::Mixed { .. }));
+        } else {
+            assert!(matches!(next, ClipboardPayload::Image { .. }));
+        }
     }
 }

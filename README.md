@@ -27,7 +27,7 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 - Search and filter by `All`, `Pinned`, `Text`, `Image`, and `Image + Text`
 - Pin important entries to keep them at the top
 - Edit plain-text history items in place
-- Restore clipboard content or paste directly back to the previous target app
+- Restore clipboard content or paste directly back to the previous target app when supported on the current platform
 - Hover image thumbnails to preview a larger image
 - Settings for language, theme mode, accent color, launch on startup, history size, image size, debug mode, and global shortcut
 - Tray integration, single-instance behavior, startup update checks, and manual update checks from the tray menu
@@ -37,7 +37,7 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 
 - Windows: primary target platform, with full clipboard monitoring, clipboard write-back, direct paste, autostart, tray integration, updater, and global shortcut workflow
 - macOS: clipboard monitoring, clipboard write-back, and direct paste are supported, but direct paste depends on Accessibility / Automation permission from the system
-- Linux: app startup and packaging are intended to work, but Windows-specific native clipboard workflows currently degrade to friendly unsupported messages
+- Linux: clipboard monitoring, clipboard write-back, history browsing, tray integration, updater checks, and global shortcut workflow are supported; direct paste, mixed replay, and launch on startup currently remain unavailable so behavior stays consistent across desktop environments
 
 ## Feature Overview
 
@@ -52,7 +52,7 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 
 ### Item Types
 
-- Text items: searchable, editable, copyable, and directly pasteable
+- Text items: searchable, editable, copyable, and directly pasteable on supported platforms
 - Link items: detected from copied URLs and openable in the system default browser
 - Image items: thumbnail preview, large-image hover preview, copy/paste support on supported platforms
 - Mixed items: preserved as combined content where the backend supports mixed replay
@@ -79,12 +79,13 @@ Update checks are no longer configured from the settings page. The app checks fo
 
 ## Cross-Platform Degradation
 
-The following capabilities are currently Windows-first and may still degrade on Linux, while macOS direct paste depends on system permission:
+The following capabilities are currently platform-limited, while macOS direct paste depends on system permission:
 
+- Direct paste back to the previous target app on Linux
 - Launch on startup
-- Native mixed clipboard replay
+- Native mixed clipboard replay outside Windows
 
-History browsing, search, filtering, pinning, editing, deleting, settings persistence, and the general UI remain available.
+History browsing, clipboard monitoring, search, filtering, pinning, editing, deleting, tray usage, update checks, settings persistence, and the general UI remain available on Linux.
 
 ## Tech Stack
 

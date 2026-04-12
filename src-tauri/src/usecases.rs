@@ -73,6 +73,7 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         state: &Arc<SharedState>,
         settings: &AppSettings,
     ) -> Result<()> {
+        let capabilities = platform_capabilities();
         let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
         let manager = app.global_shortcut();
         if let Ok(shortcut) = previous_shortcut.parse::<Shortcut>() {
@@ -86,7 +87,12 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
             manager.register(shortcut)?;
         }
 
-        set_launch_on_startup(app, settings.launch_on_startup)?;
+        if settings.launch_on_startup && !capabilities.supports_launch_on_startup {
+            anyhow::bail!("unsupported_launch_on_startup");
+        }
+        if capabilities.supports_launch_on_startup {
+            set_launch_on_startup(app, settings.launch_on_startup)?;
+        }
         save_settings(&state.paths, settings)?;
         state
             .debug_context_menu_enabled

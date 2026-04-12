@@ -32,6 +32,39 @@ function extractErrorCode(error) {
   return "";
 }
 
+function initialPlatformCapabilities(platform) {
+  const isWindows = platform === "windows";
+  const isMacos = platform === "macos";
+
+  return {
+    platform,
+    supportsClipboardRead: true,
+    supportsClipboardWatch: true,
+    supportsTextWrite: true,
+    supportsHtmlWrite: true,
+    supportsImageWrite: true,
+    supportsDirectPaste: isWindows || isMacos,
+    supportsLaunchOnStartup: isWindows || isMacos,
+    supportsMixedReplay: isWindows,
+    preferredClipboardBackend: isWindows
+      ? "plugin+native-fallback"
+      : isMacos
+        ? "plugin-preferred"
+        : "plugin-only",
+    clipboardWriteStrategy: isWindows
+      ? "plugin-first-with-native-fallback"
+      : isMacos
+        ? "plugin-first-with-mixed-degradation"
+        : "plugin-only",
+    directPasteStrategy: isWindows || isMacos ? "simulated-native-shortcut" : "unsupported",
+    mixedReplayStrategy: isWindows
+      ? "target-aware-segmented-replay"
+      : isMacos
+        ? "plugin-degraded-single-payload"
+        : "unsupported",
+  };
+}
+
 export function useSettings() {
   const detectedPlatform = detectClientPlatform();
   const settings = reactive({
@@ -54,21 +87,7 @@ export function useSettings() {
   const settingsSaveError = ref("");
   const startupError = ref("");
   const appVersion = ref("");
-  const platformCapabilities = ref({
-    platform: detectedPlatform,
-    supportsClipboardRead: true,
-    supportsClipboardWatch: true,
-    supportsTextWrite: true,
-    supportsHtmlWrite: true,
-    supportsImageWrite: true,
-    supportsDirectPaste: detectedPlatform === "windows" || detectedPlatform === "macos",
-    supportsLaunchOnStartup: detectedPlatform === "windows" || detectedPlatform === "macos",
-    supportsMixedReplay: detectedPlatform === "windows",
-    preferredClipboardBackend: "plugin+native-fallback",
-    clipboardWriteStrategy: "plugin-first-with-native-fallback",
-    directPasteStrategy: "simulated-native-shortcut",
-    mixedReplayStrategy: "target-aware-segmented-replay",
-  });
+  const platformCapabilities = ref(initialPlatformCapabilities(detectedPlatform));
 
   const currentLocale = computed(() => settings.locale || "zh-CN");
   const currentDensity = computed(() => settings.density || "compact");
@@ -230,6 +249,9 @@ export function useSettings() {
   async function refreshSettings() {
     const next = await fetchSettings();
     Object.assign(settings, next);
+    if (!platformCapabilities.value.supportsLaunchOnStartup) {
+      settings.launchOnStartup = false;
+    }
   }
 
   async function saveSettings(onSaved) {
@@ -237,7 +259,12 @@ export function useSettings() {
       return;
     }
 
-    const payload = { ...settings };
+    const payload = {
+      ...settings,
+      launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
+        ? settings.launchOnStartup
+        : false,
+    };
     settingsSaveError.value = "";
     savingSettings.value = true;
     closeSelect();

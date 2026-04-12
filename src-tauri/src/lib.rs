@@ -160,7 +160,9 @@ pub fn run() {
             });
 
             let launch_on_startup = settings.lock().unwrap().launch_on_startup;
-            let _ = set_launch_on_startup(app.handle(), launch_on_startup);
+            if clipboard::platform_capabilities().supports_launch_on_startup {
+                let _ = set_launch_on_startup(app.handle(), launch_on_startup);
+            }
 
             configure_window(app.handle(), shared.clone())?;
             let locale = settings.lock().unwrap().locale.clone();
