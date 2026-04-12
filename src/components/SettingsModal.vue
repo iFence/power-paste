@@ -106,8 +106,8 @@ async function showLatestVersionFeedback() {
 }
 
 async function confirmInstallUpdate() {
-  await props.onInstallUpdate()
   showUpdateConfirm.value = false
+  await props.onInstallUpdate()
 }
 
 async function handleUpdateAction() {
