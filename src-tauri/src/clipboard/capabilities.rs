@@ -152,7 +152,7 @@ fn linux_session_backend_with(
 fn binary_in_path(name: &str) -> bool {
     std::env::var_os("PATH")
         .into_iter()
-        .flat_map(std::env::split_paths)
+        .flat_map(|unparsed| std::env::split_paths(&unparsed))
         .map(|path| path.join(name))
         .any(|path| path.is_file())
 }
