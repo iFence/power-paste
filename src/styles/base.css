@@ -1834,20 +1834,20 @@ textarea {
 
 :root:not([data-theme="light"]) .select {
   color: var(--app-text);
-  background-color: color-mix(in srgb, var(--app-input-bg) 84%, rgba(17, 19, 24, 0.9));
+  background-color: color-mix(in srgb, var(--modal-panel-strong-bg) 82%, rgba(12, 15, 19, 0.96));
 }
 
 :root:not([data-theme="light"]) .custom-select-trigger {
   color: var(--app-text);
-  background-color: color-mix(in srgb, var(--app-input-bg) 84%, rgba(17, 19, 24, 0.9));
+  background-color: color-mix(in srgb, var(--modal-panel-strong-bg) 82%, rgba(12, 15, 19, 0.96));
 }
 
 :root:not([data-theme="light"]) .custom-select-menu {
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--app-input-bg) 84%, rgba(17, 19, 24, 0.9)),
-      color-mix(in srgb, var(--app-input-bg) 84%, rgba(17, 19, 24, 0.9))
+      color-mix(in srgb, var(--modal-panel-strong-bg) 88%, rgba(12, 15, 19, 0.98)),
+      color-mix(in srgb, var(--modal-panel-strong-bg) 80%, rgba(10, 13, 17, 0.96))
     );
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow:
