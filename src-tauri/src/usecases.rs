@@ -99,9 +99,12 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         save_settings(&state.paths, settings)?;
         state
             .debug_context_menu_enabled
-            .store(settings.debug_enabled, std::sync::atomic::Ordering::Relaxed);
+            .store(
+                crate::should_enable_devtools(settings.debug_enabled),
+                std::sync::atomic::Ordering::Relaxed,
+            );
         if let Some(window) = app.get_webview_window(PANEL_LABEL) {
-            apply_debug_mode(&window, settings.debug_enabled)?;
+            apply_debug_mode(&window, crate::should_enable_devtools(settings.debug_enabled))?;
         }
         *state.settings.lock().unwrap() = settings.clone();
         Ok(())

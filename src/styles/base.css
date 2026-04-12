@@ -124,11 +124,19 @@ select {
 
 .window-shell {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-height: 0;
   padding: 10px;
+  overflow: hidden;
+}
+
+.history-region {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -334,6 +342,7 @@ select {
   gap: 0;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   align-self: stretch;
   padding-top: 6px;
   overflow: hidden;
@@ -425,6 +434,7 @@ select {
   align-items: center;
   justify-content: center;
   min-height: 28px;
+  margin-top: auto;
   padding: 6px 0 0;
   color: var(--app-muted);
   font-size: 0.76rem;

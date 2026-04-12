@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,8 +8,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const tauriCliPath = path.join(projectRoot, "node_modules", "@tauri-apps", "cli", "tauri.js");
+const tauriConfigPath = path.join(projectRoot, "src-tauri", "tauri.conf.json");
 const DEFAULT_DEV_HOST = "127.0.0.1";
 const DEFAULT_DEV_PORT = 5173;
+
+async function readWindowConfigWithDevtools() {
+  const raw = await fs.readFile(tauriConfigPath, "utf8");
+  const config = JSON.parse(raw);
+  const windows = Array.isArray(config.app?.windows) ? config.app.windows : [];
+
+  return windows.map((window) => ({
+    ...window,
+    devtools: true,
+  }));
+}
 
 function parsePort(value, fallback) {
   const numeric = Number(value);
@@ -59,6 +72,7 @@ async function main() {
   const isDevCommand = args[0] === "dev";
   const env = { ...process.env };
   let tauriArgs = args;
+  const windows = await readWindowConfigWithDevtools();
 
   if (isDevCommand) {
     const host = env.POWER_PASTE_DEV_HOST || DEFAULT_DEV_HOST;
@@ -75,6 +89,20 @@ async function main() {
             wait: false,
           },
           devUrl,
+        },
+        app: {
+          windows,
+        },
+      }),
+      ...args.slice(1),
+    ];
+  } else if (args[0] === "build") {
+    tauriArgs = [
+      "build",
+      "--config",
+      JSON.stringify({
+        app: {
+          windows,
         },
       }),
       ...args.slice(1),

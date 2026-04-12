@@ -109,6 +109,11 @@ fn apply_debug_mode(window: &tauri::WebviewWindow, enabled: bool) -> Result<()> 
     Ok(())
 }
 
+// 调试模式统一控制右键菜单和开发者工具快捷键。
+pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
+    debug_enabled
+}
+
 // The crate root only assembles modules, shared state and Tauri plugins.
 pub fn run() {
     tauri::Builder::default()

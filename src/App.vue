@@ -223,30 +223,32 @@ onUnmounted(() => {
           @select="historyState.activeFilterTab.value = $event"
         />
 
-        <HistoryList
-          :can-clipboard-write="
-            settingsState.platformCapabilities.value.supportsTextWrite ||
-            settingsState.platformCapabilities.value.supportsHtmlWrite ||
-            settingsState.platformCapabilities.value.supportsImageWrite
-          "
-          :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
-          :history-panel-ref="historyState.historyPanelRef"
-          :items="historyState.filteredHistory.value"
-          :loading="historyState.loading.value"
-          :locale="settingsState.currentLocale.value"
-          :selected-id="historyState.selectedId.value"
-          :t="settingsState.t"
-          :unsupported-clipboard-write-message="settingsState.t('unsupportedClipboardWrite')"
-          :unsupported-direct-paste-message="settingsState.t('unsupportedDirectPaste')"
-          @copy="historyState.copyItem"
-          @edit="historyState.openEditModal"
-          @open-link="historyState.openExternalUrl"
-          @paste="historyState.pasteItem"
-          @remove="historyState.removeItem"
-          @select="historyState.setSelectedId"
-          @toggle-pin="historyState.togglePin"
-        />
-        <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
+        <section class="history-region">
+          <HistoryList
+            :can-clipboard-write="
+              settingsState.platformCapabilities.value.supportsTextWrite ||
+              settingsState.platformCapabilities.value.supportsHtmlWrite ||
+              settingsState.platformCapabilities.value.supportsImageWrite
+            "
+            :can-direct-paste="settingsState.platformCapabilities.value.supportsDirectPaste"
+            :history-panel-ref="historyState.historyPanelRef"
+            :items="historyState.filteredHistory.value"
+            :loading="historyState.loading.value"
+            :locale="settingsState.currentLocale.value"
+            :selected-id="historyState.selectedId.value"
+            :t="settingsState.t"
+            :unsupported-clipboard-write-message="settingsState.t('unsupportedClipboardWrite')"
+            :unsupported-direct-paste-message="settingsState.t('unsupportedDirectPaste')"
+            @copy="historyState.copyItem"
+            @edit="historyState.openEditModal"
+            @open-link="historyState.openExternalUrl"
+            @paste="historyState.pasteItem"
+            @remove="historyState.removeItem"
+            @select="historyState.setSelectedId"
+            @toggle-pin="historyState.togglePin"
+          />
+          <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
+        </section>
       </template>
     </div>
 
