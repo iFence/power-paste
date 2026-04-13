@@ -22,7 +22,7 @@ pub(crate) enum ClipboardPayload {
     Mixed {
         text: Option<String>,
         html: Option<String>,
-        png_bytes: Vec<u8>,
+        png_bytes: Option<Vec<u8>>,
     },
 }
 
@@ -79,12 +79,15 @@ pub(crate) fn payload_for_item(item: &StoredClipboardItem) -> ClipboardPayload {
             }
         }
         "mixed" => match (text, html, png_bytes, rtf) {
-            (text, html, Some(png_bytes), _) => ClipboardPayload::Mixed {
+            (text, html, png_bytes, _)
+                if text.is_some() || html.is_some() || png_bytes.is_some() =>
+            {
+                ClipboardPayload::Mixed {
                 text,
                 html,
                 png_bytes,
-            },
-            (text, Some(html), None, _) => ClipboardPayload::Html { text, html },
+                }
+            }
             (text, None, None, Some(rtf)) => ClipboardPayload::RichText {
                 text,
                 html: None,
@@ -101,7 +104,7 @@ pub(crate) fn payload_for_item(item: &StoredClipboardItem) -> ClipboardPayload {
                     ClipboardPayload::Mixed {
                         text,
                         html,
-                        png_bytes,
+                        png_bytes: Some(png_bytes),
                     }
                 } else {
                     ClipboardPayload::Image { png_bytes }

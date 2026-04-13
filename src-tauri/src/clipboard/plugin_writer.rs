@@ -43,10 +43,10 @@ pub(crate) fn preferred_payload(payload: &ClipboardPayload) -> ClipboardPayload 
                 }
             } else if let Some(text) = text.clone().filter(|value| !value.trim().is_empty()) {
                 ClipboardPayload::Text { text }
+            } else if let Some(png_bytes) = png_bytes.clone() {
+                ClipboardPayload::Image { png_bytes }
             } else {
-                ClipboardPayload::Image {
-                    png_bytes: png_bytes.clone(),
-                }
+                ClipboardPayload::Empty
             }
         }
         other => other.clone(),
@@ -105,7 +105,7 @@ mod tests {
         let payload = ClipboardPayload::Mixed {
             text: Some("plain".into()),
             html: Some("<b>plain</b>".into()),
-            png_bytes: vec![1, 2, 3],
+            png_bytes: Some(vec![1, 2, 3]),
         };
 
         let preferred = preferred_payload(&payload);

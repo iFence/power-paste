@@ -322,10 +322,10 @@ mod tests {
             error: None,
         };
 
-        let next = build_debug_status("0.3.3".into(), payload).expect("debug status");
+        let next = build_debug_status("0.3.4".into(), payload).expect("debug status");
 
         assert_eq!(next.status, "available");
-        assert_eq!(next.current_version, "0.3.3");
+        assert_eq!(next.current_version, "0.3.4");
         assert_eq!(next.latest_version.as_deref(), Some("9.9.9-dev"));
     }
 
@@ -341,7 +341,7 @@ mod tests {
             error: None,
         };
 
-        let error = build_debug_status("0.3.3".into(), payload).expect_err("invalid status");
+        let error = build_debug_status("0.3.4".into(), payload).expect_err("invalid status");
 
         assert_eq!(error.to_string(), "invalid_update_debug_status");
     }

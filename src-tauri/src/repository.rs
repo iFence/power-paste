@@ -461,9 +461,9 @@ fn apply_capture(
             item.full_text = Some(text);
             item.html_text = html_text;
             item.rtf_text = rtf_text;
-            item.image_png = Some(png_bytes);
-            item.image_width = Some(image_width);
-            item.image_height = Some(image_height);
+            item.image_png = png_bytes;
+            item.image_width = (image_width > 0).then_some(image_width);
+            item.image_height = (image_height > 0).then_some(image_height);
             item.hash = hash;
         }
     }
@@ -681,6 +681,69 @@ mod tests {
         let item = store.list_all().expect("all").remove(0);
         assert_eq!(item.source_app.as_deref(), Some("DingTalk"));
         assert_eq!(item.source_icon_data_url.as_deref(), Some("dingtalk-icon"));
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
+
+    #[test]
+    fn stores_mixed_items_without_binary_image_payload() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        store
+            .upsert_capture(
+                CapturedClipboard::Mixed {
+                    text: "hello".into(),
+                    html_text: Some("<p>hello</p><img src=\"cid:test\" />".into()),
+                    rtf_text: None,
+                    png_bytes: None,
+                    hash: sha256_hex(b"hello"),
+                    image_width: 0,
+                    image_height: 0,
+                },
+                None,
+                &settings,
+            )
+            .expect("insert");
+
+        let item = store.list_all().expect("all").remove(0);
+        assert_eq!(item.kind, "mixed");
+        assert_eq!(item.full_text.as_deref(), Some("hello"));
+        assert!(item.image_png.is_none());
+        assert!(item.html_text.as_deref().unwrap_or_default().contains("<img"));
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
+
+    #[test]
+    fn upgrades_existing_text_item_to_mixed_when_html_contains_image() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        store
+            .upsert_capture(text_capture("hello"), None, &settings)
+            .expect("text");
+        store
+            .upsert_capture(
+                CapturedClipboard::Mixed {
+                    text: "hello".into(),
+                    html_text: Some("<p>hello</p><img src=\"cid:test\" />".into()),
+                    rtf_text: None,
+                    png_bytes: None,
+                    hash: sha256_hex(b"hello"),
+                    image_width: 0,
+                    image_height: 0,
+                },
+                None,
+                &settings,
+            )
+            .expect("mixed");
+
+        let item = store.list_all().expect("all").remove(0);
+        assert_eq!(item.kind, "mixed");
+        assert!(item.html_text.as_deref().unwrap_or_default().contains("<img"));
 
         let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
     }

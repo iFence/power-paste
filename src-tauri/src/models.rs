@@ -287,7 +287,7 @@ pub(crate) enum CapturedClipboard {
         text: String,
         html_text: Option<String>,
         rtf_text: Option<String>,
-        png_bytes: Vec<u8>,
+        png_bytes: Option<Vec<u8>>,
         hash: String,
         image_width: u32,
         image_height: u32,

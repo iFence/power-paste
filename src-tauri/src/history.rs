@@ -1,4 +1,5 @@
 use anyhow::Result;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 #[cfg(target_os = "macos")]
 use std::collections::HashMap;
 #[cfg(target_os = "linux")]
@@ -11,7 +12,7 @@ use crate::{
         AppSettings, CapturedClipboard, ClipboardItemDto, ForegroundAppResult, StoredClipboardItem,
     },
     repository::SqliteHistoryStore,
-    rich_text::normalize_rich_text_payload,
+    rich_text::{first_html_image_src, html_contains_image_content, normalize_rich_text_payload},
     storage::{image_hash_from_png_bytes, mixed_hash, text_hash},
 };
 
@@ -393,6 +394,10 @@ pub(crate) fn build_captured_clipboard(
             .as_deref()
             .map(|value| value.trim().is_empty())
             .unwrap_or(true);
+    let html_has_image_content = html_text
+        .as_deref()
+        .map(html_contains_image_content)
+        .unwrap_or(false);
 
     if let Some(png_bytes) = png_bytes.as_ref() {
         if is_image_placeholder_text(&text) && rich_text_is_empty {
@@ -414,17 +419,23 @@ pub(crate) fn build_captured_clipboard(
         }
     }
 
-    if has_text_payload && png_bytes.is_some() {
-        let png_bytes = png_bytes.unwrap_or_default();
-        if png_bytes.len() > settings.max_image_bytes {
-            return Ok(Some(CapturedClipboard::Text {
-                hash: text_hash(&text, html_text.as_deref(), rtf_text.as_deref()),
-                text,
-                html_text,
-                rtf_text,
-            }));
+    if has_text_payload && (png_bytes.is_some() || html_has_image_content) {
+        if let Some(bytes) = png_bytes.as_ref() {
+            if bytes.len() > settings.max_image_bytes {
+                return Ok(Some(CapturedClipboard::Text {
+                    hash: text_hash(&text, html_text.as_deref(), rtf_text.as_deref()),
+                    text,
+                    html_text,
+                    rtf_text,
+                }));
+            }
         }
-        let hash = mixed_hash(&text, html_text.as_deref(), rtf_text.as_deref(), &png_bytes)?;
+
+        let hash = if let Some(bytes) = png_bytes.as_deref() {
+            mixed_hash(&text, html_text.as_deref(), rtf_text.as_deref(), bytes)?
+        } else {
+            text_hash(&text, html_text.as_deref(), rtf_text.as_deref())
+        };
         return Ok(Some(CapturedClipboard::Mixed {
             text,
             html_text,
@@ -518,13 +529,20 @@ pub(crate) fn history_to_dto(
 }
 
 pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDto {
+    let image_data_url = item.image_data_url().or_else(|| {
+        item.html_text
+            .as_deref()
+            .filter(|_| item.kind == "mixed")
+            .and_then(html_image_preview_data_url)
+    });
+
     ClipboardItemDto {
         id: item.id.clone(),
         kind: item.kind.clone(),
         created_at: item.created_at.clone(),
         preview: item.preview.clone(),
         full_text: item.full_text.clone(),
-        image_data_url: item.image_data_url(),
+        image_data_url,
         image_byte_size: item.image_png.as_ref().map(|bytes| bytes.len()),
         image_width: item.image_width,
         image_height: item.image_height,
@@ -535,11 +553,75 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
     }
 }
 
+fn html_image_preview_data_url(html: &str) -> Option<String> {
+    let src = first_html_image_src(html)?;
+    if src.to_ascii_lowercase().starts_with("data:image/") {
+        return Some(src);
+    }
+
+    let path = local_image_path_from_src(&src)?;
+    local_image_file_to_data_url(&path)
+}
+
+fn local_image_path_from_src(src: &str) -> Option<std::path::PathBuf> {
+    if src.to_ascii_lowercase().starts_with("file://") {
+        return file_url_to_path(src);
+    }
+
+    let path = std::path::PathBuf::from(src);
+    path.is_file().then_some(path)
+}
+
+fn file_url_to_path(src: &str) -> Option<std::path::PathBuf> {
+    let raw = src.strip_prefix("file://").or_else(|| src.strip_prefix("FILE://"))?;
+    let normalized = raw.replace("%20", " ");
+
+    #[cfg(windows)]
+    {
+        let trimmed = normalized.trim_start_matches('/');
+        let path = std::path::PathBuf::from(trimmed.replace('/', "\\"));
+        return path.is_file().then_some(path);
+    }
+
+    #[cfg(not(windows))]
+    {
+        let path = std::path::PathBuf::from(normalized);
+        path.is_file().then_some(path)
+    }
+}
+
+fn local_image_file_to_data_url(path: &std::path::Path) -> Option<String> {
+    let mime = match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("bmp") => "image/bmp",
+        Some("webp") => "image/webp",
+        _ => return None,
+    };
+
+    let bytes = std::fs::read(path).ok()?;
+    if bytes.is_empty() {
+        return None;
+    }
+
+    Some(format!("data:{mime};base64,{}", BASE64.encode(bytes)))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_captured_clipboard, normalized_app_display_name, source_app_label};
-    use crate::models::{AppSettings, CapturedClipboard, ForegroundAppResult};
+    use super::{
+        build_captured_clipboard, history_item_to_dto, normalized_app_display_name,
+        source_app_label,
+    };
+    use crate::models::{AppSettings, CapturedClipboard, ForegroundAppResult, StoredClipboardItem};
     use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
+    use std::fs as std_fs;
 
     #[test]
     fn prefers_stable_display_name_for_source_app_label() {
@@ -591,5 +673,117 @@ mod tests {
         .expect("mixed");
 
         assert!(matches!(capture, CapturedClipboard::Mixed { .. }));
+    }
+
+    #[test]
+    fn classifies_html_with_img_but_without_png_as_mixed() {
+        let settings = AppSettings::default();
+
+        let capture = build_captured_clipboard(
+            &settings,
+            String::new(),
+            Some("<p>hello</p><img src=\"data:image/png;base64,abc\" />".into()),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("capture")
+        .expect("mixed");
+
+        assert!(matches!(
+            capture,
+            CapturedClipboard::Mixed { png_bytes: None, .. }
+        ));
+    }
+
+    #[test]
+    fn keeps_plain_html_without_image_as_text() {
+        let settings = AppSettings::default();
+
+        let capture = build_captured_clipboard(
+            &settings,
+            String::new(),
+            Some("<p>hello</p><strong>world</strong>".into()),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("capture")
+        .expect("text");
+
+        assert!(matches!(capture, CapturedClipboard::Text { .. }));
+    }
+
+    #[test]
+    fn dto_uses_html_image_src_for_mixed_items_without_png() {
+        let item = StoredClipboardItem {
+            id: "1".into(),
+            kind: "mixed".into(),
+            created_at: "2026-04-13T00:00:00Z".into(),
+            pinned_at: None,
+            preview: "hello".into(),
+            full_text: Some("hello".into()),
+            html_text: Some("<p>hello</p><img src=\"data:image/png;base64,abc\" />".into()),
+            rtf_text: None,
+            image_png: None,
+            image_width: None,
+            image_height: None,
+            source_app: None,
+            source_icon_data_url: None,
+            hash: "hash".into(),
+            pinned: false,
+            favorite: false,
+        };
+
+        let dto = history_item_to_dto(&item);
+
+        assert_eq!(
+            dto.image_data_url.as_deref(),
+            Some("data:image/png;base64,abc")
+        );
+    }
+
+    #[test]
+    fn dto_reads_local_html_image_file_into_data_url() {
+        let root = std::env::temp_dir().join(format!("clipdesk-history-test-{}", uuid::Uuid::new_v4()));
+        std_fs::create_dir_all(&root).expect("create temp dir");
+        let image_path = root.join("preview.png");
+        let mut png_bytes = Vec::new();
+        DynamicImage::ImageRgba8(RgbaImage::from_pixel(1, 1, Rgba([255, 255, 255, 255])))
+            .write_to(&mut std::io::Cursor::new(&mut png_bytes), ImageFormat::Png)
+            .expect("png");
+        std_fs::write(&image_path, &png_bytes).expect("write png");
+
+        let item = StoredClipboardItem {
+            id: "2".into(),
+            kind: "mixed".into(),
+            created_at: "2026-04-13T00:00:00Z".into(),
+            pinned_at: None,
+            preview: "hello".into(),
+            full_text: Some("hello".into()),
+            html_text: Some(format!("<p>hello</p><img src=\"{}\" />", image_path.display())),
+            rtf_text: None,
+            image_png: None,
+            image_width: None,
+            image_height: None,
+            source_app: None,
+            source_icon_data_url: None,
+            hash: "hash".into(),
+            pinned: false,
+            favorite: false,
+        };
+
+        let dto = history_item_to_dto(&item);
+
+        assert!(dto
+            .image_data_url
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("data:image/png;base64,"));
+
+        let _ = std_fs::remove_file(image_path);
+        let _ = std_fs::remove_dir_all(root);
     }
 }

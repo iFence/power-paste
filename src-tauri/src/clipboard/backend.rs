@@ -54,7 +54,7 @@ mod tests {
         let payload = ClipboardPayload::Mixed {
             text: Some("text".into()),
             html: Some("<b>text</b>".into()),
-            png_bytes: vec![1, 2, 3],
+            png_bytes: Some(vec![1, 2, 3]),
         };
 
         let backend = preferred_backend_for_payload(&payload);

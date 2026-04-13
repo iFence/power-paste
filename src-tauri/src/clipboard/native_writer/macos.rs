@@ -79,7 +79,12 @@ pub(crate) fn write_payload(payload: &ClipboardPayload) -> Result<()> {
             text,
             html,
             png_bytes,
-        } => write_clipboard_payload_macos(text.as_deref(), None, html.as_deref(), Some(png_bytes)),
+        } => write_clipboard_payload_macos(
+            text.as_deref(),
+            None,
+            html.as_deref(),
+            png_bytes.as_deref(),
+        ),
         ClipboardPayload::RichText { text, rtf, html } => {
             write_clipboard_payload_macos(text.as_deref(), rtf.as_deref(), html.as_deref(), None)
         }

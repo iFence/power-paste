@@ -208,6 +208,95 @@ pub(crate) fn html_to_plain_text(html: &str) -> Option<String> {
     normalize_clipboard_text(normalized)
 }
 
+pub(crate) fn html_contains_image_content(html: &str) -> bool {
+    let fragment = cf_html_fragment(html);
+    let lower = fragment.to_ascii_lowercase();
+
+    lower.contains("<img")
+        || lower.contains("data:image/")
+        || lower.contains("content-type:image/")
+        || lower.contains("content-type: image/")
+}
+
+pub(crate) fn first_html_image_src(html: &str) -> Option<String> {
+    let fragment = cf_html_fragment(html);
+    let lower = fragment.to_ascii_lowercase();
+    let start = lower.find("<img")?;
+    let end = lower[start..].find('>').map(|offset| start + offset + 1)?;
+    let tag = &fragment[start..end];
+    let tag_lower = &lower[start..end];
+    let src_pos = tag_lower.find("src")?;
+
+    let mut cursor = src_pos + 3;
+    let bytes = tag.as_bytes();
+    while cursor < tag.len() && bytes[cursor].is_ascii_whitespace() {
+        cursor += 1;
+    }
+    if cursor >= tag.len() || bytes[cursor] != b'=' {
+        return None;
+    }
+    cursor += 1;
+    while cursor < tag.len() && bytes[cursor].is_ascii_whitespace() {
+        cursor += 1;
+    }
+    if cursor >= tag.len() {
+        return None;
+    }
+
+    let value = match bytes[cursor] {
+        b'"' => {
+            let start = cursor + 1;
+            let end = tag[start..].find('"').map(|offset| start + offset)?;
+            &tag[start..end]
+        }
+        b'\'' => {
+            let start = cursor + 1;
+            let end = tag[start..].find('\'').map(|offset| start + offset)?;
+            &tag[start..end]
+        }
+        _ => {
+            let end = tag[cursor..]
+                .find(|ch: char| ch.is_ascii_whitespace() || ch == '>')
+                .map(|offset| cursor + offset)
+                .unwrap_or(tag.len());
+            &tag[cursor..end]
+        }
+    };
+
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+
+    let lower_value = value.to_ascii_lowercase();
+    if lower_value.starts_with("data:image/")
+        || lower_value.starts_with("http://")
+        || lower_value.starts_with("https://")
+        || lower_value.starts_with("file://")
+    {
+        Some(value.to_string())
+    } else if looks_like_windows_file_path(value) {
+        Some(windows_path_to_file_url(value))
+    } else if value.starts_with('/') {
+        Some(format!("file://{value}"))
+    } else {
+        None
+    }
+}
+
+fn looks_like_windows_file_path(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() > 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/')
+}
+
+fn windows_path_to_file_url(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    format!("file:///{normalized}")
+}
+
 fn count_html_tag_signals(lower: &str) -> usize {
     [
         "<p",
@@ -315,7 +404,10 @@ pub(crate) fn normalize_rich_text_payload(
 
 #[cfg(test)]
 mod tests {
-    use super::{html_to_plain_text, normalize_rich_text_payload};
+    use super::{
+        first_html_image_src, html_contains_image_content, html_to_plain_text,
+        normalize_rich_text_payload,
+    };
 
     #[test]
     fn extracts_plain_text_from_browser_html_fragment() {
@@ -355,5 +447,28 @@ mod tests {
 
         assert_eq!(text.as_deref(), Some(snippet));
         assert_eq!(html, None);
+    }
+
+    #[test]
+    fn detects_image_tags_inside_html() {
+        assert!(html_contains_image_content(
+            "<p>hello</p><img src=\"data:image/png;base64,abc\" />"
+        ));
+    }
+
+    #[test]
+    fn extracts_first_supported_image_src_from_html() {
+        assert_eq!(
+            first_html_image_src("<p>hello</p><img src=\"data:image/png;base64,abc\" /><img src=\"https://example.com/b.png\" />"),
+            Some("data:image/png;base64,abc".into())
+        );
+    }
+
+    #[test]
+    fn converts_windows_file_path_image_src_to_file_url() {
+        assert_eq!(
+            first_html_image_src("<img src=\"C:\\Users\\yulei\\demo.png\" />"),
+            Some("file:///C:/Users/yulei/demo.png".into())
+        );
     }
 }

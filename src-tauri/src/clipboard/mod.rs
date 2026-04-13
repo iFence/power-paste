@@ -102,8 +102,10 @@ fn plugin_fallback_payload(payload: ClipboardPayload) -> ClipboardPayload {
                 ClipboardPayload::Text { text }
             } else if let Some(html) = html {
                 ClipboardPayload::Html { text: None, html }
-            } else {
+            } else if let Some(png_bytes) = png_bytes {
                 ClipboardPayload::Image { png_bytes }
+            } else {
+                ClipboardPayload::Empty
             }
         }
         other => other,
@@ -131,7 +133,7 @@ mod tests {
         let payload = ClipboardPayload::Mixed {
             text: Some("plain".into()),
             html: Some("<b>plain</b>".into()),
-            png_bytes: vec![1, 2, 3],
+            png_bytes: Some(vec![1, 2, 3]),
         };
 
         let next = degrade_plugin_only_payload(payload);
@@ -148,7 +150,7 @@ mod tests {
         let payload = ClipboardPayload::Mixed {
             text: None,
             html: None,
-            png_bytes: vec![1, 2, 3],
+            png_bytes: Some(vec![1, 2, 3]),
         };
 
         let next = degrade_plugin_only_payload(payload);
@@ -157,6 +159,26 @@ mod tests {
             assert!(matches!(next, ClipboardPayload::Mixed { .. }));
         } else {
             assert!(matches!(next, ClipboardPayload::Image { .. }));
+        }
+    }
+
+    #[test]
+    fn degrades_html_only_mixed_payload_to_html_or_text() {
+        let payload = ClipboardPayload::Mixed {
+            text: Some("plain".into()),
+            html: Some("<p>plain</p><img src=\"cid:test\" />".into()),
+            png_bytes: None,
+        };
+
+        let next = degrade_plugin_only_payload(payload);
+
+        if cfg!(windows) || cfg!(target_os = "macos") {
+            assert!(matches!(next, ClipboardPayload::Mixed { .. }));
+        } else {
+            assert!(matches!(
+                next,
+                ClipboardPayload::Text { .. } | ClipboardPayload::Html { .. }
+            ));
         }
     }
 }

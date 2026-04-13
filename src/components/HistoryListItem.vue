@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { formatRelativeTime } from '../utils/format'
 import { looksLikeCode, previewHtml } from '../utils/codePreview'
 
-defineProps({
+const props = defineProps({
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
   item: { type: Object, required: true },
@@ -19,6 +19,17 @@ const entryRef = ref(null)
 const imagePreviewStyle = ref({})
 const showImagePreview = ref(false)
 const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
+const hasTextPreview = computed(() => {
+  if (props.item?.kind === 'image') {
+    return false
+  }
+  const text = typeof props.item?.fullText === 'string' ? props.item.fullText : ''
+  const preview = typeof props.item?.preview === 'string' ? props.item.preview : ''
+  return Boolean(text.trim() || preview.trim())
+})
+const hasMixedPreview = computed(
+  () => props.item?.kind === 'mixed' && Boolean(props.item?.imageDataUrl) && hasTextPreview.value,
+)
 
 function formatImageSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -138,7 +149,13 @@ function handlePreviewMouseLeave() {
       <span class="timestamp">{{ formatRelativeTime(item.createdAt, locale) }}</span>
     </div>
 
-    <div class="entry-content" :class="{ 'entry-content-text-only': !item.imageDataUrl }">
+    <div
+      class="entry-content"
+      :class="{
+        'entry-content-text-only': !item.imageDataUrl,
+        'entry-content-mixed': hasMixedPreview,
+      }"
+    >
       <img
         v-if="item.imageDataUrl"
         :src="item.imageDataUrl"
@@ -149,8 +166,8 @@ function handlePreviewMouseLeave() {
         @mouseenter="handlePreviewMouseEnter"
         @mouseleave="handlePreviewMouseLeave"
       />
-      <div class="entry-body">
-        <div v-if="!(item.imageDataUrl && !item.fullText)" class="entry-text-preview">
+      <div class="entry-body" :class="{ 'entry-body-mixed': hasMixedPreview }">
+        <div v-if="hasTextPreview" class="entry-text-preview">
           <div class="entry-text-scroll">
             <pre
               v-if="item.fullText && looksLikeCode(item.fullText ?? item.preview)"

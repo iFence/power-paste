@@ -169,12 +169,14 @@ mod tests {
 
         if cfg!(windows) || cfg!(target_os = "macos") {
             assert!(capabilities.supports_direct_paste);
-        } else if cfg!(target_os = "linux") {
+        } else {
+            #[cfg(target_os = "linux")]
             let expected =
                 super::linux_session_backend() == "x11" && super::linux_x11_tooling_available();
+            #[cfg(not(target_os = "linux"))]
+            let expected = false;
+
             assert_eq!(capabilities.supports_direct_paste, expected);
-        } else {
-            assert!(!capabilities.supports_direct_paste);
         }
     }
 
@@ -201,10 +203,11 @@ mod tests {
 
     #[test]
     fn direct_paste_reason_matches_linux_policy() {
-        if cfg!(target_os = "linux") {
-            let supports_direct_paste =
+        #[cfg(target_os = "linux")]
+        {
+            let expected =
                 super::linux_session_backend() == "x11" && super::linux_x11_tooling_available();
-            if supports_direct_paste {
+            if expected {
                 assert_eq!(
                     direct_paste_unavailable_reason(),
                     "unsupported_direct_paste"
@@ -215,7 +218,10 @@ mod tests {
                     "linux_wayland_unsupported" | "linux_x11_tools_missing"
                 ));
             }
-        } else {
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
             assert_eq!(
                 direct_paste_unavailable_reason(),
                 "unsupported_direct_paste"
