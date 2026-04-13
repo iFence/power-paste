@@ -247,8 +247,9 @@ onUnmounted(() => {
             @select="historyState.setSelectedId"
             @toggle-pin="historyState.togglePin"
           />
-          <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
         </section>
+
+        <div class="history-count-bar">{{ historyState.historyCountLabel.value }}</div>
       </template>
     </div>
 
