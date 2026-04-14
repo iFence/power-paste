@@ -1,9 +1,7 @@
 use std::{sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
-use tauri::AppHandle;
-#[cfg(any(windows, target_os = "macos"))]
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "linux")]
 use crate::clipboard::{linux_session_backend, linux_x11_tooling_available};
@@ -374,14 +372,12 @@ fn current_foreground_window_id() -> Option<String> {
 
 #[cfg(target_os = "linux")]
 pub(crate) fn remember_last_target_window(app: &AppHandle) {
-    let Some(shared) = app.try_state::<Arc<SharedState>>() else {
-        return;
-    };
+    let shared = app.state::<Arc<SharedState>>();
     let Some(window_id) = current_foreground_window_id() else {
         return;
     };
 
-    let mut monitor = shared.inner().monitor.lock().unwrap();
+    let mut monitor = shared.monitor.lock().unwrap();
     monitor.last_target_window_id = Some(window_id);
 }
 
