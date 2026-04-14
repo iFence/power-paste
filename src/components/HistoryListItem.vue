@@ -8,6 +8,7 @@ const props = defineProps({
   canDirectPaste: { type: Boolean, required: true },
   item: { type: Object, required: true },
   locale: { type: String, required: true },
+  relativeTimeVersion: { type: Number, required: true },
   selected: { type: Boolean, required: true },
   t: { type: Function, required: true },
   unsupportedDirectPasteMessage: { type: String, required: true },
@@ -30,6 +31,13 @@ const hasTextPreview = computed(() => {
 const hasMixedPreview = computed(
   () => props.item?.kind === 'mixed' && Boolean(props.item?.imageDataUrl) && hasTextPreview.value,
 )
+const relativeTimeLabel = computed(() => {
+  const version = props.relativeTimeVersion
+  if (version < 0) {
+    return ''
+  }
+  return formatRelativeTime(props.item.createdAt, props.locale)
+})
 
 function formatImageSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -146,7 +154,7 @@ function handlePreviewMouseLeave() {
         </div>
         <span v-if="item.favorite" class="pill accent-alt">{{ t("badgeStarred") }}</span>
       </div>
-      <span class="timestamp">{{ formatRelativeTime(item.createdAt, locale) }}</span>
+      <span class="timestamp">{{ relativeTimeLabel }}</span>
     </div>
 
     <div

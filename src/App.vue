@@ -1,4 +1,5 @@
 <script setup>
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { onHistoryUpdated, onUpdateStatus } from "./services/tauriApi";
 import SearchBar from "./components/SearchBar.vue";
@@ -48,13 +49,16 @@ watch(settingsState.currentLocale, (locale) => {
 
 let unlistenHistory = null;
 let unlistenUpdate = null;
+let unlistenWindowFocus = null;
 const startupBusy = ref(false);
 
 function cleanupListeners() {
   unlistenHistory?.();
   unlistenUpdate?.();
+  unlistenWindowFocus?.();
   unlistenHistory = null;
   unlistenUpdate = null;
+  unlistenWindowFocus = null;
 }
 
 async function initializeApp() {
@@ -79,6 +83,11 @@ async function initializeApp() {
     unlistenUpdate = await onUpdateStatus((event) => {
       if (event?.payload) {
         updaterState.applyUpdateState(event.payload);
+      }
+    });
+    unlistenWindowFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
+      if (payload) {
+        historyState.refreshRelativeTimes();
       }
     });
   } catch (error) {
@@ -235,6 +244,7 @@ onUnmounted(() => {
             :items="historyState.filteredHistory.value"
             :loading="historyState.loading.value"
             :locale="settingsState.currentLocale.value"
+            :relative-time-version="historyState.relativeTimeVersion.value"
             :selected-id="historyState.selectedId.value"
             :t="settingsState.t"
             :unsupported-clipboard-write-message="settingsState.t('unsupportedClipboardWrite')"

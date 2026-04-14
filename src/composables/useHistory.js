@@ -68,6 +68,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
   const activeFilterTab = ref(window.localStorage.getItem(ACTIVE_FILTER_TAB_STORAGE_KEY) || "all");
   const history = ref([]);
   const loading = ref(true);
+  const relativeTimeVersion = ref(0);
   const selectedId = ref(null);
   const historyPanelRef = ref(null);
   const showEditModal = ref(false);
@@ -183,6 +184,10 @@ export function useHistory({ platformCapabilities, settings, t }) {
     } finally {
       loading.value = false;
     }
+  }
+
+  function refreshRelativeTimes() {
+    relativeTimeVersion.value += 1;
   }
 
   function applyHistoryUpdate(item) {
@@ -399,6 +404,8 @@ export function useHistory({ platformCapabilities, settings, t }) {
     pasteItem,
     query,
     refreshHistory,
+    refreshRelativeTimes,
+    relativeTimeVersion,
     applyHistoryUpdate,
     removeItem,
     saveEditedItem,
