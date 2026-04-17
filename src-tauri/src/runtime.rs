@@ -187,6 +187,12 @@ fn tray_label(locale: &str, key: &str) -> &'static str {
 
 // The tray mirrors the main show/quit actions so the app can stay background-resident.
 pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
+    let app_name = app
+        .config()
+        .product_name
+        .clone()
+        .unwrap_or_else(|| app.package_info().name.clone());
+    let tray_tooltip = format!("{app_name} v{}", app.package_info().version);
     let version_prefix = if locale == "zh-CN" {
         "版本"
     } else {
@@ -207,6 +213,7 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
 
     let mut builder = TrayIconBuilder::with_id("power-paste-tray")
         .menu(&menu)
+        .tooltip(&tray_tooltip)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().0.as_str() {
             "show" => {

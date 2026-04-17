@@ -102,7 +102,7 @@ src-tauri/
 
 ## 五、Commit 提交规范
 
-遵循 Angular Commit Message 规范，**提交信息使用中文**。
+遵循 Angular Commit Message 规范，**提交信息使用英文**。
 
 ### 格式
 
