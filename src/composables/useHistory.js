@@ -12,6 +12,8 @@ import {
 } from "../services/tauriApi";
 
 const ACTIVE_FILTER_TAB_STORAGE_KEY = "clipdesk.activeFilterTab";
+const SELECTED_HISTORY_ID_STORAGE_KEY = "clipdesk.selectedHistoryId";
+const LATEST_HISTORY_ID_STORAGE_KEY = "clipdesk.latestHistoryId";
 
 function formatActionError(error, t) {
   const message =
@@ -63,13 +65,24 @@ function compareHistoryItems(left, right) {
   return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
 }
 
+function getLatestHistoryItem(items) {
+  return [...items].sort((left, right) => {
+    const createdAtCompare = (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
+    if (createdAtCompare !== 0) {
+      return createdAtCompare;
+    }
+
+    return String(right.id ?? "").localeCompare(String(left.id ?? ""));
+  })[0] ?? null;
+}
+
 export function useHistory({ platformCapabilities, settings, t }) {
   const query = ref("");
   const activeFilterTab = ref(window.localStorage.getItem(ACTIVE_FILTER_TAB_STORAGE_KEY) || "all");
   const history = ref([]);
   const loading = ref(true);
   const relativeTimeVersion = ref(0);
-  const selectedId = ref(null);
+  const selectedId = ref(window.localStorage.getItem(SELECTED_HISTORY_ID_STORAGE_KEY));
   const historyPanelRef = ref(null);
   const showEditModal = ref(false);
   const editingItemId = ref(null);
@@ -117,6 +130,22 @@ export function useHistory({ platformCapabilities, settings, t }) {
     }
 
     window.localStorage.setItem(ACTIVE_FILTER_TAB_STORAGE_KEY, activeFilterTab.value);
+  }
+
+  function syncPersistedHistoryState(items = history.value) {
+    const latestHistoryItem = getLatestHistoryItem(items);
+
+    if (selectedId.value) {
+      window.localStorage.setItem(SELECTED_HISTORY_ID_STORAGE_KEY, selectedId.value);
+    } else {
+      window.localStorage.removeItem(SELECTED_HISTORY_ID_STORAGE_KEY);
+    }
+
+    if (latestHistoryItem?.id) {
+      window.localStorage.setItem(LATEST_HISTORY_ID_STORAGE_KEY, latestHistoryItem.id);
+    } else {
+      window.localStorage.removeItem(LATEST_HISTORY_ID_STORAGE_KEY);
+    }
   }
 
   const historyCountLabel = computed(() => {
@@ -178,9 +207,24 @@ export function useHistory({ platformCapabilities, settings, t }) {
         limit: settings.maxHistoryItems,
       });
       reorderHistory(items);
-      if (!selectedId.value || !items.some((item) => item.id === selectedId.value)) {
-        selectedId.value = items[0]?.id ?? null;
+      const latestHistoryItem = getLatestHistoryItem(items);
+      const previousLatestHistoryId = window.localStorage.getItem(LATEST_HISTORY_ID_STORAGE_KEY);
+      const persistedSelectedId = window.localStorage.getItem(SELECTED_HISTORY_ID_STORAGE_KEY);
+      const hasNewHistory =
+        Boolean(previousLatestHistoryId) &&
+        Boolean(latestHistoryItem?.id) &&
+        latestHistoryItem.id !== previousLatestHistoryId;
+
+      if (hasNewHistory) {
+        activeFilterTab.value = "all";
+        selectedId.value = latestHistoryItem.id;
+      } else if (persistedSelectedId && items.some((item) => item.id === persistedSelectedId)) {
+        selectedId.value = persistedSelectedId;
+      } else if (!selectedId.value || !items.some((item) => item.id === selectedId.value)) {
+        selectedId.value = latestHistoryItem?.id ?? items[0]?.id ?? null;
       }
+
+      syncPersistedHistoryState(items);
     } finally {
       loading.value = false;
     }
@@ -195,6 +239,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
       return;
     }
 
+    const previousLatestHistoryId = getLatestHistoryItem(history.value)?.id ?? null;
     const index = history.value.findIndex((entry) => entry.id === item.id);
     if (index === -1) {
       history.value = [item, ...history.value];
@@ -208,7 +253,16 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
     reorderHistory();
     trimHistoryToLimit();
-    updateSelectedAfterListChange();
+    const latestHistoryItem = getLatestHistoryItem(history.value);
+
+    if (index === -1 && latestHistoryItem?.id && latestHistoryItem.id !== previousLatestHistoryId) {
+      activeFilterTab.value = "all";
+      selectedId.value = latestHistoryItem.id;
+    } else {
+      updateSelectedAfterListChange();
+    }
+
+    syncPersistedHistoryState();
   }
 
   async function copyItem(id) {
@@ -377,6 +431,14 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
   watch(activeFilterTab, () => {
     syncActiveFilterTab();
+  });
+
+  watch(selectedId, () => {
+    syncPersistedHistoryState();
+  });
+
+  watch(history, () => {
+    syncPersistedHistoryState();
   });
 
   watch(filteredHistory, (items) => {
