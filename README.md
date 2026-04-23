@@ -37,7 +37,7 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 
 - Windows: primary target platform, and currently the only platform with native mixed clipboard replay plus target-aware segmented paste for some apps
 - macOS: direct paste depends on Accessibility / Automation permission from the system
-- Linux: direct paste requires an X11 session plus `xdotool`; Wayland remains in explicit degraded mode, and mixed content replay falls back to a single preferred payload
+- Linux: direct paste supports `X11 + xdotool` and `Wayland + wtype`; mixed content replay still falls back to a single preferred payload
 
 ## Feature Overview
 
@@ -81,8 +81,7 @@ Update checks are no longer configured from the settings page. The app checks fo
 
 The following capabilities remain platform-limited, while macOS direct paste depends on system permission:
 
-- Direct paste on Linux requires an X11 session plus `xdotool`
-- Direct paste in Wayland sessions is still unsupported
+- Direct paste on Linux requires `xdotool` in X11 sessions or `wtype` in Wayland sessions
 - Native mixed clipboard replay remains Windows-only; Linux falls back to a single preferred payload when replaying mixed content
 
 History browsing, clipboard monitoring, search, filtering, pinning, editing, deleting, tray usage, update checks, settings persistence, launch on startup, and the general UI remain available on Linux.
@@ -118,10 +117,10 @@ History browsing, clipboard monitoring, search, filtering, pinning, editing, del
 - `pnpm` `10+`
 - Rust `1.77.2+`
 
-Linux direct paste also requires:
+Linux direct paste also requires one of the following:
 
-- an X11 desktop session
-- `xdotool`
+- an X11 desktop session with `xdotool`
+- a Wayland session with `wtype`
 
 Windows development also requires:
 

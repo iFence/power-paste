@@ -29,8 +29,8 @@ function formatActionError(error, t) {
   if (message === "linux_x11_tools_missing") {
     return t("linuxX11ToolsMissing");
   }
-  if (message === "linux_wayland_unsupported") {
-    return t("linuxWaylandUnsupported");
+  if (message === "linux_wayland_tools_missing") {
+    return t("linuxWaylandToolsMissing");
   }
   if (message === "unsupported_direct_paste") {
     return t("unsupportedDirectPaste");

@@ -4,7 +4,9 @@ use anyhow::Result;
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "linux")]
-use crate::clipboard::{linux_session_backend, linux_x11_tooling_available};
+use crate::clipboard::{
+    linux_session_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
+};
 use crate::models::{SharedState, StoredClipboardItem};
 
 #[cfg(target_os = "macos")]
@@ -496,9 +498,6 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
 
 #[cfg(target_os = "linux")]
 fn run_linux_xdotool(args: &[&str]) -> Result<()> {
-    if linux_session_backend() == "wayland" {
-        anyhow::bail!("linux_wayland_unsupported");
-    }
     if !linux_x11_tooling_available() {
         anyhow::bail!("linux_x11_tools_missing");
     }
@@ -517,7 +516,30 @@ fn run_linux_xdotool(args: &[&str]) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
+fn run_linux_wtype(args: &[&str]) -> Result<()> {
+    if !linux_wayland_tooling_available() {
+        anyhow::bail!("linux_wayland_tools_missing");
+    }
+
+    let output = std::process::Command::new("wtype").args(args).output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if stderr.is_empty() {
+        anyhow::bail!("paste_target_focus_failed");
+    }
+
+    anyhow::bail!(stderr)
+}
+
+#[cfg(target_os = "linux")]
 pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
+    if linux_session_backend() == "wayland" {
+        return Ok(());
+    }
+
     let window_id = {
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_window_id.clone()
@@ -582,6 +604,11 @@ pub(crate) fn wait_for_paste_target_focus(_state: &Arc<SharedState>) {}
 
 #[cfg(target_os = "linux")]
 pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
+    if linux_session_backend() == "wayland" {
+        thread::sleep(Duration::from_millis(180));
+        return;
+    }
+
     const FOCUS_RETRY_COUNT: usize = 10;
     const FOCUS_RETRY_DELAY_MS: u64 = 20;
 
@@ -633,6 +660,10 @@ pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()
 
 #[cfg(target_os = "linux")]
 pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
+    if linux_session_backend() == "wayland" {
+        return run_linux_wtype(&["-M", "ctrl", "v", "-m", "ctrl"]);
+    }
+
     let window_id = {
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_window_id.clone()
@@ -778,6 +809,10 @@ pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
     }
     #[cfg(target_os = "linux")]
     {
+        if linux_session_backend() == "wayland" {
+            return Ok(());
+        }
+
         let target_window_id = {
             let monitor = state.monitor.lock().unwrap();
             monitor.last_target_window_id.clone()

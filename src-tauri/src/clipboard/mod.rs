@@ -16,7 +16,9 @@ use self::payload::{payload_for_item, ClipboardPayload};
 pub(crate) use capabilities::direct_paste_unavailable_reason;
 pub(crate) use capabilities::{launch_on_startup_supported, platform_capabilities};
 #[cfg(target_os = "linux")]
-pub(crate) use capabilities::{linux_session_backend, linux_x11_tooling_available};
+pub(crate) use capabilities::{
+    linux_session_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
+};
 pub(crate) use capture_router::capture_clipboard;
 #[cfg(windows)]
 pub(crate) use native_writer::write_image_to_clipboard;

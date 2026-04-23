@@ -32,7 +32,7 @@ pub(crate) fn direct_paste_supported() -> bool {
 
     #[cfg(target_os = "linux")]
     {
-        return linux_session_backend() == "x11" && linux_x11_tooling_available();
+        return linux_direct_paste_supported();
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -45,10 +45,10 @@ pub(crate) fn direct_paste_unavailable_reason() -> &'static str {
     if cfg!(target_os = "linux") {
         #[cfg(target_os = "linux")]
         {
-            if linux_session_backend() == "wayland" {
-                return "linux_wayland_unsupported";
+            if linux_session_backend() == "wayland" && !linux_wayland_tooling_available() {
+                return "linux_wayland_tools_missing";
             }
-            if !linux_x11_tooling_available() {
+            if linux_session_backend() == "x11" && !linux_x11_tooling_available() {
                 return "linux_x11_tools_missing";
             }
         }
@@ -81,12 +81,18 @@ fn direct_paste_strategy() -> &'static str {
     if cfg!(windows) || cfg!(target_os = "macos") {
         "simulated-native-shortcut"
     } else if direct_paste_supported() {
+        #[cfg(target_os = "linux")]
+        {
+            if linux_session_backend() == "wayland" {
+                return "simulated-wtype-shortcut";
+            }
+        }
         "simulated-xdotool-shortcut"
     } else if cfg!(target_os = "linux") {
         #[cfg(target_os = "linux")]
         {
             if linux_session_backend() == "wayland" {
-                return "wayland-unsupported";
+                return "wayland-wtype-required";
             }
         }
         "x11-tooling-required"
@@ -123,6 +129,33 @@ pub(crate) fn linux_session_backend() -> &'static str {
 #[cfg(target_os = "linux")]
 pub(crate) fn linux_x11_tooling_available() -> bool {
     binary_in_path("xdotool")
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_wayland_tooling_available() -> bool {
+    binary_in_path("wtype")
+}
+
+#[cfg(target_os = "linux")]
+fn linux_direct_paste_supported() -> bool {
+    linux_direct_paste_supported_with(
+        linux_session_backend(),
+        linux_x11_tooling_available(),
+        linux_wayland_tooling_available(),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn linux_direct_paste_supported_with(
+    session_backend: &str,
+    x11_tooling_available: bool,
+    wayland_tooling_available: bool,
+) -> bool {
+    match session_backend {
+        "x11" => x11_tooling_available,
+        "wayland" => wayland_tooling_available,
+        _ => false,
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -171,8 +204,7 @@ mod tests {
             assert!(capabilities.supports_direct_paste);
         } else {
             #[cfg(target_os = "linux")]
-            let expected =
-                super::linux_session_backend() == "x11" && super::linux_x11_tooling_available();
+            let expected = super::linux_direct_paste_supported();
             #[cfg(not(target_os = "linux"))]
             let expected = false;
 
@@ -205,8 +237,7 @@ mod tests {
     fn direct_paste_reason_matches_linux_policy() {
         #[cfg(target_os = "linux")]
         {
-            let expected =
-                super::linux_session_backend() == "x11" && super::linux_x11_tooling_available();
+            let expected = super::linux_direct_paste_supported();
             if expected {
                 assert_eq!(
                     direct_paste_unavailable_reason(),
@@ -215,7 +246,7 @@ mod tests {
             } else {
                 assert!(matches!(
                     direct_paste_unavailable_reason(),
-                    "linux_wayland_unsupported" | "linux_x11_tools_missing"
+                    "linux_wayland_tools_missing" | "linux_x11_tools_missing"
                 ));
             }
         }
@@ -249,5 +280,16 @@ mod tests {
             super::linux_session_backend_with(Some(":0".into()), None, None),
             "x11"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_direct_paste_supports_wayland_when_wtype_is_available() {
+        assert!(super::linux_direct_paste_supported_with(
+            "wayland", false, true
+        ));
+        assert!(!super::linux_direct_paste_supported_with(
+            "wayland", false, false
+        ));
     }
 }

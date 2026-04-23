@@ -161,8 +161,8 @@ export function useSettings() {
     if (code === "linux_x11_tools_missing") {
       return t("linuxX11ToolsMissing");
     }
-    if (code === "linux_wayland_unsupported") {
-      return t("linuxWaylandUnsupported");
+    if (code === "linux_wayland_tools_missing") {
+      return t("linuxWaylandToolsMissing");
     }
     if (code === "unsupported_launch_on_startup") {
       return t("unsupportedLaunchOnStartup");
