@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "linux")]
 use crate::clipboard::{
-    linux_session_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
+    linux_direct_paste_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
 };
 use crate::models::{SharedState, StoredClipboardItem};
 
@@ -183,9 +183,7 @@ fn normalize_macos_automation_error(message: &str) -> &'static str {
         || lower.contains("assistive access")
         || lower.contains("accessibility")
         || lower.contains("automation")
-        || lower.contains("system events got an error")
         || lower.contains("(-1743)")
-        || lower.contains("(-1719)")
         || lower.contains("(-25211)")
     {
         "paste_target_permission_denied"
@@ -210,6 +208,50 @@ fn run_macos_osascript(args: &[String]) -> Result<()> {
 }
 
 #[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+unsafe extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_macos_accessibility_permission() -> Result<()> {
+    if unsafe { AXIsProcessTrusted() } {
+        return Ok(());
+    }
+
+    anyhow::bail!("paste_target_permission_denied")
+}
+
+#[cfg(target_os = "macos")]
+fn run_macos_paste_menu(app_name: &str) -> Result<()> {
+    run_macos_osascript(&[
+        "-e".to_string(),
+        r#"on run argv
+  set targetName to item 1 of argv
+  tell application "System Events"
+    tell application process targetName
+      set frontmost to true
+      repeat with editMenuName in {"Edit", "编辑"}
+        try
+          set editMenu to menu editMenuName of menu bar item editMenuName of menu bar 1
+          repeat with pasteItemName in {"Paste", "粘贴"}
+            try
+              click menu item pasteItemName of editMenu
+              return
+            end try
+          end repeat
+        end try
+      end repeat
+    end tell
+  end tell
+  error "paste menu item not found"
+end run"#
+            .to_string(),
+        app_name.to_string(),
+    ])
+}
+
+#[cfg(target_os = "macos")]
 fn ensure_macos_direct_paste_permissions(state: &Arc<SharedState>) -> Result<()> {
     if state
         .macos_direct_paste_permission_verified
@@ -218,10 +260,7 @@ fn ensure_macos_direct_paste_permissions(state: &Arc<SharedState>) -> Result<()>
         return Ok(());
     }
 
-    run_macos_osascript(&[
-        "-e".to_string(),
-        r#"tell application "System Events" to count of application processes"#.to_string(),
-    ])?;
+    ensure_macos_accessibility_permission()?;
     state
         .macos_direct_paste_permission_verified
         .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -356,7 +395,7 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
 
 #[cfg(target_os = "linux")]
 fn current_foreground_window_id() -> Option<String> {
-    if linux_session_backend() != "x11" || !linux_x11_tooling_available() {
+    if linux_direct_paste_backend() != "x11" || !linux_x11_tooling_available() {
         return None;
     }
 
@@ -536,7 +575,7 @@ fn run_linux_wtype(args: &[&str]) -> Result<()> {
 
 #[cfg(target_os = "linux")]
 pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
-    if linux_session_backend() == "wayland" {
+    if linux_direct_paste_backend() == "wayland" {
         return Ok(());
     }
 
@@ -604,7 +643,7 @@ pub(crate) fn wait_for_paste_target_focus(_state: &Arc<SharedState>) {}
 
 #[cfg(target_os = "linux")]
 pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
-    if linux_session_backend() == "wayland" {
+    if linux_direct_paste_backend() == "wayland" {
         thread::sleep(Duration::from_millis(180));
         return;
     }
@@ -660,7 +699,7 @@ pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()
 
 #[cfg(target_os = "linux")]
 pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
-    if linux_session_backend() == "wayland" {
+    if linux_direct_paste_backend() == "wayland" {
         return run_linux_wtype(&["-M", "ctrl", "v", "-m", "ctrl"]);
     }
 
@@ -696,7 +735,7 @@ type CGEventTapLocation = u32;
 type CGKeyCode = u16;
 
 #[cfg(target_os = "macos")]
-const KCG_SESSION_EVENT_TAP: CGEventTapLocation = 1;
+const KCG_HID_EVENT_TAP: CGEventTapLocation = 0;
 #[cfg(target_os = "macos")]
 const KCG_EVENT_FLAG_MASK_COMMAND: CGEventFlags = 0x0010_0000;
 #[cfg(target_os = "macos")]
@@ -735,7 +774,7 @@ fn post_macos_keyboard_event(
 
     unsafe {
         CGEventSetFlags(event, flags);
-        CGEventPost(KCG_SESSION_EVENT_TAP, event);
+        CGEventPost(KCG_HID_EVENT_TAP, event);
         CFRelease(event.cast());
     }
 
@@ -760,14 +799,46 @@ pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()>
         anyhow::bail!("paste_target_focus_failed");
     }
 
-    if app_name.filter(|value| !value.is_empty()).is_none() {
+    let Some(app_name) = app_name.filter(|value| !value.is_empty()) else {
         anyhow::bail!("paste_target_focus_failed");
+    };
+
+    match run_macos_paste_menu(&app_name) {
+        Ok(()) => {
+            debug_log_macos_target_event(
+                state,
+                "shortcut-success",
+                bundle_id.as_deref(),
+                current_foreground_app_info().map(|(id, _)| id).as_deref(),
+                "system-events-paste-menu",
+            );
+            return Ok(());
+        }
+        Err(error) => {
+            debug_log_macos_target_event(
+                state,
+                "paste-menu-failed",
+                bundle_id.as_deref(),
+                current_foreground_app_info().map(|(id, _)| id).as_deref(),
+                error.to_string().as_str(),
+            );
+        }
     }
 
     post_macos_keyboard_event(MACOS_KEYCODE_COMMAND, true, KCG_EVENT_FLAG_MASK_COMMAND)?;
+    thread::sleep(Duration::from_millis(12));
     post_macos_keyboard_event(MACOS_KEYCODE_V, true, KCG_EVENT_FLAG_MASK_COMMAND)?;
+    thread::sleep(Duration::from_millis(12));
     post_macos_keyboard_event(MACOS_KEYCODE_V, false, KCG_EVENT_FLAG_MASK_COMMAND)?;
+    thread::sleep(Duration::from_millis(12));
     post_macos_keyboard_event(MACOS_KEYCODE_COMMAND, false, 0)?;
+    debug_log_macos_target_event(
+        state,
+        "shortcut-success",
+        bundle_id.as_deref(),
+        current_foreground_app_info().map(|(id, _)| id).as_deref(),
+        "core-graphics-keyboard-event",
+    );
     Ok(())
 }
 
@@ -809,7 +880,7 @@ pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
     }
     #[cfg(target_os = "linux")]
     {
-        if linux_session_backend() == "wayland" {
+        if linux_direct_paste_backend() == "wayland" {
             return Ok(());
         }
 

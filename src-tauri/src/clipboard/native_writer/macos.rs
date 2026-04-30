@@ -69,6 +69,9 @@ fn write_clipboard_payload_macos(
 
 pub(crate) fn write_payload(payload: &ClipboardPayload) -> Result<()> {
     match payload {
+        ClipboardPayload::Text { text } => {
+            write_clipboard_payload_macos(Some(text.as_str()), None, None, None)
+        }
         ClipboardPayload::Html { text, html } => {
             write_clipboard_payload_macos(text.as_deref(), None, Some(html.as_str()), None)
         }

@@ -129,6 +129,31 @@ impl Default for AppSettings {
     }
 }
 
+impl AppSettings {
+    pub(crate) fn normalized(mut self) -> Self {
+        self.global_shortcut = normalize_shortcut(&self.global_shortcut);
+        self
+    }
+}
+
+fn normalize_shortcut(shortcut: &str) -> String {
+    shortcut
+        .split('+')
+        .map(|token| match token.trim().to_ascii_lowercase().as_str() {
+            "meta" => "Command".to_string(),
+            other => {
+                if other.is_empty() {
+                    String::new()
+                } else {
+                    token.trim().to_string()
+                }
+            }
+        })
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StoredClipboardItem {

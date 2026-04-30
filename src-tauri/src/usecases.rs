@@ -76,6 +76,7 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         state: &Arc<SharedState>,
         settings: &AppSettings,
     ) -> Result<()> {
+        let settings = settings.clone().normalized();
         let capabilities = platform_capabilities();
         let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
         let manager = app.global_shortcut();
@@ -96,15 +97,16 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         if capabilities.supports_launch_on_startup {
             set_launch_on_startup(app, settings.launch_on_startup)?;
         }
-        save_settings(&state.paths, settings)?;
-        state
-            .debug_context_menu_enabled
-            .store(
-                crate::should_enable_devtools(settings.debug_enabled),
-                std::sync::atomic::Ordering::Relaxed,
-            );
+        save_settings(&state.paths, &settings)?;
+        state.debug_context_menu_enabled.store(
+            crate::should_enable_devtools(settings.debug_enabled),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         if let Some(window) = app.get_webview_window(PANEL_LABEL) {
-            apply_debug_mode(&window, crate::should_enable_devtools(settings.debug_enabled))?;
+            apply_debug_mode(
+                &window,
+                crate::should_enable_devtools(settings.debug_enabled),
+            )?;
         }
         *state.settings.lock().unwrap() = settings.clone();
         Ok(())

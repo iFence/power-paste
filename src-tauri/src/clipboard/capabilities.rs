@@ -32,7 +32,7 @@ pub(crate) fn direct_paste_supported() -> bool {
 
     #[cfg(target_os = "linux")]
     {
-        return linux_direct_paste_supported();
+        return true;
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -45,11 +45,14 @@ pub(crate) fn direct_paste_unavailable_reason() -> &'static str {
     if cfg!(target_os = "linux") {
         #[cfg(target_os = "linux")]
         {
-            if linux_session_backend() == "wayland" && !linux_wayland_tooling_available() {
-                return "linux_wayland_tools_missing";
-            }
-            if linux_session_backend() == "x11" && !linux_x11_tooling_available() {
-                return "linux_x11_tools_missing";
+            match linux_direct_paste_backend() {
+                "wayland" if !linux_wayland_tooling_available() => {
+                    return "linux_wayland_tools_missing";
+                }
+                "x11" if !linux_x11_tooling_available() => {
+                    return "linux_x11_tools_missing";
+                }
+                _ => {}
             }
         }
     }
@@ -83,7 +86,7 @@ fn direct_paste_strategy() -> &'static str {
     } else if direct_paste_supported() {
         #[cfg(target_os = "linux")]
         {
-            if linux_session_backend() == "wayland" {
+            if linux_direct_paste_backend() == "wayland" {
                 return "simulated-wtype-shortcut";
             }
         }
@@ -139,7 +142,7 @@ pub(crate) fn linux_wayland_tooling_available() -> bool {
 #[cfg(target_os = "linux")]
 fn linux_direct_paste_supported() -> bool {
     linux_direct_paste_supported_with(
-        linux_session_backend(),
+        linux_direct_paste_backend(),
         linux_x11_tooling_available(),
         linux_wayland_tooling_available(),
     )
@@ -147,14 +150,38 @@ fn linux_direct_paste_supported() -> bool {
 
 #[cfg(target_os = "linux")]
 fn linux_direct_paste_supported_with(
-    session_backend: &str,
+    direct_paste_backend: &str,
     x11_tooling_available: bool,
     wayland_tooling_available: bool,
 ) -> bool {
-    match session_backend {
+    match direct_paste_backend {
         "x11" => x11_tooling_available,
         "wayland" => wayland_tooling_available,
         _ => false,
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_direct_paste_backend() -> &'static str {
+    linux_direct_paste_backend_with(
+        linux_session_backend(),
+        linux_x11_tooling_available(),
+        linux_wayland_tooling_available(),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn linux_direct_paste_backend_with(
+    session_backend: &str,
+    x11_tooling_available: bool,
+    wayland_tooling_available: bool,
+) -> &'static str {
+    match session_backend {
+        "wayland" => "wayland",
+        "x11" => "x11",
+        _ if x11_tooling_available => "x11",
+        _ if wayland_tooling_available => "wayland",
+        _ => "x11",
     }
 }
 
@@ -200,12 +227,9 @@ mod tests {
     fn direct_paste_support_matches_platform_policy() {
         let capabilities = platform_capabilities();
 
-        if cfg!(windows) || cfg!(target_os = "macos") {
+        if cfg!(windows) || cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             assert!(capabilities.supports_direct_paste);
         } else {
-            #[cfg(target_os = "linux")]
-            let expected = super::linux_direct_paste_supported();
-            #[cfg(not(target_os = "linux"))]
             let expected = false;
 
             assert_eq!(capabilities.supports_direct_paste, expected);
@@ -291,5 +315,18 @@ mod tests {
         assert!(!super::linux_direct_paste_supported_with(
             "wayland", false, false
         ));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_direct_paste_backend_falls_back_to_available_tooling_when_session_is_unknown() {
+        assert_eq!(
+            super::linux_direct_paste_backend_with("unknown", true, false),
+            "x11"
+        );
+        assert_eq!(
+            super::linux_direct_paste_backend_with("unknown", false, true),
+            "wayland"
+        );
     }
 }

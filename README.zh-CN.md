@@ -39,6 +39,21 @@ English version: [README.md](./README.md)。
 - macOS：直接粘贴依赖系统授予“辅助功能 / 自动化”权限
 - Linux：直接粘贴支持 `X11 + xdotool` 和 `Wayland + wtype`；图文混合内容仍会退化为单一优先载荷回放
 
+### macOS 升级后重新授权
+
+如果从旧版本升级后，直接粘贴仍然提示缺少“辅助功能”或“自动化”权限，可能是 macOS 仍然把权限记录关联到了旧的应用构建。可按以下步骤重新授权 Power Paste：
+
+1. 退出 Power Paste。
+2. 执行以下命令：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
+```
+
+3. 打开“系统设置 > 隐私与安全性 > 辅助功能”，将 Power Paste 关闭后再重新打开。
+4. 打开“系统设置 > 隐私与安全性 > 自动化”，如果列表中出现 Power Paste，也重新启用对应权限。
+5. 重新启动 Power Paste 后再尝试直接粘贴。
+
 ## 功能说明
 
 ### 历史面板交互
