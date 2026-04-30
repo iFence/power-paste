@@ -7,6 +7,7 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, Size, WindowEvent,
+    WebviewWindow,
 };
 
 #[cfg(windows)]
@@ -22,6 +23,31 @@ use crate::{
     save_settings,
     update::spawn_manual_check,
 };
+
+const PANEL_MIN_WIDTH: u32 = 380;
+const PANEL_MIN_HEIGHT: u32 = 600;
+
+fn min_panel_physical_size(scale_factor: f64) -> PhysicalSize<u32> {
+    let scale_factor = scale_factor.max(1.0);
+    PhysicalSize::new(
+        (PANEL_MIN_WIDTH as f64 * scale_factor).ceil() as u32,
+        (PANEL_MIN_HEIGHT as f64 * scale_factor).ceil() as u32,
+    )
+}
+
+fn clamp_panel_size(width: u32, height: u32, scale_factor: f64) -> PhysicalSize<u32> {
+    let minimum = min_panel_physical_size(scale_factor);
+    PhysicalSize::new(width.max(minimum.width), height.max(minimum.height))
+}
+
+fn ensure_panel_min_size(window: &WebviewWindow, scale_factor: f64) -> Result<()> {
+    let current = window.outer_size()?;
+    let clamped = clamp_panel_size(current.width, current.height, scale_factor);
+    if clamped != current {
+        window.set_size(Size::Physical(clamped))?;
+    }
+    Ok(())
+}
 
 // Toggles the panel near the cursor and remembers the previous app for later paste-back.
 pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
@@ -42,9 +68,10 @@ pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
         remember_last_target_window(app);
         let cursor = app.cursor_position()?;
         let monitor = app.monitor_from_point(cursor.x, cursor.y)?;
-        let size = window.outer_size()?;
 
         if let Some(monitor) = monitor {
+            ensure_panel_min_size(&window, monitor.scale_factor())?;
+            let size = window.outer_size()?;
             let screen_origin = monitor.position();
             let screen_size = monitor.size();
             let margin = 16i32;
@@ -95,7 +122,8 @@ pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Res
             window.set_position(Position::Physical(PhysicalPosition::new(x, y)))?;
         }
         if let (Some(width), Some(height)) = (settings.window_width, settings.window_height) {
-            window.set_size(Size::Physical(PhysicalSize::new(width, height)))?;
+            let size = clamp_panel_size(width, height, window.scale_factor()?);
+            window.set_size(Size::Physical(size))?;
         }
     }
 
