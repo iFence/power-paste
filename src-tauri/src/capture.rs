@@ -29,6 +29,14 @@ pub(crate) fn clipboard_suppression_remaining(state: &Arc<SharedState>) -> Optio
         .and_then(|until| until.checked_duration_since(Instant::now()))
 }
 
+// 清空历史后重置剪贴板观察状态，允许相同内容再次被捕获。
+pub(crate) fn reset_clipboard_observation(state: &Arc<SharedState>) {
+    let mut monitor = state.monitor.lock().unwrap();
+    monitor.last_seen_hash = None;
+    monitor.suppress_hash = None;
+    monitor.suppress_until = None;
+}
+
 fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>) {
     if clipboard_suppression_remaining(&shared).is_some() {
         return;

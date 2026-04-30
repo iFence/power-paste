@@ -103,6 +103,7 @@ pub(crate) fn clear_history(state: State<'_, std::sync::Arc<SharedState>>) -> Re
     let store = state.history_store.lock().unwrap();
     store.clear_history()?;
     *state.history.lock().unwrap() = store.list_all()?;
+    crate::capture::reset_clipboard_observation(&state);
     Ok(())
 }
 
