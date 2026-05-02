@@ -6,7 +6,7 @@ import {
   getSettings as fetchSettings,
   updateSettings as persistSettings,
 } from "../services/tauriApi";
-import { normalizeShortcutKey } from "../utils/shortcut";
+import { normalizeShortcutKey, normalizeShortcutValue } from "../utils/shortcut";
 
 function detectClientPlatform() {
   const userAgent = window.navigator.userAgent.toLowerCase();
@@ -39,6 +39,7 @@ function extractErrorCode(error) {
 function initialPlatformCapabilities(platform) {
   const isWindows = platform === "windows";
   const isMacos = platform === "macos";
+  const isLinux = platform === "linux";
 
   return {
     platform,
@@ -47,8 +48,8 @@ function initialPlatformCapabilities(platform) {
     supportsTextWrite: true,
     supportsHtmlWrite: true,
     supportsImageWrite: true,
-    supportsDirectPaste: isWindows || isMacos,
-    supportsLaunchOnStartup: isWindows || isMacos,
+    supportsDirectPaste: isWindows || isMacos || isLinux,
+    supportsLaunchOnStartup: isWindows || isMacos || isLinux,
     supportsMixedReplay: isWindows,
     preferredClipboardBackend: isWindows
       ? "plugin+native-fallback"
@@ -60,12 +61,18 @@ function initialPlatformCapabilities(platform) {
       : isMacos
         ? "plugin-first-with-mixed-degradation"
         : "plugin-only",
-    directPasteStrategy: isWindows || isMacos ? "simulated-native-shortcut" : "unsupported",
+    directPasteStrategy: isWindows || isMacos
+      ? "simulated-native-shortcut"
+      : isLinux
+        ? "linux-tooling-runtime-check"
+        : "unsupported",
     mixedReplayStrategy: isWindows
       ? "target-aware-segmented-replay"
       : isMacos
         ? "plugin-degraded-single-payload"
-        : "unsupported",
+        : isLinux
+          ? "plugin-degraded-single-payload"
+          : "unsupported",
   };
 }
 
@@ -236,11 +243,11 @@ export function useSettings() {
       parts.push("Shift");
     }
     if (event.metaKey) {
-      parts.push("Meta");
+      parts.push(detectedPlatform === "macos" ? "Command" : "Super");
     }
 
-    const mainKey = normalizeShortcutKey(event.key);
-    if (!mainKey || ["Ctrl", "Alt", "Shift", "Meta"].includes(mainKey)) {
+    const mainKey = normalizeShortcutKey(event.key, detectedPlatform);
+    if (!mainKey || ["Ctrl", "Alt", "Shift", "Command", "Super"].includes(mainKey)) {
       return;
     }
 
@@ -258,7 +265,10 @@ export function useSettings() {
 
   async function refreshSettings() {
     const next = await fetchSettings();
-    Object.assign(settings, next);
+    Object.assign(settings, {
+      ...next,
+      globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
+    });
     if (!platformCapabilities.value.supportsLaunchOnStartup) {
       settings.launchOnStartup = false;
     }
@@ -271,6 +281,7 @@ export function useSettings() {
 
     const payload = {
       ...settings,
+      globalShortcut: normalizeShortcutValue(settings.globalShortcut, detectedPlatform),
       launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
         ? settings.launchOnStartup
         : false,

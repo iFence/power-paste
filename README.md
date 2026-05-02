@@ -40,6 +40,21 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 - macOS: direct paste depends on Accessibility / Automation permission from the system
 - Linux: direct paste supports `X11 + xdotool` and `Wayland + wtype`; mixed content replay still falls back to a single preferred payload
 
+### macOS Permission Reset After Upgrade
+
+If direct paste still reports missing Accessibility or Automation permission after upgrading from an older version, macOS may still associate the permission record with the previous app build. Re-authorize Power Paste with these steps:
+
+1. Quit Power Paste.
+2. Run the following command:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
+```
+
+3. Open `System Settings > Privacy & Security > Accessibility` and turn Power Paste off, then on again.
+4. Open `System Settings > Privacy & Security > Automation` and re-enable Power Paste if it appears there.
+5. Start Power Paste again and try direct paste.
+
 ## Feature Overview
 
 ### History Workflow

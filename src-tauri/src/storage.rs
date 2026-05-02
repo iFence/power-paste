@@ -9,21 +9,23 @@ use crate::models::{AppSettings, StoragePaths};
 
 pub(crate) fn load_settings(paths: &StoragePaths) -> Result<AppSettings> {
     if !paths.settings_path.exists() {
-        let settings = AppSettings::default();
+        let settings = AppSettings::default().normalized();
         save_settings(paths, &settings)?;
         return Ok(settings);
     }
 
     let bytes = fs::read(&paths.settings_path)?;
     let settings: AppSettings = from_slice(&bytes)?;
+    let settings = settings.normalized();
     Ok(settings)
 }
 
 pub(crate) fn save_settings(paths: &StoragePaths, settings: &AppSettings) -> Result<()> {
+    let settings = settings.clone().normalized();
     if let Some(parent) = paths.settings_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&paths.settings_path, to_vec_pretty(settings)?)?;
+    fs::write(&paths.settings_path, to_vec_pretty(&settings)?)?;
     Ok(())
 }
 

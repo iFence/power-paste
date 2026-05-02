@@ -4,6 +4,9 @@ use super::payload::ClipboardPayload;
 
 pub(crate) fn preferred_backend_for_payload(payload: &ClipboardPayload) -> ClipboardBackend {
     match payload {
+        ClipboardPayload::Text { .. } if cfg!(target_os = "macos") => {
+            ClipboardBackend::NativeFallback
+        }
         ClipboardPayload::Image { .. } if cfg!(target_os = "macos") => {
             ClipboardBackend::NativeFallback
         }

@@ -17,7 +17,8 @@ pub(crate) use capabilities::direct_paste_unavailable_reason;
 pub(crate) use capabilities::{launch_on_startup_supported, platform_capabilities};
 #[cfg(target_os = "linux")]
 pub(crate) use capabilities::{
-    linux_session_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
+    linux_direct_paste_backend, linux_session_backend, linux_wayland_tooling_available,
+    linux_x11_tooling_available,
 };
 pub(crate) use capture_router::capture_clipboard;
 #[cfg(windows)]
