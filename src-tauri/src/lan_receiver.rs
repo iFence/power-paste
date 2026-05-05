@@ -959,14 +959,7 @@ fn store_and_write_capture(
     let text = capture_text(&capture);
     let item = {
         let mut store = state.history_store.lock().unwrap();
-        let mut history = state.history.lock().unwrap();
-        store_capture_item(
-            &mut store,
-            &mut history,
-            capture,
-            Some(("Mobile".into(), None)),
-            settings,
-        )?
+        store_capture_item(&mut store, capture, Some(("Mobile".into(), None)), settings)?
     };
 
     let _ = app.emit(HISTORY_UPDATED_EVENT, history_item_to_dto(&item));

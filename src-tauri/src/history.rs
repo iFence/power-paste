@@ -545,26 +545,15 @@ pub(crate) fn build_captured_clipboard(
     Ok(None)
 }
 
-pub(crate) fn upsert_history_item(
-    history: &mut Vec<StoredClipboardItem>,
-    item: StoredClipboardItem,
-) {
-    history.retain(|existing| existing.id != item.id);
-    history.insert(0, item);
-}
-
 pub(crate) fn store_capture_item(
     store: &mut SqliteHistoryStore,
-    history: &mut Vec<StoredClipboardItem>,
     capture: CapturedClipboard,
     source_app: Option<(String, Option<String>)>,
     settings: &AppSettings,
 ) -> Result<StoredClipboardItem> {
     let upserted = store.upsert_capture(capture, source_app, settings)?;
     let _inserted = upserted.inserted;
-    let item = upserted.item;
-    upsert_history_item(history, item.clone());
-    Ok(item)
+    Ok(upserted.item)
 }
 
 pub(crate) fn history_to_dto(

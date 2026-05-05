@@ -85,6 +85,7 @@ impl SqliteHistoryStore {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn list_all(&self) -> Result<Vec<StoredClipboardItem>> {
         self.query_items(None, None, 0)
     }

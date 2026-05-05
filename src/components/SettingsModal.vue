@@ -1,9 +1,10 @@
 <script setup>
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { openExternalUrl } from '../services/tauriApi'
+import { normalizeShortcutKey } from '../utils/shortcut'
 import checkIcon from '../assets/check.svg'
 
 const ABOUT_INFO = {
@@ -19,20 +20,12 @@ const props = defineProps({
   appVersion: { type: String, required: true },
   beginShortcutRecording: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
-  chooseSelectOption: { type: Function, required: true },
-  clearGlobalShortcut: { type: Function, required: true },
   closeSelect: { type: Function, required: true },
   currentAccentColorOptions: { type: Array, required: true },
   currentLocale: { type: String, required: true },
   currentThemeModeOptions: { type: Array, required: true },
-  debugToggleIndex: { type: Number, required: true },
   endShortcutRecording: { type: Function, required: true },
-  handleShortcutKeydown: { type: Function, required: true },
-  languageToggleIndex: { type: Number, required: true },
-  launchToggleIndex: { type: Number, required: true },
   localeOptions: { type: Array, required: true },
-  maxImageBytesMb: { type: Number, required: true },
-  onUpdateMaxImageBytesMb: { type: Function, required: true },
   onCheckUpdates: { type: Function, required: true },
   onClearUpdateDebugStatus: { type: Function, required: true },
   onInstallUpdate: { type: Function, required: true },
@@ -49,7 +42,6 @@ const props = defineProps({
   settings: { type: Object, required: true },
   settingsSaveError: { type: String, required: true },
   showSettings: { type: Boolean, required: true },
-  soundToggleIndex: { type: Number, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
   updateDebugEnabled: { type: Boolean, required: true },
@@ -66,16 +58,93 @@ const showUpdateFeedback = ref(false)
 let updateFeedbackTimer = null
 const updateDebugVersionDraft = ref('')
 const updateDebugBodyDraft = ref('')
+const settings = reactive({})
+
+const draftLanguageToggleIndex = computed(() =>
+  Math.max(props.localeOptions.findIndex((option) => option.value === settings.locale), 0),
+)
+const draftDebugToggleIndex = computed(() => (settings.debugEnabled ? 0 : 1))
+const draftSoundToggleIndex = computed(() => (settings.soundEnabled ? 0 : 1))
+const draftLaunchToggleIndex = computed(() => (settings.launchOnStartup ? 0 : 1))
+const draftMaxImageBytesMb = computed({
+  get: () => Number(((Number(settings.maxImageBytes) || 0) / 1_000_000).toFixed(1)),
+  set: (value) => {
+    const next = Number(value)
+    settings.maxImageBytes = Math.max(
+      1_000_000,
+      Math.round((Number.isFinite(next) ? next : 1) * 1_000_000),
+    )
+  },
+})
+
+function syncSettingsDraft() {
+  Object.assign(settings, {
+    ...props.settings,
+  })
+}
 
 async function chooseLanTransferDownloadDir() {
   const selected = await open({
     directory: true,
     multiple: false,
-    defaultPath: props.settings.lanTransferDownloadDir || undefined,
+    defaultPath: settings.lanTransferDownloadDir || undefined,
   })
   if (typeof selected === 'string') {
-    props.settings.lanTransferDownloadDir = selected
+    settings.lanTransferDownloadDir = selected
   }
+}
+
+function chooseDraftSelectOption(key, field, value) {
+  settings[field] = value
+  if (key === 'themeMode' || key === 'accentColor') {
+    props.closeSelect()
+  }
+}
+
+function clearDraftGlobalShortcut() {
+  settings.globalShortcut = ''
+  props.endShortcutRecording()
+}
+
+function handleDraftShortcutKeydown(event) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  if (event.key === 'Tab' || event.key === 'Escape') {
+    props.endShortcutRecording()
+    return
+  }
+
+  if (event.key === 'Backspace' || event.key === 'Delete') {
+    clearDraftGlobalShortcut()
+    return
+  }
+
+  const parts = []
+  if (event.ctrlKey) {
+    parts.push('Ctrl')
+  }
+  if (event.altKey) {
+    parts.push('Alt')
+  }
+  if (event.shiftKey) {
+    parts.push('Shift')
+  }
+  if (event.metaKey) {
+    parts.push(props.platformCapabilities.platform === 'macos' ? 'Command' : 'Super')
+  }
+
+  const mainKey = normalizeShortcutKey(event.key, props.platformCapabilities.platform)
+  if (!mainKey || ['Ctrl', 'Alt', 'Shift', 'Command', 'Super'].includes(mainKey)) {
+    return
+  }
+
+  settings.globalShortcut = [...parts, mainKey].join('+')
+  props.endShortcutRecording()
+}
+
+async function handleSaveSettings() {
+  await props.saveSettings({ ...settings })
 }
 
 const updateNotes = computed(() => {
@@ -233,6 +302,16 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => props.showSettings,
+  (showSettings) => {
+    if (showSettings) {
+      syncSettingsDraft()
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -286,7 +365,7 @@ watch(
             class="setting-toggle"
             role="group"
             :aria-label="t('language')"
-            :style="segmentedToggleStyle(languageToggleIndex, localeOptions.length)"
+            :style="segmentedToggleStyle(draftLanguageToggleIndex, localeOptions.length)"
           >
             <button
               v-for="option in localeOptions"
@@ -325,7 +404,7 @@ watch(
                 type="button"
                 class="custom-select-option"
                 :class="{ active: settings.themeMode === option.value }"
-                @click="chooseSelectOption('themeMode', 'themeMode', option.value)"
+                @click="chooseDraftSelectOption('themeMode', 'themeMode', option.value)"
               >
                 <span>{{ option.label }}</span>
               </button>
@@ -357,7 +436,7 @@ watch(
                 type="button"
                 class="custom-select-option"
                 :class="{ active: settings.accentColor === option.value }"
-                @click="chooseSelectOption('accentColor', 'accentColor', option.value)"
+                @click="chooseDraftSelectOption('accentColor', 'accentColor', option.value)"
               >
                 <span>{{ option.label }}</span>
               </button>
@@ -377,7 +456,7 @@ watch(
             :class="{ disabled: !canToggleLaunchOnStartup }"
             role="group"
             :aria-label="t('launchOnStartup')"
-            :style="segmentedToggleStyle(launchToggleIndex, 2)"
+            :style="segmentedToggleStyle(draftLaunchToggleIndex, 2)"
           >
             <button
               type="button"
@@ -408,7 +487,7 @@ watch(
             class="setting-toggle"
             role="group"
             :aria-label="t('copySound')"
-            :style="segmentedToggleStyle(soundToggleIndex, 2)"
+            :style="segmentedToggleStyle(draftSoundToggleIndex, 2)"
           >
             <button
               type="button"
@@ -451,11 +530,11 @@ watch(
             </span>
           </div>
           <input
-            :value="maxImageBytesMb"
+            :value="draftMaxImageBytesMb"
             type="number"
             min="1"
             step="0.5"
-            @input="onUpdateMaxImageBytesMb($event.target.value)"
+            @input="draftMaxImageBytesMb = $event.target.value"
           />
         </section>
 
@@ -503,7 +582,7 @@ watch(
               :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
               @focus="beginShortcutRecording"
               @blur="endShortcutRecording"
-              @keydown="handleShortcutKeydown"
+              @keydown="handleDraftShortcutKeydown"
             />
             <button
               v-if="settings.globalShortcut"
@@ -511,7 +590,7 @@ watch(
               class="shortcut-clear-button"
               :aria-label="t('clear')"
               @mousedown.prevent
-              @click="clearGlobalShortcut"
+              @click="clearDraftGlobalShortcut"
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -526,7 +605,7 @@ watch(
             class="setting-toggle"
             role="group"
             :aria-label="t('debugMode')"
-            :style="segmentedToggleStyle(debugToggleIndex, 2)"
+            :style="segmentedToggleStyle(draftDebugToggleIndex, 2)"
           >
             <button
               type="button"
@@ -611,7 +690,7 @@ watch(
 
       <footer class="modal-footer">
         <span v-if="settingsSaveError" class="settings-save-feedback">{{ settingsSaveError }}</span>
-        <button class="primary" type="button" :disabled="savingSettings" @click="saveSettings">
+        <button class="primary" type="button" :disabled="savingSettings" @click="handleSaveSettings">
           {{ t("saveChanges") }}
         </button>
       </footer>

@@ -251,7 +251,6 @@ pub(crate) struct SharedState {
     pub(crate) paths: StoragePaths,
     pub(crate) settings: Arc<Mutex<AppSettings>>,
     pub(crate) history_store: Arc<Mutex<crate::repository::SqliteHistoryStore>>,
-    pub(crate) history: Arc<Mutex<Vec<StoredClipboardItem>>>,
     pub(crate) monitor: Arc<Mutex<MonitorState>>,
     pub(crate) debug_context_menu_enabled: Arc<AtomicBool>,
     pub(crate) macos_direct_paste_permission_verified: Arc<AtomicBool>,

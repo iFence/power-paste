@@ -289,16 +289,19 @@ export function useSettings() {
     }
   }
 
-  async function saveSettings(onSaved) {
+  async function saveSettings(nextSettings = settings, onSaved) {
     if (savingSettings.value) {
       return;
     }
 
+    const sourceSettings =
+      typeof nextSettings === "function" ? settings : nextSettings;
+    const savedCallback = typeof nextSettings === "function" ? nextSettings : onSaved;
     const payload = {
-      ...settings,
-      globalShortcut: normalizeShortcutValue(settings.globalShortcut, detectedPlatform),
+      ...sourceSettings,
+      globalShortcut: normalizeShortcutValue(sourceSettings.globalShortcut, detectedPlatform),
       launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
-        ? settings.launchOnStartup
+        ? sourceSettings.launchOnStartup
         : false,
     };
     settingsSaveError.value = "";
@@ -309,7 +312,7 @@ export function useSettings() {
     try {
       await persistSettings(payload);
       Object.assign(settings, payload);
-      onSaved?.();
+      savedCallback?.();
     } catch (error) {
       settingsSaveError.value = formatErrorMessage(error);
       showSettings.value = true;

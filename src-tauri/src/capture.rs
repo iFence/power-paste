@@ -189,15 +189,18 @@ fn hydrate_source_icon_async(
                 return;
             }
 
-            let mut history = shared.history.lock().unwrap();
-            let Some(item) = history.iter_mut().find(|item| item.id == item_id) else {
+            let item = match store.get_item(&item_id) {
+                Ok(Some(item)) => item,
+                Ok(None) => return,
+                Err(error) => {
+                    eprintln!("source icon reload error: {error}");
+                    return;
+                }
+            };
+            if item.source_icon_data_url.as_deref() != Some(icon_data_url.as_str()) {
                 return;
             };
-            if item.source_icon_data_url.as_deref() == Some(icon_data_url.as_str()) {
-                return;
-            }
-            item.source_icon_data_url = Some(icon_data_url);
-            history_item_to_dto(item)
+            history_item_to_dto(&item)
         };
 
         let _ = app.emit(HISTORY_UPDATED_EVENT, updated_item);
@@ -272,10 +275,8 @@ fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>, allow_init
             let source_app_for_icon = source_app.clone();
             let history_item = {
                 let mut store = shared.history_store.lock().unwrap();
-                let mut history = shared.history.lock().unwrap();
                 match store_capture_item(
                     &mut store,
-                    &mut history,
                     capture,
                     source_app.and_then(source_app_info),
                     &settings,

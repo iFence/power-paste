@@ -118,15 +118,12 @@ pub fn run() {
             let settings = Arc::new(Mutex::new(
                 load_settings(&paths).context("failed to load settings")?,
             ));
-            let history_store = SqliteHistoryStore::new(&paths)?;
-            let history = Arc::new(Mutex::new(history_store.list_all()?));
-            let history_store = Arc::new(Mutex::new(history_store));
+            let history_store = Arc::new(Mutex::new(SqliteHistoryStore::new(&paths)?));
 
             let shared = Arc::new(SharedState {
                 paths,
                 settings: settings.clone(),
                 history_store: history_store.clone(),
-                history: history.clone(),
                 monitor: Arc::new(Mutex::new(MonitorState::default())),
                 debug_context_menu_enabled: Arc::new(AtomicBool::new(
                     settings.lock().unwrap().debug_enabled,
