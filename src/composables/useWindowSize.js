@@ -13,6 +13,7 @@ const WINDOW_SIZES = {
 let savedHomeSize = null
 let isResizing = false
 let currentRouteName = null
+let isFirstLoad = true
 
 /**
  * 窗口尺寸管理 composable
@@ -27,6 +28,26 @@ export function useWindowSize(route) {
   watch(
     () => route.name,
     async (routeName, oldRouteName) => {
+      // 首次加载时，记录初始路由但不做调整
+      if (isFirstLoad) {
+        isFirstLoad = false
+        currentRouteName = routeName
+        
+        // 如果首次加载就是主面板，保存初始尺寸
+        if (routeName === 'home' || routeName === 'lanTransfer') {
+          try {
+            const currentSize = await appWindow.innerSize()
+            savedHomeSize = {
+              width: currentSize.width,
+              height: currentSize.height,
+            }
+          } catch (error) {
+            console.error('Failed to get initial size:', error)
+          }
+        }
+        return
+      }
+
       // 避免重复调整或相同路由
       if (isResizing || routeName === currentRouteName) {
         return
@@ -35,12 +56,10 @@ export function useWindowSize(route) {
       try {
         isResizing = true
 
-        // 获取当前窗口尺寸
-        const currentSize = await appWindow.innerSize()
-
-        // 从主面板切换到设置面板
-        if (oldRouteName === 'home' && routeName === 'settings') {
-          // 保存主面板的当前尺寸
+        // 从主面板或互传面板切换到设置面板
+        if ((oldRouteName === 'home' || oldRouteName === 'lanTransfer') && routeName === 'settings') {
+          // 保存当前尺寸（在切换前保存）
+          const currentSize = await appWindow.innerSize()
           savedHomeSize = {
             width: currentSize.width,
             height: currentSize.height,
@@ -49,7 +68,6 @@ export function useWindowSize(route) {
           // 切换到设置面板的固定尺寸
           const targetSize = WINDOW_SIZES.settings
 
-          // 等待下一帧，确保 DOM 更新
           await nextTick()
 
           await appWindow.setSize({
@@ -61,9 +79,9 @@ export function useWindowSize(route) {
           currentRouteName = routeName
           await new Promise((resolve) => setTimeout(resolve, 150))
         }
-        // 从设置面板切换回主面板
-        else if (oldRouteName === 'settings' && routeName === 'home') {
-          // 恢复主面板之前保存的尺寸
+        // 从设置面板切换回主面板或互传面板
+        else if (oldRouteName === 'settings' && (routeName === 'home' || routeName === 'lanTransfer')) {
+          // 恢复之前保存的尺寸
           if (savedHomeSize) {
             await nextTick()
 
@@ -76,11 +94,11 @@ export function useWindowSize(route) {
             currentRouteName = routeName
             await new Promise((resolve) => setTimeout(resolve, 150))
           } else {
-            // 如果没有保存的尺寸（首次启动），不做调整
+            // 如果没有保存的尺寸，不做调整
             currentRouteName = routeName
           }
         }
-        // 其他路由切换（如主面板 <-> 互传面板）
+        // 主面板和互传面板之间切换
         else {
           // 不做窗口尺寸调整，保持用户当前的窗口大小
           currentRouteName = routeName
