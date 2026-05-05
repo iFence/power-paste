@@ -79,6 +79,21 @@ src-tauri/
 5. **禁止硬编码**：常量统一定义在 `src/utils/constants.js` 或各模块的 `constants.js` 中。
 6. **禁止 fallback 掩盖错误**：代码应快速失败（Fail-Fast），不得添加吞掉错误的 try-catch 或默认值来掩盖异常。
 
+### 已知易错点与强约束
+
+1. **历史记录以 SQLite 为唯一事实来源**：
+   - 禁止在 `SharedState` 或前端维护完整历史记录副本作为事实来源。
+   - Tauri command 写入、删除、置顶、编辑历史后，禁止通过 `list_all()` 回填全量历史缓存。
+   - 捕获剪贴板或手机互传内容时，应写入 SQLite 后通过事件发送本次变更 DTO。
+2. **Tauri command 按领域拆分**：
+   - `src-tauri/src/commands.rs` 只做模块声明和 re-export。
+   - 新增 command 应放入 `src-tauri/src/commands/` 下对应领域文件，例如 `history.rs`、`settings.rs`、`clipboard.rs`、`lan_transfer.rs`。
+   - command 层保持薄入口，业务逻辑优先放在 usecase、repository 或领域模块中。
+3. **重构必须保持行为可验证**：
+   - 架构整理优先小步提交，不做无关视觉、文案或交互改动。
+   - 修改历史、设置、互传或剪贴板链路后，至少运行 `pnpm.cmd build`、`cargo check`、`cargo test`。
+   - 如果测试出现既有 warning，应在最终说明中标明；不得把 warning 当成失败静默忽略。
+
 ---
 
 ## 四、Git 工作流规范

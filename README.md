@@ -29,8 +29,10 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 - Edit plain-text history items in place
 - Restore clipboard content or paste directly back to the previous target app when supported on the current platform
 - Hover image thumbnails to preview a larger image
-- Send text or up to 9 images from a phone browser to the desktop clipboard over the local network by scanning a QR code
-- Settings for language, theme mode, accent color, launch on startup, history size, image size, debug mode, and global shortcut
+- Browse large history sets smoothly while keeping an accurate item count
+- Transfer text and files between the desktop app and a phone browser over the local network by scanning a QR code
+- Show connected / disconnected transfer status on both desktop and phone, with automatic idle-session cleanup
+- Settings for language, theme mode, accent color, launch on startup, history size, image size, transfer download folder, debug mode, and global shortcut
 - Tray integration, single-instance behavior, startup update checks, and manual update checks from the tray menu
 - Local persistence powered by SQLite
 
@@ -60,6 +62,8 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 ### History Workflow
 
 - The main panel opens as a compact transparent window
+- The history list stays responsive even when many items have been saved
+- The footer shows an accurate count for the current search
 - Arrow keys move through the filtered list and keep the active item in view
 - `Enter` pastes the selected item back to the last target application when supported
 - `Ctrl/Cmd + C` copies the selected history item back to the system clipboard
@@ -73,14 +77,17 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 - Image items: thumbnail preview, large-image hover preview, copy/paste support on supported platforms
 - Mixed items: preserved as combined content where the backend supports mixed replay
 
-### Mobile Send
+### Phone and PC Transfer
 
-- Start a temporary local-network receiver from the desktop panel and scan the generated QR code with a phone
+- Start a temporary local-network transfer session from the desktop panel and scan the generated QR code with a phone
 - No mobile app is required; the phone uses a browser page served by the desktop app
-- Send plain text or image-only uploads to the desktop clipboard
-- Select and upload up to 9 images at once; images are submitted one by one and appear as separate history entries
-- Uploaded image entries preserve the original file bytes and MIME type for preview and size display, while the desktop clipboard path still prepares the platform-specific image payload needed for paste compatibility
-- The receiver URL includes a random session token and expires automatically after a short session window or when the receiver is closed
+- Share the transfer link directly when scanning is inconvenient
+- Send plain text, images, and files between the desktop app and phone browser in a chat-style transfer view
+- Phone-to-desktop text and images are copied into the desktop clipboard and added to history
+- Desktop-to-phone messages appear in the phone page and provide copy or download actions
+- Received files are saved to the configured transfer download folder and can be opened or revealed from the desktop transfer history
+- Both sides show connected / disconnected status with green or red glow indicators; a disconnected phone is prompted to scan again
+- Transfer sessions stop automatically after being idle
 
 ### Settings
 
@@ -90,6 +97,7 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 - Launch on startup
 - Maximum history item count
 - Maximum stored image size
+- Transfer download folder
 - Global shortcut recording and clearing
 - Debug mode toggle
 
@@ -202,6 +210,7 @@ Typical persisted data includes:
 
 - SQLite history database with embedded text, rich text, and image payloads
 - Original image bytes for mobile uploads, so history preview and displayed size can match the uploaded file more closely
+- Files received through Phone and PC Transfer, stored in the configured download folder
 - `settings.json`
 
 The repository no longer relies on a plain `history.json` file for the primary history store; history is backed by SQLite in the current implementation.
@@ -217,7 +226,8 @@ The repository no longer relies on a plain `history.json` file for the primary h
 │   ├── styles/          # Shared application styles
 │   └── utils/           # Frontend helpers
 ├── src-tauri/
-│   ├── src/commands.rs  # Tauri command entrypoints
+│   ├── src/commands/    # Tauri command entrypoints grouped by feature area
+│   ├── src/commands.rs  # Command module exports
 │   ├── src/runtime.rs   # Window and runtime behavior
 │   ├── src/lan_receiver.rs # Local-network mobile send receiver
 │   ├── src/update.rs    # App updater flow
