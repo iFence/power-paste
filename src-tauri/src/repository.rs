@@ -98,6 +98,34 @@ impl SqliteHistoryStore {
         self.query_items(query, Some(limit), offset)
     }
 
+    pub(crate) fn count_history(&self, query: Option<&str>) -> Result<usize> {
+        let query = query.unwrap_or("").trim().to_lowercase();
+        if query.is_empty() {
+            return self
+                .connection
+                .query_row("SELECT COUNT(*) FROM clipboard_items", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map(|count| count.max(0) as usize)
+                .map_err(Into::into);
+        }
+
+        self.connection
+            .query_row(
+                r#"
+                SELECT COUNT(*)
+                FROM clipboard_items
+                WHERE lower(
+                  preview || char(10) || coalesce(full_text, '') || char(10) || coalesce(source_app, '')
+                ) LIKE '%' || ?1 || '%'
+                "#,
+                params![query],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count.max(0) as usize)
+            .map_err(Into::into)
+    }
+
     fn query_items(
         &self,
         query: Option<&str>,

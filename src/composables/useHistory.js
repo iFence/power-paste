@@ -172,6 +172,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
   const loadingMore = ref(false);
   const hasMoreHistory = ref(true);
   const loadedHistoryOffset = ref(0);
+  const totalHistoryCount = ref(0);
 
   const filteredHistory = computed(() =>
     history.value.filter((item) => {
@@ -246,9 +247,8 @@ export function useHistory({ platformCapabilities, settings, t }) {
   }
 
   const historyCountLabel = computed(() => {
-    const count = filteredHistory.value.length;
     return t("itemCount", {
-      count,
+      count: totalHistoryCount.value,
       shortcut: settings.globalShortcut || "--",
     });
   });
@@ -298,9 +298,10 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
   function updateHistoryPaginationState(receivedCount, requestedLimit) {
     const maxLimit = configuredHistoryLimit();
+    const effectiveTotal = Math.min(totalHistoryCount.value, maxLimit);
     hasMoreHistory.value =
       receivedCount === requestedLimit &&
-      (!Number.isFinite(maxLimit) || loadedHistoryOffset.value < maxLimit);
+      loadedHistoryOffset.value < effectiveTotal;
   }
 
   function updateSelectedAfterListChange(removedId = null) {
@@ -326,11 +327,13 @@ export function useHistory({ platformCapabilities, settings, t }) {
     hasMoreHistory.value = true;
     try {
       const limit = nextHistoryPageLimit();
-      const items = await getHistory({
+      const page = await getHistory({
         query: query.value.trim() || null,
         limit,
         offset: 0,
       });
+      const items = page.items;
+      totalHistoryCount.value = page.totalCount;
       loadedHistoryOffset.value = items.length;
       updateHistoryPaginationState(items.length, limit);
       reorderHistory(items);
@@ -380,11 +383,13 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
     loadingMore.value = true;
     try {
-      const items = await getHistory({
+      const page = await getHistory({
         query: query.value.trim() || null,
         limit,
         offset: loadedHistoryOffset.value,
       });
+      const items = page.items;
+      totalHistoryCount.value = page.totalCount;
       loadedHistoryOffset.value += items.length;
 
       const loadedIds = new Set(history.value.map((item) => item.id));
@@ -415,6 +420,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     const index = history.value.findIndex((entry) => entry.id === item.id);
     if (index === -1) {
       history.value = [item, ...history.value];
+      totalHistoryCount.value += 1;
     } else {
       history.value[index] = {
         ...history.value[index],
@@ -530,6 +536,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
     const [removedItem] = history.value.splice(index, 1);
     history.value = [...history.value];
+    totalHistoryCount.value = Math.max(0, totalHistoryCount.value - 1);
     updateSelectedAfterListChange(id);
 
     try {
@@ -537,6 +544,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     } catch (error) {
       history.value.splice(index, 0, removedItem);
       history.value = [...history.value];
+      totalHistoryCount.value += 1;
       reorderHistory();
       updateSelectedAfterListChange();
       throw error;
@@ -566,6 +574,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
   async function clearHistory() {
     await clearHistoryRequest();
+    totalHistoryCount.value = 0;
     await refreshHistory();
   }
 
@@ -686,5 +695,6 @@ export function useHistory({ platformCapabilities, settings, t }) {
     showEditModal,
     toggleFavorite,
     togglePin,
+    totalHistoryCount,
   };
 }

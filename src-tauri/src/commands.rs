@@ -7,7 +7,7 @@ use crate::{
     history::history_to_dto,
     history::normalize_link_url,
     models::{
-        AppError, AppSettings, ClipboardItemDto, LanReceiverStateDto, PlatformCapabilities,
+        AppError, AppSettings, ClipboardHistoryPageDto, LanReceiverStateDto, PlatformCapabilities,
         SharedState,
     },
     usecases::{execute_copy_item, execute_paste_item, execute_update_settings},
@@ -25,12 +25,16 @@ pub(crate) fn get_history(
     query: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
-) -> Result<Vec<ClipboardItemDto>, AppError> {
+) -> Result<ClipboardHistoryPageDto, AppError> {
     let limit = limit.unwrap_or(500);
     let offset = offset.unwrap_or(0);
     let store = state.history_store.lock().unwrap();
+    let total_count = store.count_history(query.as_deref())?;
     let history = store.list_history(query.as_deref(), limit, offset)?;
-    Ok(history_to_dto(&history, query.as_deref(), limit))
+    Ok(ClipboardHistoryPageDto {
+        items: history_to_dto(&history, query.as_deref(), limit),
+        total_count,
+    })
 }
 
 #[tauri::command]

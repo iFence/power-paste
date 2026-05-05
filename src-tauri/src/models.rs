@@ -207,6 +207,13 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) favorite: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ClipboardHistoryPageDto {
+    pub(crate) items: Vec<ClipboardItemDto>,
+    pub(crate) total_count: usize,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct StoragePaths {
     pub(crate) db_path: PathBuf,
