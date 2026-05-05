@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { openExternalUrl } from '../services/tauriApi'
@@ -48,6 +49,7 @@ const props = defineProps({
   settings: { type: Object, required: true },
   settingsSaveError: { type: String, required: true },
   showSettings: { type: Boolean, required: true },
+  soundToggleIndex: { type: Number, required: true },
   t: { type: Function, required: true },
   toggleSelect: { type: Function, required: true },
   updateDebugEnabled: { type: Boolean, required: true },
@@ -64,6 +66,17 @@ const showUpdateFeedback = ref(false)
 let updateFeedbackTimer = null
 const updateDebugVersionDraft = ref('')
 const updateDebugBodyDraft = ref('')
+
+async function chooseLanTransferDownloadDir() {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    defaultPath: props.settings.lanTransferDownloadDir || undefined,
+  })
+  if (typeof selected === 'string') {
+    props.settings.lanTransferDownloadDir = selected
+  }
+}
 
 const updateNotes = computed(() => {
   const body = props.updateState?.body
@@ -389,6 +402,35 @@ watch(
 
         <section class="setting-card">
           <div class="setting-head">
+            <span class="meta-label">{{ t("copySound") }}</span>
+          </div>
+          <div
+            class="setting-toggle"
+            role="group"
+            :aria-label="t('copySound')"
+            :style="segmentedToggleStyle(soundToggleIndex, 2)"
+          >
+            <button
+              type="button"
+              class="setting-toggle-option"
+              :class="{ active: settings.soundEnabled }"
+              @click="settings.soundEnabled = true"
+            >
+              {{ t("toggleOn") }}
+            </button>
+            <button
+              type="button"
+              class="setting-toggle-option"
+              :class="{ active: !settings.soundEnabled }"
+              @click="settings.soundEnabled = false"
+            >
+              {{ t("toggleOff") }}
+            </button>
+          </div>
+        </section>
+
+        <section class="setting-card">
+          <div class="setting-head">
             <span class="meta-label">{{ t("maxHistoryItems") }}</span>
           </div>
           <input v-model.number="settings.maxHistoryItems" type="number" min="50" max="2000" step="50" />
@@ -415,6 +457,23 @@ watch(
             step="0.5"
             @input="onUpdateMaxImageBytesMb($event.target.value)"
           />
+        </section>
+
+        <section class="setting-card wide">
+          <div class="setting-head">
+            <span class="meta-label">{{ t("lanTransferDownloadDir") }}</span>
+          </div>
+          <div class="path-picker-wrap">
+            <input
+              :value="settings.lanTransferDownloadDir"
+              type="text"
+              readonly
+              :placeholder="t('lanTransferDownloadDirPlaceholder')"
+            />
+            <button class="ghost path-picker-button" type="button" @click="chooseLanTransferDownloadDir">
+              {{ t("chooseFolder") }}
+            </button>
+          </div>
         </section>
 
         <section class="setting-card wide">

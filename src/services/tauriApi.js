@@ -10,6 +10,10 @@ export function onHistoryUpdated(handler) {
   return listen("history-updated", handler);
 }
 
+export function onCopySound(handler) {
+  return listen("copy-sound", handler);
+}
+
 export function onUpdateStatus(handler) {
   return listen("update-status", handler);
 }
@@ -24,6 +28,10 @@ export function getHistory(payload) {
 
 export function getSettings() {
   return invoke("get_settings");
+}
+
+export function getDefaultDownloadDir() {
+  return invoke("get_default_download_dir");
 }
 
 export function getPlatformCapabilities() {
@@ -92,4 +100,24 @@ export function stopLanReceiver() {
 
 export function getLanReceiverState() {
   return invoke("get_lan_receiver_state");
+}
+
+export function sendLanTransferText(text) {
+  return invoke("send_lan_transfer_text", { text });
+}
+
+export function sendLanTransferFile(fileName, mimeType, bytes) {
+  return invoke("send_lan_transfer_file", {
+    fileName,
+    mimeType,
+    bytes,
+  });
+}
+
+export function openLanTransferFile(id) {
+  return invoke("open_lan_transfer_file", { id });
+}
+
+export function revealLanTransferFile(id) {
+  return invoke("reveal_lan_transfer_file", { id });
 }

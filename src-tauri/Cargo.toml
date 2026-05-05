@@ -25,6 +25,7 @@ sha2 = "0.10"
 tauri = { version = "2.10.3", features = [ "macos-private-api", "tray-icon", "image-png", "devtools"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-clipboard-next = "0.2.4"
+tauri-plugin-dialog = "2"
 tauri-plugin-global-shortcut = "2.3.0"
 tauri-plugin-single-instance = "2.4.0"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }

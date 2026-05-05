@@ -108,6 +108,9 @@ export function useKeyboardShortcuts({
     }
 
     if (event.key === "Enter" && selectedId.value && !showEditModal.value) {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
       void pasteItem(selectedId.value);
     }

@@ -1,10 +1,5 @@
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-#[cfg(windows)]
-use std::process::Command;
-
 use anyhow::{Context, Result};
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
@@ -33,42 +28,20 @@ mod usecases;
 
 // Tauri command entrypoints stay thin and delegate to feature modules.
 use commands::{
-    clear_history, copy_item, delete_item, get_history, get_lan_receiver_state,
-    get_platform_capabilities, get_settings, open_external_url, paste_item, start_lan_receiver,
-    stop_lan_receiver, toggle_favorite, toggle_pin, update_settings, update_text_item,
+    clear_history, copy_item, delete_item, get_default_download_dir, get_history,
+    get_lan_receiver_state, get_platform_capabilities, get_settings, open_external_url,
+    open_lan_transfer_file, paste_item, reveal_lan_transfer_file, send_lan_transfer_file,
+    send_lan_transfer_text, start_lan_receiver, stop_lan_receiver, toggle_favorite, toggle_pin,
+    update_settings, update_text_item,
 };
-use models::{
-    MonitorState, SharedState, StoragePaths, UpdateStatus, DEBUG_CONTEXT_MENU_INIT_SCRIPT,
-};
+use models::{MonitorState, SharedState, StoragePaths, UpdateStatus};
 use repository::SqliteHistoryStore;
 use runtime::{configure_window, toggle_panel};
 use startup::set_launch_on_startup;
 use storage::{load_settings, save_settings};
 
-#[cfg(windows)]
-fn powershell(script: &str) -> Result<String> {
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-STA", "-Command", script])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .context("failed to execute powershell")?;
-
-    if !output.status.success() {
-        anyhow::bail!(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
 // Keeps the frontend debug switches and the native WebView settings in sync.
 fn apply_debug_mode(window: &tauri::WebviewWindow, enabled: bool) -> Result<()> {
-    window.eval(format!(
-        "window.__CLIPDESK_DEBUG_GUARD__ = Object.assign(window.__CLIPDESK_DEBUG_GUARD__ || {{}}, {{ allowContextMenu: {} }});",
-        if enabled { "true" } else { "false" }
-    ))?;
-
     if !enabled && window.is_devtools_open() {
         window.close_devtools();
     }
@@ -111,7 +84,7 @@ fn apply_debug_mode(window: &tauri::WebviewWindow, enabled: bool) -> Result<()> 
     Ok(())
 }
 
-// 调试模式统一控制右键菜单和开发者工具快捷键。
+// 调试模式只控制开发者工具和调试快捷键，保留图片与文件的系统右键菜单。
 pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
     debug_enabled
 }
@@ -119,7 +92,6 @@ pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
 // The crate root only assembles modules, shared state and Tauri plugins.
 pub fn run() {
     tauri::Builder::default()
-        .append_invoke_initialization_script(DEBUG_CONTEXT_MENU_INIT_SCRIPT)
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let _ = toggle_panel(app);
         }))
@@ -128,6 +100,7 @@ pub fn run() {
             None::<Vec<&'static str>>,
         ))
         .plugin(tauri_plugin_clipboard_next::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -196,6 +169,7 @@ pub fn run() {
             get_history,
             get_platform_capabilities,
             get_settings,
+            get_default_download_dir,
             update_settings,
             toggle_pin,
             toggle_favorite,
@@ -208,6 +182,10 @@ pub fn run() {
             start_lan_receiver,
             stop_lan_receiver,
             get_lan_receiver_state,
+            send_lan_transfer_text,
+            send_lan_transfer_file,
+            open_lan_transfer_file,
+            reveal_lan_transfer_file,
             update::get_update_state,
             update::check_for_updates,
             update::install_update,

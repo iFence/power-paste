@@ -6,8 +6,7 @@ use anyhow::{Context, Result};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, Size, WindowEvent,
-    WebviewWindow,
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow, WindowEvent,
 };
 
 #[cfg(windows)]
@@ -114,10 +113,14 @@ pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Res
 
     {
         let settings = shared.settings.lock().unwrap().clone();
-        shared
-            .debug_context_menu_enabled
-            .store(crate::should_enable_devtools(settings.debug_enabled), Ordering::Relaxed);
-        crate::apply_debug_mode(&window, crate::should_enable_devtools(settings.debug_enabled))?;
+        shared.debug_context_menu_enabled.store(
+            crate::should_enable_devtools(settings.debug_enabled),
+            Ordering::Relaxed,
+        );
+        crate::apply_debug_mode(
+            &window,
+            crate::should_enable_devtools(settings.debug_enabled),
+        )?;
         if let (Some(x), Some(y)) = (settings.window_x, settings.window_y) {
             window.set_position(Position::Physical(PhysicalPosition::new(x, y)))?;
         }

@@ -2,6 +2,7 @@ import { computed, reactive, ref } from "vue";
 import { accentColorOptions, localeOptions, themeModeOptions, translate } from "../i18n";
 import {
   getAppVersion,
+  getDefaultDownloadDir,
   getPlatformCapabilities as fetchPlatformCapabilities,
   getSettings as fetchSettings,
   updateSettings as persistSettings,
@@ -80,10 +81,12 @@ export function useSettings() {
   const detectedPlatform = detectClientPlatform();
   const settings = reactive({
     debugEnabled: false,
+    soundEnabled: true,
     launchOnStartup: false,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
     maxImageBytes: 6_000_000,
+    lanTransferDownloadDir: "",
     globalShortcut: "Ctrl+Shift+V",
     ignoredApps: [],
     locale: "zh-CN",
@@ -114,6 +117,7 @@ export function useSettings() {
     Math.max(localeOptions.findIndex((option) => option.value === settings.locale), 0),
   );
   const debugToggleIndex = computed(() => (settings.debugEnabled ? 0 : 1));
+  const soundToggleIndex = computed(() => (settings.soundEnabled ? 0 : 1));
   const launchToggleIndex = computed(() => (settings.launchOnStartup ? 0 : 1));
   const canToggleLaunchOnStartup = computed(
     () => platformCapabilities.value.supportsLaunchOnStartup,
@@ -173,6 +177,15 @@ export function useSettings() {
     }
     if (code === "unsupported_launch_on_startup") {
       return t("unsupportedLaunchOnStartup");
+    }
+    if (code === "lan_transfer_download_dir_missing") {
+      return t("lanTransferDownloadDirMissing");
+    }
+    if (code === "lan_transfer_download_dir_not_directory") {
+      return t("lanTransferDownloadDirNotDirectory");
+    }
+    if (code.includes("lan_transfer_download_dir_not_writable")) {
+      return t("lanTransferDownloadDirNotWritable");
     }
     if (code === "unsupported_clipboard_write") {
       return t("unsupportedClipboardWrite");
@@ -265,8 +278,10 @@ export function useSettings() {
 
   async function refreshSettings() {
     const next = await fetchSettings();
+    const defaultDownloadDir = await getDefaultDownloadDir();
     Object.assign(settings, {
       ...next,
+      lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
     });
     if (!platformCapabilities.value.supportsLaunchOnStartup) {
@@ -339,6 +354,7 @@ export function useSettings() {
     setMaxImageBytesMb,
     settings,
     settingsSaveError,
+    soundToggleIndex,
     showSettings,
     startupError,
     t,
