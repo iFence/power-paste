@@ -5,8 +5,10 @@ defineProps({
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
   historyPanelRef: { type: Object, required: true },
+  hasMore: { type: Boolean, required: true },
   items: { type: Array, required: true },
   loading: { type: Boolean, required: true },
+  loadingMore: { type: Boolean, required: true },
   locale: { type: String, required: true },
   relativeTimeVersion: { type: Number, required: true },
   selectedId: { type: String, default: null },
@@ -15,16 +17,35 @@ defineProps({
   unsupportedDirectPasteMessage: { type: String, required: true },
 });
 
-const emit = defineEmits(["copy", "edit", "open-link", "paste", "remove", "select", "toggle-pin"]);
+const emit = defineEmits([
+  "copy",
+  "edit",
+  "load-more",
+  "open-link",
+  "paste",
+  "remove",
+  "select",
+  "toggle-pin",
+]);
+
+function handleScroll(event) {
+  const panel = event.currentTarget;
+  const distanceToBottom =
+    panel.scrollHeight - panel.scrollTop - panel.clientHeight;
+
+  if (distanceToBottom < 180) {
+    emit("load-more");
+  }
+}
 </script>
 
 <template>
   <main class="history-shell">
-    <section :ref="historyPanelRef" class="history-panel">
+    <section :ref="historyPanelRef" class="history-panel" @scroll.passive="handleScroll">
       <div v-if="loading" class="empty-state">{{ t("loadingHistory") }}</div>
 
       <div v-else-if="!items.length" class="empty-state">
-        {{ t("historyEmpty") }}
+        {{ hasMore ? t("loadingHistory") : t("historyEmpty") }}
       </div>
 
       <div v-else class="history-list">
@@ -48,6 +69,10 @@ const emit = defineEmits(["copy", "edit", "open-link", "paste", "remove", "selec
           @select="emit('select', $event)"
           @toggle-pin="emit('toggle-pin', $event)"
         />
+
+        <div v-if="loadingMore" class="history-load-more">
+          {{ t("loadingHistory") }}
+        </div>
       </div>
     </section>
   </main>

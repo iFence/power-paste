@@ -86,23 +86,26 @@ impl SqliteHistoryStore {
     }
 
     pub(crate) fn list_all(&self) -> Result<Vec<StoredClipboardItem>> {
-        self.query_items(None, None)
+        self.query_items(None, None, 0)
     }
 
     pub(crate) fn list_history(
         &self,
         query: Option<&str>,
         limit: usize,
+        offset: usize,
     ) -> Result<Vec<StoredClipboardItem>> {
-        self.query_items(query, Some(limit))
+        self.query_items(query, Some(limit), offset)
     }
 
     fn query_items(
         &self,
         query: Option<&str>,
         limit: Option<usize>,
+        offset: usize,
     ) -> Result<Vec<StoredClipboardItem>> {
         let limit = limit.unwrap_or(i64::MAX as usize).min(i64::MAX as usize) as i64;
+        let offset = offset.min(i64::MAX as usize) as i64;
         let query = query.unwrap_or("").trim().to_lowercase();
         let sql = if query.is_empty() {
             r#"
@@ -112,7 +115,7 @@ impl SqliteHistoryStore {
                    hash, pinned, favorite
             FROM clipboard_items
             ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
-            LIMIT ?1
+            LIMIT ?1 OFFSET ?2
             "#
         } else {
             r#"
@@ -125,15 +128,15 @@ impl SqliteHistoryStore {
               preview || char(10) || coalesce(full_text, '') || char(10) || coalesce(source_app, '')
             ) LIKE '%' || ?1 || '%'
             ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
-            LIMIT ?2
+            LIMIT ?2 OFFSET ?3
             "#
         };
 
         let mut statement = self.connection.prepare(sql)?;
         let rows = if query.is_empty() {
-            statement.query_map(params![limit], Self::row_to_item)?
+            statement.query_map(params![limit, offset], Self::row_to_item)?
         } else {
-            statement.query_map(params![query, limit], Self::row_to_item)?
+            statement.query_map(params![query, limit, offset], Self::row_to_item)?
         };
 
         rows.collect::<rusqlite::Result<Vec<_>>>()

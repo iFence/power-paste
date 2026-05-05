@@ -14,6 +14,7 @@ import {
 const ACTIVE_FILTER_TAB_STORAGE_KEY = "clipdesk.activeFilterTab";
 const SELECTED_HISTORY_ID_STORAGE_KEY = "clipdesk.selectedHistoryId";
 const LATEST_HISTORY_ID_STORAGE_KEY = "clipdesk.latestHistoryId";
+const HISTORY_PAGE_SIZE = 30;
 let copySoundContext = null;
 
 function getCopySoundContext() {
@@ -168,6 +169,9 @@ export function useHistory({ platformCapabilities, settings, t }) {
   const editingItemId = ref(null);
   const editDraft = ref("");
   const actionFeedback = ref("");
+  const loadingMore = ref(false);
+  const hasMoreHistory = ref(true);
+  const loadedHistoryOffset = ref(0);
 
   const filteredHistory = computed(() =>
     history.value.filter((item) => {
@@ -275,6 +279,30 @@ export function useHistory({ platformCapabilities, settings, t }) {
     history.value = next;
   }
 
+  function configuredHistoryLimit() {
+    const limit = Number(settings.maxHistoryItems) || 0;
+    return limit > 0 ? limit : Number.POSITIVE_INFINITY;
+  }
+
+  function nextHistoryPageLimit() {
+    const maxLimit = configuredHistoryLimit();
+    if (!Number.isFinite(maxLimit)) {
+      return HISTORY_PAGE_SIZE;
+    }
+
+    return Math.max(
+      0,
+      Math.min(HISTORY_PAGE_SIZE, maxLimit - loadedHistoryOffset.value),
+    );
+  }
+
+  function updateHistoryPaginationState(receivedCount, requestedLimit) {
+    const maxLimit = configuredHistoryLimit();
+    hasMoreHistory.value =
+      receivedCount === requestedLimit &&
+      (!Number.isFinite(maxLimit) || loadedHistoryOffset.value < maxLimit);
+  }
+
   function updateSelectedAfterListChange(removedId = null) {
     const items = filteredHistory.value;
     if (!items.length) {
@@ -294,11 +322,17 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
   async function refreshHistory() {
     loading.value = true;
+    loadedHistoryOffset.value = 0;
+    hasMoreHistory.value = true;
     try {
+      const limit = nextHistoryPageLimit();
       const items = await getHistory({
         query: query.value.trim() || null,
-        limit: settings.maxHistoryItems,
+        limit,
+        offset: 0,
       });
+      loadedHistoryOffset.value = items.length;
+      updateHistoryPaginationState(items.length, limit);
       reorderHistory(items);
       const latestHistoryItem = getLatestHistoryItem(items);
       const previousLatestHistoryId = window.localStorage.getItem(
@@ -330,6 +364,40 @@ export function useHistory({ platformCapabilities, settings, t }) {
       syncPersistedHistoryState(items);
     } finally {
       loading.value = false;
+    }
+  }
+
+  async function loadMoreHistory() {
+    if (loading.value || loadingMore.value || !hasMoreHistory.value) {
+      return;
+    }
+
+    const limit = nextHistoryPageLimit();
+    if (limit <= 0) {
+      hasMoreHistory.value = false;
+      return;
+    }
+
+    loadingMore.value = true;
+    try {
+      const items = await getHistory({
+        query: query.value.trim() || null,
+        limit,
+        offset: loadedHistoryOffset.value,
+      });
+      loadedHistoryOffset.value += items.length;
+
+      const loadedIds = new Set(history.value.map((item) => item.id));
+      const nextItems = items.filter((item) => !loadedIds.has(item.id));
+      if (nextItems.length) {
+        reorderHistory([...history.value, ...nextItems]);
+      }
+
+      updateHistoryPaginationState(items.length, limit);
+      updateSelectedAfterListChange();
+      syncPersistedHistoryState();
+    } finally {
+      loadingMore.value = false;
     }
   }
 
@@ -538,6 +606,23 @@ export function useHistory({ platformCapabilities, settings, t }) {
     }
   }
 
+  async function loadMoreIfPanelHasRoom() {
+    await nextTick();
+
+    const panel = historyPanelRef.value;
+    if (
+      !panel ||
+      loading.value ||
+      loadingMore.value ||
+      !hasMoreHistory.value ||
+      panel.scrollHeight > panel.clientHeight + 24
+    ) {
+      return;
+    }
+
+    void loadMoreHistory();
+  }
+
   watch(selectedId, () => {
     void scrollSelectedIntoView();
   });
@@ -555,6 +640,12 @@ export function useHistory({ platformCapabilities, settings, t }) {
   });
 
   watch(filteredHistory, (items) => {
+    if (!items.length && hasMoreHistory.value && !loading.value) {
+      void loadMoreHistory();
+    }
+
+    void loadMoreIfPanelHasRoom();
+
     if (!items.some((item) => item.id === selectedId.value)) {
       selectedId.value = items[0]?.id ?? null;
     }
@@ -569,11 +660,14 @@ export function useHistory({ platformCapabilities, settings, t }) {
     editDraft,
     editingItemId,
     filteredHistory,
+    hasMoreHistory,
     history,
     historyCountLabel,
     historyPanelRef,
     historyTabs,
     loading,
+    loadingMore,
+    loadMoreHistory,
     openEditModal,
     openExternalUrl,
     pasteItem,

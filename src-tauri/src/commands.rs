@@ -18,20 +18,19 @@ use windows_sys::Win32::UI::Shell::ShellExecuteW;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-// History queries always read from in-memory state; persistence is handled on writes.
+// 历史记录按页从数据库读取，避免记录较多时一次性加载全部内容。
 #[tauri::command]
 pub(crate) fn get_history(
     state: State<'_, std::sync::Arc<SharedState>>,
     query: Option<String>,
     limit: Option<usize>,
+    offset: Option<usize>,
 ) -> Result<Vec<ClipboardItemDto>, AppError> {
+    let limit = limit.unwrap_or(500);
+    let offset = offset.unwrap_or(0);
     let store = state.history_store.lock().unwrap();
-    let history = store.list_history(query.as_deref(), limit.unwrap_or(500))?;
-    Ok(history_to_dto(
-        &history,
-        query.as_deref(),
-        limit.unwrap_or(500),
-    ))
+    let history = store.list_history(query.as_deref(), limit, offset)?;
+    Ok(history_to_dto(&history, query.as_deref(), limit))
 }
 
 #[tauri::command]

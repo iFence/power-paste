@@ -332,8 +332,10 @@ async function leaveLanTransferRoute() {
                                 .supportsDirectPaste
                         "
                         :history-panel-ref="historyState.historyPanelRef"
+                        :has-more="historyState.hasMoreHistory.value"
                         :items="historyState.filteredHistory.value"
                         :loading="historyState.loading.value"
+                        :loading-more="historyState.loadingMore.value"
                         :locale="settingsState.currentLocale.value"
                         :relative-time-version="
                             historyState.relativeTimeVersion.value
@@ -348,6 +350,7 @@ async function leaveLanTransferRoute() {
                         "
                         @copy="historyState.copyItem"
                         @edit="historyState.openEditModal"
+                        @load-more="historyState.loadMoreHistory"
                         @open-link="historyState.openExternalUrl"
                         @paste="historyState.pasteItem"
                         @remove="historyState.removeItem"

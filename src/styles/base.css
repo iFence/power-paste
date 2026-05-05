@@ -866,6 +866,17 @@ select {
     justify-items: center;
 }
 
+.history-load-more {
+    width: min(100%, 680px);
+    padding: 10px 0 2px;
+    color: var(--app-muted);
+    font-size: 0.76rem;
+    line-height: 1.2;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 .history-entry {
     display: grid;
     grid-template-rows: auto 1fr auto;
