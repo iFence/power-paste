@@ -18,9 +18,9 @@ let isFirstLoad = true
 let unlistenResize = null
 
 /**
- * 获取内容区逻辑尺寸，和前端 setSize 的语义保持一致。
+ * 获取内容区逻辑尺寸，用于设置页进出时恢复主面板大小。
  */
-async function getLogicalSize(appWindow) {
+async function getRestoreLogicalSize(appWindow) {
   const size = await appWindow.innerSize()
   if (size.type === 'Physical') {
     const scaleFactor = await appWindow.scaleFactor()
@@ -35,19 +35,35 @@ async function getLogicalSize(appWindow) {
   }
 }
 
+async function getPersistedMainPanelSize(appWindow) {
+  const size = await appWindow.outerSize()
+  const scaleFactor = await appWindow.scaleFactor()
+  if (size.type === 'Physical') {
+    return {
+      width: Math.round(size.width / scaleFactor),
+      height: Math.round(size.height / scaleFactor),
+    }
+  }
+
+  return {
+    width: size.width,
+    height: size.height,
+  }
+}
+
 function isMainLikeRoute(routeName) {
   return routeName === 'home' || routeName === 'lanTransfer'
 }
 
-async function persistMainPanelSize(size) {
-  if (!size) {
+async function persistMainPanelSize(snapshot) {
+  if (!snapshot) {
     return
   }
 
   try {
     await saveMainPanelSize({
-      width: size.width,
-      height: size.height,
+      width: snapshot.width,
+      height: snapshot.height,
     })
   } catch (error) {
     console.error('Failed to persist main panel size:', error)
@@ -70,9 +86,9 @@ export function useWindowSize(route) {
       }
 
       try {
-        const size = await getLogicalSize(appWindow)
+        const size = await getRestoreLogicalSize(appWindow)
         savedHomeSize = size
-        await persistMainPanelSize(size)
+        await persistMainPanelSize(await getPersistedMainPanelSize(appWindow))
       } catch (error) {
         console.error('Failed to track main panel size:', error)
       }
@@ -95,8 +111,8 @@ export function useWindowSize(route) {
         // 如果首次加载就是主面板，保存初始尺寸
         if (isMainLikeRoute(routeName)) {
           try {
-            savedHomeSize = await getLogicalSize(appWindow)
-            await persistMainPanelSize(savedHomeSize)
+            savedHomeSize = await getRestoreLogicalSize(appWindow)
+            await persistMainPanelSize(await getPersistedMainPanelSize(appWindow))
           } catch (error) {
             console.error('Failed to get initial size:', error)
           }
@@ -115,8 +131,8 @@ export function useWindowSize(route) {
         // 从主面板或互传面板切换到设置面板
         if (isMainLikeRoute(oldRouteName) && routeName === 'settings') {
           // 保存当前尺寸（逻辑像素）
-          savedHomeSize = await getLogicalSize(appWindow)
-          await persistMainPanelSize(savedHomeSize)
+          savedHomeSize = await getRestoreLogicalSize(appWindow)
+          await persistMainPanelSize(await getPersistedMainPanelSize(appWindow))
 
           // 切换到设置面板的固定尺寸
           const targetSize = WINDOW_SIZES.settings

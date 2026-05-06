@@ -16,7 +16,11 @@ import LanTransferView from "./views/LanTransferView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import { useSettings } from "./composables/useSettings";
 import { useUpdater } from "./composables/useUpdater";
-import { playCopySoundFallback, useHistory } from "./composables/useHistory";
+import {
+    flushPendingCopySound,
+    playCopySoundFallback,
+    useHistory,
+} from "./composables/useHistory";
 import { useTheme } from "./composables/useTheme";
 import { useKeyboardShortcuts } from "./composables/useKeyboardShortcuts";
 import { useLanReceiver } from "./composables/useLanReceiver";
@@ -98,6 +102,24 @@ function playCapturedCopySound() {
     playCopySoundFallback();
 }
 
+function flushCopySoundIfEnabled() {
+    if (!settingsState.settings.soundEnabled) {
+        return;
+    }
+
+    flushPendingCopySound();
+}
+
+function handleDocumentVisibilityChange() {
+    if (document.visibilityState === "visible") {
+        flushCopySoundIfEnabled();
+    }
+}
+
+function handleUserInteractionForSound() {
+    flushCopySoundIfEnabled();
+}
+
 async function initializeApp() {
     startupBusy.value = true;
     settingsState.clearStartupError();
@@ -128,6 +150,7 @@ async function initializeApp() {
         unlistenWindowFocus = await getCurrentWindow().onFocusChanged(
             ({ payload }) => {
                 if (payload) {
+                    flushCopySoundIfEnabled();
                     historyState.refreshRelativeTimes();
                 }
             },
@@ -140,10 +163,16 @@ async function initializeApp() {
 }
 
 onMounted(async () => {
+    document.addEventListener("visibilitychange", handleDocumentVisibilityChange);
+    document.addEventListener("pointerdown", handleUserInteractionForSound, true);
+    document.addEventListener("keydown", handleUserInteractionForSound, true);
     await initializeApp();
 });
 
 onUnmounted(() => {
+    document.removeEventListener("visibilitychange", handleDocumentVisibilityChange);
+    document.removeEventListener("pointerdown", handleUserInteractionForSound, true);
+    document.removeEventListener("keydown", handleUserInteractionForSound, true);
     cleanupListeners();
 });
 

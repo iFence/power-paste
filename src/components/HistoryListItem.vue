@@ -206,6 +206,13 @@ function tagDisplayName(color) {
   return resolveTagLabel(color, props.tagLabelMap, props.t)
 }
 
+function removeTagColor(color) {
+  emit('update-tags', {
+    id: props.item.id,
+    tagColors: tagColors.value.filter((item) => item !== color),
+  })
+}
+
 function toggleTagColor(color) {
   const current = [...tagColors.value]
   if (current.includes(color)) {
@@ -338,6 +345,15 @@ onBeforeUnmount(() => {
           >
             <span class="history-tag-dot" :class="tagToneClass(color)"></span>
             <span class="history-tag-chip-label">{{ tagDisplayName(color) }}</span>
+            <button
+              class="shortcut-clear-button history-tag-remove-button"
+              type="button"
+              :title="`${props.t('removeTag')} ${tagDisplayName(color)}`"
+              :aria-label="`${props.t('removeTag')} ${tagDisplayName(color)}`"
+              @click.stop="removeTagColor(color)"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
           </span>
         </div>
       </div>

@@ -92,6 +92,14 @@ export function useLanReceiver({ t }) {
     }
     return status.message || t("lanReceiverFailed");
   });
+  const hasActiveSession = computed(() => {
+    if (!lanReceiverState.value.running) {
+      return false;
+    }
+
+    const expiresAt = Number(lanReceiverState.value?.expiresAt || 0);
+    return !expiresAt || expiresAt > Date.now();
+  });
 
   function applyState(next) {
     lanReceiverState.value = {
@@ -129,7 +137,10 @@ export function useLanReceiver({ t }) {
     lanReceiverBusy.value = true;
     try {
       await setupLanReceiverListener();
-      applyState(await startLanReceiver());
+      await refreshLanReceiverState();
+      if (!hasActiveSession.value) {
+        applyState(await startLanReceiver());
+      }
     } catch (error) {
       lanReceiverError.value = formatError(error);
     } finally {

@@ -755,7 +755,7 @@ select {
     width: 100%;
     height: 100%;
     min-height: 0;
-    padding: 2px 10px 10px;
+    padding: 0px 10px 4px;
     overflow: hidden;
 }
 
@@ -1220,12 +1220,13 @@ select {
 }
 
 .history-tag-chip {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 5px;
     min-width: 0;
     max-width: 118px;
-    padding: 2px 8px;
+    padding: 2px 18px 2px 8px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--app-panel-strong-bg) 76%, transparent);
     border: 1px solid color-mix(in srgb, currentColor 18%, var(--app-list-border));
@@ -1238,6 +1239,19 @@ select {
     white-space: nowrap;
     font-size: 0.7rem;
     line-height: 1.2;
+}
+
+.history-tag-remove-button {
+    right: 4px;
+    width: 11px;
+    height: 11px;
+}
+
+.history-tag-chip:hover .history-tag-remove-button,
+.history-tag-chip:focus-within .history-tag-remove-button {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%) scale(1);
 }
 
 .entry-content {
@@ -1761,7 +1775,12 @@ select {
     width: var(--settings-control-width);
     max-width: var(--settings-control-width);
     height: 34px;
+    font-size: 0.72rem;
     justify-self: end;
+}
+
+.tag-settings-input::placeholder {
+    font-size: 0.68rem;
 }
 
 .history-tag-red {

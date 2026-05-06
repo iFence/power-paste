@@ -96,6 +96,7 @@ pub(crate) struct AppSettings {
     pub(crate) window_height: Option<u32>,
     pub(crate) main_panel_width: Option<u32>,
     pub(crate) main_panel_height: Option<u32>,
+    pub(crate) main_panel_scale_factor: Option<f64>,
 }
 
 impl Default for AppSettings {
@@ -122,6 +123,7 @@ impl Default for AppSettings {
             window_height: None,
             main_panel_width: None,
             main_panel_height: None,
+            main_panel_scale_factor: None,
         }
     }
 }
@@ -294,6 +296,7 @@ pub(crate) struct SharedState {
     pub(crate) history_store: Arc<Mutex<crate::repository::SqliteHistoryStore>>,
     pub(crate) monitor: Arc<Mutex<MonitorState>>,
     pub(crate) debug_context_menu_enabled: Arc<AtomicBool>,
+    #[cfg(target_os = "macos")]
     pub(crate) macos_direct_paste_permission_verified: Arc<AtomicBool>,
     pub(crate) update_status: Arc<Mutex<UpdateStatus>>,
     pub(crate) pending_update: Arc<Mutex<Option<Update>>>,

@@ -576,7 +576,6 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('launchOnStartup') }}</span>
-                <span class="setting-help-icon" :title="t('launchOnStartupTip')" tabindex="0">?</span>
               </span>
               <span v-if="!canToggleLaunchOnStartup" class="setting-note">
                 {{ t('unsupportedLaunchOnStartup') }}
@@ -645,7 +644,6 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('resetSettings') }}</span>
-                <span class="setting-help-icon" :title="t('resetSettingsTip')" tabindex="0">?</span>
               </span>
             </div>
             <button
@@ -657,6 +655,36 @@ watch(
               {{ t('resetSettings') }}
             </button>
           </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('tagNames') }}</span>
+              </span>
+            </div>
+            <div class="tag-settings-list">
+              <label
+                v-for="color in HISTORY_TAG_COLORS"
+                :key="color"
+                class="tag-settings-row"
+              >
+                <span class="tag-settings-label">
+                  <span class="history-tag-dot" :class="tagToneClass(color)"></span>
+                  <span>{{ t(`tagDefaultName${color[0].toUpperCase()}${color.slice(1)}`) }}</span>
+                </span>
+                <input
+                  :value="props.settings.tagLabels?.[color] ?? ''"
+                  type="text"
+                  class="tag-settings-input"
+                  maxlength="5"
+                  :placeholder="resolvedTagLabel(color)"
+                  :disabled="isPending(`tagLabels.${color}`)"
+                  @change="handleTagLabelChange(color, $event)"
+                  @keydown.enter.prevent="handleTagLabelChange(color, $event)"
+                />
+              </label>
+            </div>
+          </section>
         </div>
 
         <div v-if="activeCategory === 'history'" class="settings-grid settings-section-grid">
@@ -664,7 +692,6 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('maxHistoryItems') }}</span>
-                <span class="setting-help-icon" :title="t('maxHistoryItemsTip')" tabindex="0">?</span>
               </span>
             </div>
             <input
@@ -683,7 +710,6 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('maxHistoryDays') }}</span>
-                <span class="setting-help-icon" :title="t('maxHistoryDaysTip')" tabindex="0">?</span>
               </span>
             </div>
             <input
@@ -719,36 +745,6 @@ watch(
             />
           </section>
 
-          <section class="setting-card wide">
-            <div class="setting-head">
-              <span class="setting-label-row">
-                <span class="meta-label">{{ t('tagNames') }}</span>
-                <span class="setting-help-icon" :title="t('tagNamesTip')" tabindex="0">?</span>
-              </span>
-            </div>
-            <div class="tag-settings-list">
-              <label
-                v-for="color in HISTORY_TAG_COLORS"
-                :key="color"
-                class="tag-settings-row"
-              >
-                <span class="tag-settings-label">
-                  <span class="history-tag-dot" :class="tagToneClass(color)"></span>
-                  <span>{{ t(`tagDefaultName${color[0].toUpperCase()}${color.slice(1)}`) }}</span>
-                </span>
-                <input
-                  :value="props.settings.tagLabels?.[color] ?? ''"
-                  type="text"
-                  class="tag-settings-input"
-                  maxlength="5"
-                  :placeholder="resolvedTagLabel(color)"
-                  :disabled="isPending(`tagLabels.${color}`)"
-                  @change="handleTagLabelChange(color, $event)"
-                  @keydown.enter.prevent="handleTagLabelChange(color, $event)"
-                />
-              </label>
-            </div>
-          </section>
         </div>
 
         <div v-if="activeCategory === 'transfer'" class="settings-grid settings-section-grid">
@@ -794,7 +790,6 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('globalShortcut') }}</span>
-                <span class="setting-help-icon" :title="t('globalShortcutTip')" tabindex="0">?</span>
               </span>
             </div>
             <div class="shortcut-input-wrap">

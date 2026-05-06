@@ -19,6 +19,8 @@ const SELECTED_HISTORY_ID_STORAGE_KEY = "clipdesk.selectedHistoryId";
 const LATEST_HISTORY_ID_STORAGE_KEY = "clipdesk.latestHistoryId";
 const HISTORY_PAGE_SIZE = 30;
 let copySoundContext = null;
+let copySoundPending = false;
+let copySoundResumePromise = null;
 
 function getCopySoundContext() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -61,32 +63,86 @@ function playGeneratedCopyTone(context) {
   oscillator.stop(endTime + 0.01);
 }
 
+function markCopySoundPending() {
+  copySoundPending = true;
+}
+
+function clearPendingCopySound() {
+  copySoundPending = false;
+}
+
+function tryPlayCopySound(context) {
+  try {
+    playGeneratedCopyTone(context);
+    clearPendingCopySound();
+    return true;
+  } catch (error) {
+    console.warn("Failed to play copy sound", error);
+    return false;
+  }
+}
+
+function resumeCopySoundContext(context) {
+  if (copySoundResumePromise) {
+    return copySoundResumePromise;
+  }
+
+  copySoundResumePromise = context
+    .resume()
+    .then(() => {
+      copySoundResumePromise = null;
+      return true;
+    })
+    .catch((error) => {
+      copySoundResumePromise = null;
+      console.warn("Failed to resume copy sound context", error);
+      return false;
+    });
+
+  return copySoundResumePromise;
+}
+
 export function playCopySoundFallback() {
   const context = getCopySoundContext();
   if (!context) {
     return;
   }
 
-  const play = () => {
-    try {
-      playGeneratedCopyTone(context);
-    } catch (error) {
-      console.warn("Failed to play copy sound", error);
-    }
-  };
-
   if (context.state === "suspended") {
-    void context
-      .resume()
-      .then(play)
-      .catch((error) => {
-        console.warn("Failed to resume copy sound context", error);
-        play();
-      });
+    markCopySoundPending();
+    void resumeCopySoundContext(context).then((resumed) => {
+      if (resumed) {
+        tryPlayCopySound(context);
+      }
+    });
     return;
   }
 
-  play();
+  tryPlayCopySound(context);
+}
+
+export function flushPendingCopySound() {
+  if (!copySoundPending) {
+    return;
+  }
+
+  const context = getCopySoundContext();
+  if (!context) {
+    return;
+  }
+
+  if (context.state === "running") {
+    tryPlayCopySound(context);
+    return;
+  }
+
+  if (context.state === "suspended") {
+    void resumeCopySoundContext(context).then((resumed) => {
+      if (resumed) {
+        tryPlayCopySound(context);
+      }
+    });
+  }
 }
 
 function formatActionError(error, t) {

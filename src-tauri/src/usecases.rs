@@ -146,6 +146,7 @@ pub(crate) fn execute_reset_settings(
         window_height: current.window_height,
         main_panel_width: current.main_panel_width,
         main_panel_height: current.main_panel_height,
+        main_panel_scale_factor: current.main_panel_scale_factor,
         ..AppSettings::default()
     };
 
@@ -163,6 +164,7 @@ pub(crate) fn execute_save_main_panel_size(
     let mut settings = state.settings.lock().unwrap();
     settings.main_panel_width = Some(payload.width);
     settings.main_panel_height = Some(payload.height);
+    settings.main_panel_scale_factor = None;
     save_settings(&state.paths, &settings).map_err(AppError::from)
 }
 

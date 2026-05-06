@@ -6,7 +6,8 @@ use anyhow::{Context, Result};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow, WindowEvent,
+    AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size,
+    WebviewWindow, WindowEvent,
 };
 
 #[cfg(windows)]
@@ -31,6 +32,33 @@ fn min_panel_physical_size(scale_factor: f64) -> PhysicalSize<u32> {
     PhysicalSize::new(
         (PANEL_MIN_WIDTH as f64 * scale_factor).ceil() as u32,
         (PANEL_MIN_HEIGHT as f64 * scale_factor).ceil() as u32,
+    )
+}
+
+fn panel_physical_size_from_saved_physical(
+    width: u32,
+    height: u32,
+    saved_scale_factor: f64,
+    current_scale_factor: f64,
+) -> PhysicalSize<u32> {
+    let saved_scale_factor = saved_scale_factor.max(1.0);
+    let current_scale_factor = current_scale_factor.max(1.0);
+    let logical_width = (width as f64 / saved_scale_factor).round().max(PANEL_MIN_WIDTH as f64);
+    let logical_height = (height as f64 / saved_scale_factor)
+        .round()
+        .max(PANEL_MIN_HEIGHT as f64);
+
+    clamp_panel_size(
+        (logical_width * current_scale_factor).ceil() as u32,
+        (logical_height * current_scale_factor).ceil() as u32,
+        current_scale_factor,
+    )
+}
+
+fn clamp_panel_logical_size(width: u32, height: u32) -> LogicalSize<f64> {
+    LogicalSize::new(
+        width.max(PANEL_MIN_WIDTH) as f64,
+        height.max(PANEL_MIN_HEIGHT) as f64,
     )
 }
 
@@ -69,7 +97,35 @@ pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
         let monitor = app.monitor_from_point(cursor.x, cursor.y)?;
 
         if let Some(monitor) = monitor {
-            ensure_panel_min_size(&window, monitor.scale_factor())?;
+            let current_scale_factor = window.scale_factor()?;
+            let target_scale_factor = monitor.scale_factor();
+            let should_reapply_size =
+                (current_scale_factor - target_scale_factor).abs() > 0.01;
+
+            if let Some(shared) = app.try_state::<Arc<SharedState>>() {
+                let settings = shared.settings.lock().unwrap().clone();
+                if let (Some(width), Some(height)) =
+                    (settings.main_panel_width, settings.main_panel_height)
+                {
+                    if should_reapply_size {
+                        if let Some(saved_scale_factor) = settings.main_panel_scale_factor {
+                            let size = panel_physical_size_from_saved_physical(
+                                width,
+                                height,
+                                saved_scale_factor,
+                                target_scale_factor,
+                            );
+                            window.set_size(Size::Physical(size))?;
+                        } else {
+                            window.set_size(Size::Logical(clamp_panel_logical_size(width, height)))?;
+                        }
+                    }
+                } else {
+                    ensure_panel_min_size(&window, target_scale_factor)?;
+                }
+            } else {
+                ensure_panel_min_size(&window, target_scale_factor)?;
+            }
             let size = window.outer_size()?;
             let screen_origin = monitor.position();
             let screen_size = monitor.size();
@@ -127,8 +183,22 @@ pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Res
         let restored_width = settings.main_panel_width.or(settings.window_width);
         let restored_height = settings.main_panel_height.or(settings.window_height);
         if let (Some(width), Some(height)) = (restored_width, restored_height) {
-            let size = clamp_panel_size(width, height, window.scale_factor()?);
-            window.set_size(Size::Physical(size))?;
+            if settings.main_panel_width.is_some() && settings.main_panel_height.is_some() {
+                if let Some(saved_scale_factor) = settings.main_panel_scale_factor {
+                    let size = panel_physical_size_from_saved_physical(
+                        width,
+                        height,
+                        saved_scale_factor,
+                        window.scale_factor()?,
+                    );
+                    window.set_size(Size::Physical(size))?;
+                } else {
+                    window.set_size(Size::Logical(clamp_panel_logical_size(width, height)))?;
+                }
+            } else {
+                let size = clamp_panel_size(width, height, window.scale_factor()?);
+                window.set_size(Size::Physical(size))?;
+            }
         }
     }
 

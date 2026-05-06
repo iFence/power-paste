@@ -333,6 +333,16 @@ pub(crate) fn start(
     Ok(dto)
 }
 
+fn session_token_matches(state: &Arc<SharedState>, token: &str) -> bool {
+    state
+        .lan_receiver
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|session| session.token == token)
+        .unwrap_or(false)
+}
+
 // 停止当前局域网互传会话，并让已生成的二维码立即失效。
 pub(crate) fn stop(
     app: AppHandle,
@@ -476,7 +486,7 @@ fn run_server(
             let dto = receiver_state_dto(None);
             let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, dto);
         }
-        if state.lan_receiver.lock().unwrap().is_none() {
+        if !session_token_matches(&state, &token) {
             break;
         }
 
