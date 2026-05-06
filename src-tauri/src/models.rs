@@ -123,6 +123,10 @@ impl Default for AppSettings {
 impl AppSettings {
     pub(crate) fn normalized(mut self) -> Self {
         self.global_shortcut = normalize_shortcut(&self.global_shortcut);
+        if self.max_history_items == 0 {
+            self.max_history_items = Self::default().max_history_items;
+        }
+        self.max_history_items = self.max_history_items.clamp(50, 10_000);
         if self.max_history_days == 0 {
             self.max_history_days = Self::default().max_history_days;
         }

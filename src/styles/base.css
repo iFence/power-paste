@@ -439,6 +439,7 @@
 }
 
 .settings-page {
+    --settings-control-width: min(100%, 120px);
     position: relative;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
@@ -1636,16 +1637,20 @@ select {
 
 .custom-select {
     position: relative;
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
+    justify-self: end;
 }
 
 .shortcut-input-wrap {
     position: relative;
-    width: 100%;
-    max-width: min(100%, 420px);
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
     justify-self: end;
 }
 
 .shortcut-input-wrap input {
+    width: 100%;
     padding-right: 22px;
     font-size: 0.72rem;
 }
@@ -2322,7 +2327,7 @@ select {
 
 .setting-card {
     display: grid;
-    grid-template-columns: minmax(148px, 0.9fr) minmax(240px, 1.3fr);
+    grid-template-columns: minmax(148px, 1fr) auto;
     align-items: center;
     gap: 12px;
     padding: 6px 2px;
@@ -2334,6 +2339,10 @@ select {
 
 .setting-card.wide {
     grid-template-columns: minmax(148px, 0.9fr) minmax(240px, 1.3fr);
+}
+
+.setting-card > :nth-child(2) {
+    justify-self: end;
 }
 
 .setting-head {
@@ -2647,6 +2656,8 @@ select {
     display: grid;
     grid-template-columns: repeat(var(--toggle-count), minmax(0, 1fr));
     gap: var(--toggle-gap);
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
     height: 34px;
     padding: 3px;
     border-radius: 14px;
@@ -2738,14 +2749,14 @@ select {
 .setting-card > .path-picker-wrap,
 .setting-card > .setting-actions {
     min-width: 0;
-    width: 100%;
-    max-width: min(100%, 280px);
-    justify-self: end;
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
 }
 
-/* 数字输入框更窄 */
 .setting-card > input[type="number"] {
-    max-width: min(100%, 140px);
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
+    justify-self: end;
 }
 
 /* 文本输入框和 textarea 更宽 */
@@ -2757,12 +2768,27 @@ select {
 }
 
 .setting-card.wide > .path-picker-wrap {
+    width: min(100%, 360px);
     max-width: 100%;
 }
 
+.setting-card.wide > .shortcut-input-wrap {
+    justify-self: end;
+}
+
 .setting-card > .settings-reset-button {
-    width: fit-content;
-    min-width: 96px;
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
+    padding-inline: 10px;
+    place-self: center end;
+}
+
+.setting-card > .custom-select .custom-select-trigger,
+.setting-card > .shortcut-input-wrap input,
+.setting-card > .setting-toggle,
+.setting-card > .settings-reset-button,
+.setting-card > input {
+    width: 100%;
 }
 
 .setting-card > input,
@@ -3175,8 +3201,7 @@ textarea {
     .setting-card > input,
     .setting-card > .path-picker-wrap,
     .setting-card > .setting-actions {
-        max-width: none;
-        justify-self: stretch;
+        justify-self: end;
     }
 
     .setting-actions {
@@ -3219,7 +3244,11 @@ textarea {
     .setting-card > .setting-toggle,
     .setting-card > .input-with-unit,
     .setting-card > .path-picker-wrap {
-        max-width: min(100%, 360px);
+        max-width: var(--settings-control-width);
+    }
+
+    .setting-card > input[type="number"] {
+        max-width: var(--settings-control-width);
     }
 
     .setting-toggle-option {

@@ -186,7 +186,7 @@ async function chooseLanTransferDownloadDir() {
 }
 
 async function commitMaxHistoryItems() {
-  const value = Math.min(2000, Math.max(50, Number(maxHistoryItemsDraft.value) || 200))
+  const value = Math.min(10000, Math.max(50, Number(maxHistoryItemsDraft.value) || 200))
   maxHistoryItemsDraft.value = value
   await updateSetting('maxHistoryItems', value, 'maxHistoryItems')
 }
@@ -630,7 +630,7 @@ onUnmounted(() => {
               v-model.number="maxHistoryItemsDraft"
               type="number"
               min="50"
-              max="2000"
+              max="10000"
               step="50"
               :disabled="isPending('maxHistoryItems')"
               @change="commitMaxHistoryItems"
