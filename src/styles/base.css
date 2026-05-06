@@ -1043,6 +1043,44 @@ select {
     box-shadow: none;
 }
 
+.tag-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 1px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.tag-filter-row::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.tag-filter-chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--app-list-border);
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 82%, transparent);
+    color: var(--app-soft-text);
+    font-size: 0.76rem;
+    transition:
+        border-color 140ms ease,
+        background-color 140ms ease,
+        color 140ms ease;
+}
+
+.tag-filter-chip.active {
+    color: inherit;
+    border-color: color-mix(in srgb, currentColor 30%, var(--app-list-border));
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
 .eyebrow,
 .meta-label {
     font-size: 0.72rem;
@@ -1162,6 +1200,44 @@ select {
     min-height: 18px;
     min-width: 0;
     overflow: hidden;
+}
+
+.history-tag-list {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.history-tag-dot,
+.history-tag-picker-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    display: inline-block;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.history-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 118px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 76%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 18%, var(--app-list-border));
+}
+
+.history-tag-chip-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    line-height: 1.2;
 }
 
 .entry-content {
@@ -1520,6 +1596,10 @@ select {
     transform: translateY(0) scale(0.88);
 }
 
+.action-icon-balance-tag {
+    transform: translateY(0) scale(1.02);
+}
+
 .action-icon-balance-delete {
     transform: translateY(0) scale(0.94);
 }
@@ -1550,6 +1630,10 @@ select {
     color: var(--accent-primary);
 }
 
+.tag-action {
+    color: var(--accent-primary);
+}
+
 .pin-action-icon {
     transform-origin: center;
     transition:
@@ -1572,6 +1656,182 @@ select {
     height: 16px;
     transform: scaleX(0.8);
     transform-origin: center;
+}
+
+.history-tag-picker {
+    position: fixed;
+    z-index: 320;
+    width: 156px;
+    padding: 10px;
+    border-radius: 14px;
+    border: 1px solid
+        color-mix(in srgb, var(--app-panel-border) 78%, rgba(255, 255, 255, 0.22));
+    background: color-mix(in srgb, var(--modal-panel-bg) 99.5%, transparent);
+    box-shadow:
+        0 22px 48px rgba(8, 11, 18, 0.34),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(calc(var(--app-glass-blur) * 1.8))
+        saturate(calc(var(--app-glass-saturate) * 1.04));
+    -webkit-backdrop-filter: blur(calc(var(--app-glass-blur) * 1.8))
+        saturate(calc(var(--app-glass-saturate) * 1.04));
+}
+
+.history-tag-picker-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.74rem;
+    color: var(--app-soft-text);
+}
+
+.history-tag-picker-count {
+    color: var(--app-muted);
+}
+
+.history-tag-picker-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+.history-tag-picker-option {
+    width: 100%;
+    min-height: 32px;
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr);
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 86%, transparent);
+    padding: 0 10px;
+    transition:
+        transform 120ms ease,
+        border-color 120ms ease,
+        background-color 120ms ease,
+        opacity 120ms ease;
+}
+
+.history-tag-picker-option.active {
+    border-color: color-mix(in srgb, currentColor 30%, white 14%);
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.history-tag-picker-option:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.history-tag-picker-option-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 0.74rem;
+}
+
+.tag-settings-list {
+    display: grid;
+    gap: 10px;
+}
+
+.tag-settings-row {
+    display: grid;
+    grid-template-columns: minmax(108px, 132px) var(--settings-control-width);
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.tag-settings-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--app-soft-text);
+    font-size: 0.76rem;
+}
+
+.tag-settings-input {
+    min-width: 0;
+    width: var(--settings-control-width);
+    max-width: var(--settings-control-width);
+    height: 34px;
+    justify-self: end;
+}
+
+.history-tag-red {
+    color: #ff6159;
+}
+
+.history-tag-orange {
+    color: #ff9f0a;
+}
+
+.history-tag-yellow {
+    color: #ffd60a;
+}
+
+.history-tag-green {
+    color: #34c759;
+}
+
+.history-tag-blue {
+    color: #0a84ff;
+}
+
+.history-tag-purple {
+    color: #bf5af2;
+}
+
+.history-tag-gray {
+    color: #8e8e93;
+}
+
+.history-tag-dot.history-tag-red,
+.history-tag-red .history-tag-dot,
+.history-tag-red .history-tag-picker-swatch {
+    background: #ff6159;
+}
+
+.history-tag-dot.history-tag-orange,
+.history-tag-orange .history-tag-dot,
+.history-tag-orange .history-tag-picker-swatch {
+    background: #ff9f0a;
+}
+
+.history-tag-dot.history-tag-yellow,
+.history-tag-yellow .history-tag-dot,
+.history-tag-yellow .history-tag-picker-swatch {
+    background: #ffd60a;
+}
+
+.history-tag-dot.history-tag-green,
+.history-tag-green .history-tag-dot,
+.history-tag-green .history-tag-picker-swatch {
+    background: #34c759;
+}
+
+.history-tag-dot.history-tag-blue,
+.history-tag-blue .history-tag-dot,
+.history-tag-blue .history-tag-picker-swatch {
+    background: #0a84ff;
+}
+
+.history-tag-dot.history-tag-purple,
+.history-tag-purple .history-tag-dot,
+.history-tag-purple .history-tag-picker-swatch {
+    background: #bf5af2;
+}
+
+.history-tag-dot.history-tag-gray,
+.history-tag-gray .history-tag-dot,
+.history-tag-gray .history-tag-picker-swatch {
+    background: #8e8e93;
 }
 
 .toolbar-icon-button svg,

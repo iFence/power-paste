@@ -740,6 +740,7 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
         source_icon_data_url: item.source_icon_data_url.clone(),
         pinned: item.pinned,
         favorite: item.favorite,
+        tag_colors: item.tag_colors.clone(),
     }
 }
 
@@ -945,6 +946,7 @@ mod tests {
             hash: "hash".into(),
             pinned: false,
             favorite: false,
+            tag_colors: Vec::new(),
         };
 
         let dto = history_item_to_dto(&item);
@@ -990,6 +992,7 @@ mod tests {
             hash: "hash".into(),
             pinned: false,
             favorite: false,
+            tag_colors: Vec::new(),
         };
 
         let dto = history_item_to_dto(&item);

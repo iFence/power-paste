@@ -9,6 +9,7 @@ import {
   updateSettings as persistSettings,
 } from "../services/tauriApi";
 import { normalizeShortcutValue } from "../utils/shortcut";
+import { createEmptyTagLabels, normalizeTagLabels } from "../utils/constants";
 
 function detectClientPlatform() {
   const userAgent = window.navigator.userAgent.toLowerCase();
@@ -95,6 +96,7 @@ export function useSettings() {
     density: "compact",
     themeMode: "system",
     accentColor: "amber",
+    tagLabels: createEmptyTagLabels(),
   });
   const recordingShortcut = ref(false);
   const openSelectKey = ref(null);
@@ -220,6 +222,7 @@ export function useSettings() {
       ...next,
       lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
+      tagLabels: normalizeTagLabels(next.tagLabels),
     });
     if (!platformCapabilities.value.supportsLaunchOnStartup) {
       settings.launchOnStartup = false;
@@ -230,6 +233,7 @@ export function useSettings() {
     return {
       ...sourceSettings,
       globalShortcut: normalizeShortcutValue(sourceSettings.globalShortcut, detectedPlatform),
+      tagLabels: normalizeTagLabels(sourceSettings.tagLabels),
       launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
         ? sourceSettings.launchOnStartup
         : false,

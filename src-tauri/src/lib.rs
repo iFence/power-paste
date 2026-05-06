@@ -31,8 +31,9 @@ use commands::{
     clear_history, copy_item, delete_item, get_default_download_dir, get_history,
     get_lan_receiver_state, get_platform_capabilities, get_settings, open_external_url,
     open_lan_transfer_file, paste_item, reset_settings, reveal_lan_transfer_file,
-    send_lan_transfer_file, send_lan_transfer_text, start_lan_receiver, stop_lan_receiver,
-    toggle_favorite, toggle_pin, update_settings, update_text_item,
+    save_main_panel_size, send_lan_transfer_file, send_lan_transfer_text, start_lan_receiver,
+    stop_lan_receiver, toggle_favorite, toggle_pin, update_item_tags, update_settings,
+    update_text_item,
 };
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus};
 use repository::SqliteHistoryStore;
@@ -169,10 +170,12 @@ pub fn run() {
             get_default_download_dir,
             update_settings,
             reset_settings,
+            save_main_panel_size,
             toggle_pin,
             toggle_favorite,
             delete_item,
             update_text_item,
+            update_item_tags,
             clear_history,
             copy_item,
             paste_item,

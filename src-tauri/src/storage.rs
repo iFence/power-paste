@@ -126,11 +126,15 @@ mod tests {
         let paths = test_paths();
         let mut settings = AppSettings::default();
         settings.polling_interval_ms = 1250;
+        settings
+            .tag_labels
+            .insert("red".into(), "紧急".into());
 
         save_settings(&paths, &settings).expect("save settings");
         let loaded = load_settings(&paths).expect("load settings");
 
         assert_eq!(loaded.polling_interval_ms, 1250);
+        assert_eq!(loaded.tag_labels.get("red").map(String::as_str), Some("紧急"));
 
         let _ = fs::remove_dir_all(
             paths

@@ -124,7 +124,9 @@ pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Res
         if let (Some(x), Some(y)) = (settings.window_x, settings.window_y) {
             window.set_position(Position::Physical(PhysicalPosition::new(x, y)))?;
         }
-        if let (Some(width), Some(height)) = (settings.window_width, settings.window_height) {
+        let restored_width = settings.main_panel_width.or(settings.window_width);
+        let restored_height = settings.main_panel_height.or(settings.window_height);
+        if let (Some(width), Some(height)) = (restored_width, restored_height) {
             let size = clamp_panel_size(width, height, window.scale_factor()?);
             window.set_size(Size::Physical(size))?;
         }

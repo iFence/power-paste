@@ -12,6 +12,7 @@ defineProps({
   locale: { type: String, required: true },
   relativeTimeVersion: { type: Number, required: true },
   selectedId: { type: String, default: null },
+  tagLabelMap: { type: Object, required: true },
   t: { type: Function, required: true },
   unsupportedClipboardWriteMessage: { type: String, required: true },
   unsupportedDirectPasteMessage: { type: String, required: true },
@@ -26,6 +27,7 @@ const emit = defineEmits([
   "remove",
   "select",
   "toggle-pin",
+  "update-tags",
 ]);
 
 function handleScroll(event) {
@@ -58,6 +60,7 @@ function handleScroll(event) {
           :can-clipboard-write="canClipboardWrite"
           :can-direct-paste="canDirectPaste"
           :selected="item.id === selectedId"
+          :tag-label-map="tagLabelMap"
           :t="t"
           :unsupported-clipboard-write-message="unsupportedClipboardWriteMessage"
           :unsupported-direct-paste-message="unsupportedDirectPasteMessage"
@@ -68,6 +71,7 @@ function handleScroll(event) {
           @remove="emit('remove', $event)"
           @select="emit('select', $event)"
           @toggle-pin="emit('toggle-pin', $event)"
+          @update-tags="emit('update-tags', $event)"
         />
 
         <div v-if="loadingMore" class="history-load-more">

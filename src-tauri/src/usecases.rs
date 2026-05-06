@@ -12,7 +12,7 @@ use crate::{
         write_item_to_clipboard_with_profile,
     },
     commands::load_item_by_id,
-    models::{AppError, AppSettings, SharedState, PANEL_LABEL},
+    models::{AppError, AppSettings, SharedState, WindowSizePayload, PANEL_LABEL},
     paste_target::{
         paste_item_to_target, prepare_target_for_paste, resolve_last_target, ResolvedPasteTarget,
     },
@@ -144,6 +144,8 @@ pub(crate) fn execute_reset_settings(
         window_y: current.window_y,
         window_width: current.window_width,
         window_height: current.window_height,
+        main_panel_width: current.main_panel_width,
+        main_panel_height: current.main_panel_height,
         ..AppSettings::default()
     };
 
@@ -151,6 +153,17 @@ pub(crate) fn execute_reset_settings(
         .apply(&app, &state, &payload)
         .map_err(AppError::from)?;
     Ok(payload.normalized())
+}
+
+// 保存主面板宽高，不触发其他设置副作用。
+pub(crate) fn execute_save_main_panel_size(
+    state: Arc<SharedState>,
+    payload: WindowSizePayload,
+) -> Result<(), AppError> {
+    let mut settings = state.settings.lock().unwrap();
+    settings.main_panel_width = Some(payload.width);
+    settings.main_panel_height = Some(payload.height);
+    save_settings(&state.paths, &settings).map_err(AppError::from)
 }
 
 pub(crate) fn execute_copy_item(

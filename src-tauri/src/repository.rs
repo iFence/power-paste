@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
+use serde_json::{from_str, to_string};
 use uuid::Uuid;
 
 use crate::{
@@ -17,6 +18,8 @@ pub(crate) struct UpsertedCapture {
     pub(crate) inserted: bool,
     pub(crate) item: StoredClipboardItem,
 }
+
+const ALLOWED_TAG_COLORS: [&str; 7] = ["red", "orange", "yellow", "green", "blue", "purple", "gray"];
 
 fn ensure_column(connection: &Connection, name: &str, sql_type: &str) -> Result<()> {
     let mut statement = connection.prepare("PRAGMA table_info(clipboard_items)")?;
@@ -68,7 +71,8 @@ impl SqliteHistoryStore {
               source_icon_data_url TEXT,
               hash TEXT NOT NULL,
               pinned INTEGER NOT NULL DEFAULT 0,
-              favorite INTEGER NOT NULL DEFAULT 0
+              favorite INTEGER NOT NULL DEFAULT 0,
+              tag_colors TEXT NOT NULL DEFAULT '[]'
             );
 
             CREATE INDEX IF NOT EXISTS idx_clipboard_items_sort
@@ -82,6 +86,7 @@ impl SqliteHistoryStore {
         ensure_column(&self.connection, "image_original_bytes", "BLOB")?;
         ensure_column(&self.connection, "image_original_mime", "TEXT")?;
         ensure_column(&self.connection, "image_preview_png", "BLOB")?;
+        ensure_column(&self.connection, "tag_colors", "TEXT NOT NULL DEFAULT '[]'")?;
         Ok(())
     }
 
@@ -141,7 +146,7 @@ impl SqliteHistoryStore {
             SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                    image_png, image_original_bytes, image_original_mime,
                    image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                   hash, pinned, favorite
+                   hash, pinned, favorite, tag_colors
             FROM clipboard_items
             ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
             LIMIT ?1 OFFSET ?2
@@ -151,7 +156,7 @@ impl SqliteHistoryStore {
             SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                    image_png, image_original_bytes, image_original_mime,
                    image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                   hash, pinned, favorite
+                   hash, pinned, favorite, tag_colors
             FROM clipboard_items
             WHERE lower(
               preview || char(10) || coalesce(full_text, '') || char(10) || coalesce(source_app, '')
@@ -178,7 +183,7 @@ impl SqliteHistoryStore {
             SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                    image_png, image_original_bytes, image_original_mime,
                    image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                   hash, pinned, favorite
+                   hash, pinned, favorite, tag_colors
             FROM clipboard_items
             WHERE id = ?1
             "#,
@@ -206,7 +211,7 @@ impl SqliteHistoryStore {
                 SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                        image_png, image_original_bytes, image_original_mime,
                        image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                       hash, pinned, favorite
+                       hash, pinned, favorite, tag_colors
                 FROM clipboard_items
                 WHERE hash = ?1 OR (kind = 'text' AND full_text = ?2)
                 LIMIT 1
@@ -220,7 +225,7 @@ impl SqliteHistoryStore {
                 SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                        image_png, image_original_bytes, image_original_mime,
                        image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                       hash, pinned, favorite
+                       hash, pinned, favorite, tag_colors
                 FROM clipboard_items
                 WHERE hash = ?1
                 LIMIT 1
@@ -264,7 +269,8 @@ impl SqliteHistoryStore {
                         source_icon_data_url = ?16,
                         hash = ?17,
                         pinned = ?18,
-                        favorite = ?19
+                        favorite = ?19,
+                        tag_colors = ?20
                     WHERE id = ?1
                     "#,
                     params![
@@ -286,7 +292,8 @@ impl SqliteHistoryStore {
                         next.source_icon_data_url,
                         next.hash,
                         next.pinned as i64,
-                        next.favorite as i64
+                        next.favorite as i64,
+                        serialize_tag_colors(&next.tag_colors)
                     ],
                 )?;
                 trim_history(&tx, settings)?;
@@ -305,9 +312,9 @@ impl SqliteHistoryStore {
                       id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                       image_png, image_original_bytes, image_original_mime, image_preview_png,
                       image_width, image_height, source_app, source_icon_data_url,
-                      hash, pinned, favorite
+                      hash, pinned, favorite, tag_colors
                     ) VALUES (
-                      ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19
+                      ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20
                     )
                     "#,
                     params![
@@ -329,7 +336,8 @@ impl SqliteHistoryStore {
                         item.source_icon_data_url,
                         item.hash,
                         item.pinned as i64,
-                        item.favorite as i64
+                        item.favorite as i64,
+                        serialize_tag_colors(&item.tag_colors)
                     ],
                 )?;
                 trim_history(&tx, settings)?;
@@ -405,6 +413,26 @@ impl SqliteHistoryStore {
         Ok(())
     }
 
+    pub(crate) fn update_item_tags(&self, id: &str, tag_colors: &[String]) -> Result<()> {
+        let item = self
+            .get_item(id)?
+            .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))?;
+        let next_colors = sanitize_tag_colors(tag_colors);
+        if next_colors == item.tag_colors {
+            return Ok(());
+        }
+
+        self.connection.execute(
+            r#"
+            UPDATE clipboard_items
+            SET tag_colors = ?2
+            WHERE id = ?1
+            "#,
+            params![id, serialize_tag_colors(&next_colors)],
+        )?;
+        Ok(())
+    }
+
     pub(crate) fn update_source_icon(&self, id: &str, source_icon_data_url: &str) -> Result<()> {
         self.connection.execute(
             r#"
@@ -451,6 +479,7 @@ impl SqliteHistoryStore {
             hash: row.get(16)?,
             pinned: row.get::<_, i64>(17)? != 0,
             favorite: row.get::<_, i64>(18)? != 0,
+            tag_colors: parse_tag_colors(row.get::<_, String>(19)?),
         };
 
         let (full_text, html_text) =
@@ -617,11 +646,40 @@ fn build_new_item(
         hash: String::new(),
         pinned: false,
         favorite: false,
+        tag_colors: Vec::new(),
     };
 
     let source_app = item.source_app.clone();
     let source_icon_data_url = item.source_icon_data_url.clone();
     apply_capture(item, capture, now, source_app, source_icon_data_url)
+}
+
+fn sanitize_tag_colors(colors: &[String]) -> Vec<String> {
+    let mut next = Vec::new();
+    for color in colors {
+        let normalized = color.trim().to_ascii_lowercase();
+        if !ALLOWED_TAG_COLORS.contains(&normalized.as_str()) {
+            continue;
+        }
+        if next.iter().any(|existing| existing == &normalized) {
+            continue;
+        }
+        next.push(normalized);
+        if next.len() == 3 {
+            break;
+        }
+    }
+    next
+}
+
+fn serialize_tag_colors(colors: &[String]) -> String {
+    to_string(&sanitize_tag_colors(colors)).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn parse_tag_colors(raw: String) -> Vec<String> {
+    from_str::<Vec<String>>(&raw)
+        .map(|colors| sanitize_tag_colors(&colors))
+        .unwrap_or_default()
 }
 
 fn trim_history(tx: &rusqlite::Transaction<'_>, settings: &AppSettings) -> Result<usize> {

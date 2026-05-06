@@ -5,11 +5,13 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { openExternalUrl } from '../services/tauriApi'
 import { normalizeShortcutKey } from '../utils/shortcut'
+import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 import checkIcon from '../assets/check.svg'
 
 const ABOUT_INFO = {
   repositoryUrl: 'https://github.com/iFence/power-paste',
 }
+const SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY = 'clipdesk.settings.activeCategory'
 
 marked.setOptions({
   breaks: true,
@@ -53,7 +55,7 @@ const props = defineProps({
   updateState: { type: Object, required: true },
 })
 
-const activeCategory = ref('general')
+const activeCategory = ref(window.localStorage.getItem(SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY) || 'general')
 const showUpdateConfirm = ref(false)
 const showUpdateFeedback = ref(false)
 const updateDebugVersionDraft = ref('')
@@ -201,6 +203,35 @@ async function commitMaxImageBytes() {
   const mb = Math.max(1, Number(maxImageBytesMbDraft.value) || 1)
   maxImageBytesMbDraft.value = Number(mb.toFixed(1))
   await updateSetting('maxImageBytes', Math.round(mb * 1_000_000), 'maxImageBytes')
+}
+
+async function updateTagLabel(color, value) {
+  await props.applySettingPatch(
+    {
+      tagLabels: {
+        ...props.settings.tagLabels,
+        [color]: value,
+      },
+    },
+    `tagLabels.${color}`,
+  )
+}
+
+async function handleTagLabelChange(color, event) {
+  const value =
+    typeof event?.target?.value === 'string' ? event.target.value.slice(0, 5) : ''
+  if (event?.target && typeof event.target.value === 'string') {
+    event.target.value = value
+  }
+  await updateTagLabel(color, value)
+}
+
+function resolvedTagLabel(color) {
+  return resolveTagLabel(color, props.settings.tagLabels, props.t)
+}
+
+function tagToneClass(color) {
+  return `history-tag-${color}`
 }
 
 async function clearGlobalShortcut() {
@@ -362,6 +393,20 @@ onUnmounted(() => {
     clearTimeout(updateFeedbackTimer)
   }
 })
+
+watch(
+  [categories, activeCategory],
+  ([nextCategories, nextActiveCategory]) => {
+    const availableKeys = new Set(nextCategories.map((category) => category.key))
+    if (!availableKeys.has(nextActiveCategory)) {
+      activeCategory.value = 'general'
+      return
+    }
+
+    window.localStorage.setItem(SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY, nextActiveCategory)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -676,6 +721,37 @@ onUnmounted(() => {
               @change="commitMaxImageBytes"
               @keydown.enter.prevent="commitMaxImageBytes"
             />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('tagNames') }}</span>
+                <span class="setting-help-icon" :title="t('tagNamesTip')" tabindex="0">?</span>
+              </span>
+            </div>
+            <div class="tag-settings-list">
+              <label
+                v-for="color in HISTORY_TAG_COLORS"
+                :key="color"
+                class="tag-settings-row"
+              >
+                <span class="tag-settings-label">
+                  <span class="history-tag-dot" :class="tagToneClass(color)"></span>
+                  <span>{{ t(`tagDefaultName${color[0].toUpperCase()}${color.slice(1)}`) }}</span>
+                </span>
+                <input
+                  :value="props.settings.tagLabels?.[color] ?? ''"
+                  type="text"
+                  class="tag-settings-input"
+                  maxlength="5"
+                  :placeholder="resolvedTagLabel(color)"
+                  :disabled="isPending(`tagLabels.${color}`)"
+                  @change="handleTagLabelChange(color, $event)"
+                  @keydown.enter.prevent="handleTagLabelChange(color, $event)"
+                />
+              </label>
+            </div>
           </section>
         </div>
 

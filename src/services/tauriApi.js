@@ -58,6 +58,10 @@ export function updateSettings(payload) {
   return invoke("update_settings", { payload });
 }
 
+export function saveMainPanelSize(payload) {
+  return invoke("save_main_panel_size", { payload });
+}
+
 export function resetSettings() {
   return invoke("reset_settings");
 }
@@ -76,6 +80,10 @@ export function deleteItem(id) {
 
 export function updateTextItem(id, text) {
   return invoke("update_text_item", { id, text });
+}
+
+export function updateItemTags(id, tagColors) {
+  return invoke("update_item_tags", { id, tagColors });
 }
 
 export function clearHistory() {

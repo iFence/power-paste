@@ -89,10 +89,13 @@ pub(crate) struct AppSettings {
     pub(crate) density: String,
     pub(crate) theme_mode: String,
     pub(crate) accent_color: String,
+    pub(crate) tag_labels: HashMap<String, String>,
     pub(crate) window_x: Option<i32>,
     pub(crate) window_y: Option<i32>,
     pub(crate) window_width: Option<u32>,
     pub(crate) window_height: Option<u32>,
+    pub(crate) main_panel_width: Option<u32>,
+    pub(crate) main_panel_height: Option<u32>,
 }
 
 impl Default for AppSettings {
@@ -112,10 +115,13 @@ impl Default for AppSettings {
             density: "compact".into(),
             theme_mode: "system".into(),
             accent_color: "amber".into(),
+            tag_labels: HashMap::new(),
             window_x: None,
             window_y: None,
             window_width: None,
             window_height: None,
+            main_panel_width: None,
+            main_panel_height: None,
         }
     }
 }
@@ -135,6 +141,22 @@ impl AppSettings {
             .lan_transfer_download_dir
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+        self.tag_labels = self
+            .tag_labels
+            .into_iter()
+            .filter_map(|(key, value)| {
+                let normalized_key = key.trim().to_ascii_lowercase();
+                if !matches!(
+                    normalized_key.as_str(),
+                    "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "gray"
+                ) {
+                    return None;
+                }
+
+                let normalized_value = value.trim().to_string();
+                Some((normalized_key, normalized_value))
+            })
+            .collect();
         self
     }
 }
@@ -179,6 +201,7 @@ pub(crate) struct StoredClipboardItem {
     pub(crate) hash: String,
     pub(crate) pinned: bool,
     pub(crate) favorite: bool,
+    pub(crate) tag_colors: Vec<String>,
 }
 
 impl StoredClipboardItem {
@@ -215,6 +238,7 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) source_icon_data_url: Option<String>,
     pub(crate) pinned: bool,
     pub(crate) favorite: bool,
+    pub(crate) tag_colors: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -228,6 +252,13 @@ pub(crate) struct ClipboardHistoryPageDto {
 pub(crate) struct StoragePaths {
     pub(crate) db_path: PathBuf,
     pub(crate) settings_path: PathBuf,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WindowSizePayload {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
 }
 
 impl StoragePaths {

@@ -8,10 +8,13 @@ import {
   pasteItem as pasteItemRequest,
   toggleFavorite as toggleFavoriteRequest,
   togglePin as togglePinRequest,
+  updateItemTags as updateItemTagsRequest,
   updateTextItem,
 } from "../services/tauriApi";
+import { HISTORY_TAG_COLORS, resolveTagLabel } from "../utils/constants";
 
 const ACTIVE_FILTER_TAB_STORAGE_KEY = "clipdesk.activeFilterTab";
+const ACTIVE_TAG_FILTER_STORAGE_KEY = "clipdesk.activeTagFilter";
 const SELECTED_HISTORY_ID_STORAGE_KEY = "clipdesk.selectedHistoryId";
 const LATEST_HISTORY_ID_STORAGE_KEY = "clipdesk.latestHistoryId";
 const HISTORY_PAGE_SIZE = 30;
@@ -158,6 +161,9 @@ export function useHistory({ platformCapabilities, settings, t }) {
   const activeFilterTab = ref(
     window.localStorage.getItem(ACTIVE_FILTER_TAB_STORAGE_KEY) || "all",
   );
+  const activeTagFilter = ref(
+    window.localStorage.getItem(ACTIVE_TAG_FILTER_STORAGE_KEY) || "",
+  );
   const history = ref([]);
   const loading = ref(true);
   const relativeTimeVersion = ref(0);
@@ -191,6 +197,12 @@ export function useHistory({ platformCapabilities, settings, t }) {
       if (activeFilterTab.value === "pinned" && !item.pinned) {
         return false;
       }
+      if (
+        activeTagFilter.value &&
+        !(Array.isArray(item.tagColors) && item.tagColors.includes(activeTagFilter.value))
+      ) {
+        return false;
+      }
 
       const lower = query.value.trim().toLowerCase();
       if (!lower) {
@@ -210,6 +222,15 @@ export function useHistory({ platformCapabilities, settings, t }) {
     { key: "image", label: t("filterImage") },
     { key: "mixed", label: t("filterMixed") },
   ]);
+  const availableTagFilters = computed(() =>
+    HISTORY_TAG_COLORS.filter((color) =>
+      history.value.some((item) => Array.isArray(item.tagColors) && item.tagColors.includes(color)),
+    ).map((color) => ({
+      key: color,
+      label: resolveTagLabel(color, settings.tagLabels, t),
+      color,
+    })),
+  );
 
   function syncActiveFilterTab() {
     const availableTabs = new Set(historyTabs.value.map((tab) => tab.key));
@@ -222,6 +243,21 @@ export function useHistory({ platformCapabilities, settings, t }) {
       ACTIVE_FILTER_TAB_STORAGE_KEY,
       activeFilterTab.value,
     );
+  }
+
+  function syncActiveTagFilter() {
+    const availableTags = new Set(availableTagFilters.value.map((tag) => tag.key));
+    if (activeTagFilter.value && !availableTags.has(activeTagFilter.value)) {
+      activeTagFilter.value = "";
+      window.localStorage.removeItem(ACTIVE_TAG_FILTER_STORAGE_KEY);
+      return;
+    }
+
+    if (activeTagFilter.value) {
+      window.localStorage.setItem(ACTIVE_TAG_FILTER_STORAGE_KEY, activeTagFilter.value);
+    } else {
+      window.localStorage.removeItem(ACTIVE_TAG_FILTER_STORAGE_KEY);
+    }
   }
 
   function syncPersistedHistoryState(items = history.value) {
@@ -551,6 +587,38 @@ export function useHistory({ platformCapabilities, settings, t }) {
     }
   }
 
+  async function updateTags(id, tagColors) {
+    const index = history.value.findIndex((item) => item.id === id);
+    if (index === -1) {
+      await updateItemTagsRequest(id, tagColors);
+      await refreshHistory();
+      return;
+    }
+
+    const previous = history.value[index].tagColors ?? [];
+    history.value[index] = {
+      ...history.value[index],
+      tagColors,
+    };
+    history.value = [...history.value];
+
+    try {
+      await updateItemTagsRequest(id, tagColors);
+    } catch (error) {
+      const rollbackIndex = history.value.findIndex((item) => item.id === id);
+      if (rollbackIndex !== -1) {
+        history.value[rollbackIndex] = {
+          ...history.value[rollbackIndex],
+          tagColors: previous,
+        };
+        history.value = [...history.value];
+      } else {
+        await refreshHistory();
+      }
+      throw error;
+    }
+  }
+
   function openEditModal(item) {
     if (item.kind !== "text") {
       return;
@@ -640,6 +708,10 @@ export function useHistory({ platformCapabilities, settings, t }) {
     syncActiveFilterTab();
   });
 
+  watch(activeTagFilter, () => {
+    syncActiveTagFilter();
+  });
+
   watch(selectedId, () => {
     syncPersistedHistoryState();
   });
@@ -661,9 +733,11 @@ export function useHistory({ platformCapabilities, settings, t }) {
   });
 
   syncActiveFilterTab();
+  syncActiveTagFilter();
 
   return {
     activeFilterTab,
+    activeTagFilter,
     clearHistory,
     copyItem,
     editDraft,
@@ -684,6 +758,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     refreshHistory,
     refreshRelativeTimes,
     relativeTimeVersion,
+    availableTagFilters,
     applyHistoryUpdate,
     removeItem,
     saveEditedItem,
@@ -695,6 +770,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     showEditModal,
     toggleFavorite,
     togglePin,
+    updateTags,
     totalHistoryCount,
   };
 }

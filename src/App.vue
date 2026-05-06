@@ -373,9 +373,16 @@ async function leaveSettingsRoute() {
 
                 <FilterTabs
                     :active-filter-tab="historyState.activeFilterTab.value"
+                    :active-tag-filter="historyState.activeTagFilter.value"
                     :aria-label="settingsState.t('searchPlaceholder')"
                     :tabs="historyState.historyTabs.value"
+                    :tag-filters="historyState.availableTagFilters.value"
+                    :tag-label-prefix="settingsState.t('historyTags')"
                     @select="historyState.activeFilterTab.value = $event"
+                    @select-tag="
+                        historyState.activeTagFilter.value =
+                            historyState.activeTagFilter.value === $event ? '' : $event
+                    "
                 />
 
                 <section class="history-region">
@@ -402,6 +409,7 @@ async function leaveSettingsRoute() {
                             historyState.relativeTimeVersion.value
                         "
                         :selected-id="historyState.selectedId.value"
+                        :tag-label-map="settingsState.settings.tagLabels"
                         :t="settingsState.t"
                         :unsupported-clipboard-write-message="
                             settingsState.t('unsupportedClipboardWrite')
@@ -417,6 +425,7 @@ async function leaveSettingsRoute() {
                         @remove="historyState.removeItem"
                         @select="historyState.setSelectedId"
                         @toggle-pin="historyState.togglePin"
+                        @update-tags="historyState.updateTags($event.id, $event.tagColors)"
                     />
                 </section>
 

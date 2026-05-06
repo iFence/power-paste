@@ -1,5 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { watch, nextTick } from 'vue'
+import { saveMainPanelSize } from '../services/tauriApi'
 
 // 窗口尺寸配置
 const WINDOW_SIZES = {
@@ -14,13 +15,13 @@ let savedHomeSize = null
 let isResizing = false
 let currentRouteName = null
 let isFirstLoad = true
+let unlistenResize = null
 
 /**
- * 获取窗口的逻辑尺寸
+ * 获取内容区逻辑尺寸，和前端 setSize 的语义保持一致。
  */
 async function getLogicalSize(appWindow) {
   const size = await appWindow.innerSize()
-  // 确保返回的是逻辑像素
   if (size.type === 'Physical') {
     const scaleFactor = await appWindow.scaleFactor()
     return {
@@ -34,6 +35,25 @@ async function getLogicalSize(appWindow) {
   }
 }
 
+function isMainLikeRoute(routeName) {
+  return routeName === 'home' || routeName === 'lanTransfer'
+}
+
+async function persistMainPanelSize(size) {
+  if (!size) {
+    return
+  }
+
+  try {
+    await saveMainPanelSize({
+      width: size.width,
+      height: size.height,
+    })
+  } catch (error) {
+    console.error('Failed to persist main panel size:', error)
+  }
+}
+
 /**
  * 窗口尺寸管理 composable
  * 根据路由自动调整窗口尺寸
@@ -42,6 +62,26 @@ async function getLogicalSize(appWindow) {
  */
 export function useWindowSize(route) {
   const appWindow = getCurrentWindow()
+
+  if (!unlistenResize) {
+    appWindow.onResized(async () => {
+      if (isResizing || !isMainLikeRoute(currentRouteName)) {
+        return
+      }
+
+      try {
+        const size = await getLogicalSize(appWindow)
+        savedHomeSize = size
+        await persistMainPanelSize(size)
+      } catch (error) {
+        console.error('Failed to track main panel size:', error)
+      }
+    }).then((unlisten) => {
+      unlistenResize = unlisten
+    }).catch((error) => {
+      console.error('Failed to subscribe resize listener:', error)
+    })
+  }
 
   // 监听路由变化，自动调整窗口尺寸
   watch(
@@ -53,10 +93,10 @@ export function useWindowSize(route) {
         currentRouteName = routeName
         
         // 如果首次加载就是主面板，保存初始尺寸
-        if (routeName === 'home' || routeName === 'lanTransfer') {
+        if (isMainLikeRoute(routeName)) {
           try {
             savedHomeSize = await getLogicalSize(appWindow)
-            console.log('初始主面板尺寸（逻辑像素）:', savedHomeSize)
+            await persistMainPanelSize(savedHomeSize)
           } catch (error) {
             console.error('Failed to get initial size:', error)
           }
@@ -73,10 +113,10 @@ export function useWindowSize(route) {
         isResizing = true
 
         // 从主面板或互传面板切换到设置面板
-        if ((oldRouteName === 'home' || oldRouteName === 'lanTransfer') && routeName === 'settings') {
+        if (isMainLikeRoute(oldRouteName) && routeName === 'settings') {
           // 保存当前尺寸（逻辑像素）
           savedHomeSize = await getLogicalSize(appWindow)
-          console.log('保存主面板尺寸（逻辑像素）:', savedHomeSize)
+          await persistMainPanelSize(savedHomeSize)
 
           // 切换到设置面板的固定尺寸
           const targetSize = WINDOW_SIZES.settings
@@ -93,11 +133,9 @@ export function useWindowSize(route) {
           await new Promise((resolve) => setTimeout(resolve, 150))
         }
         // 从设置面板切换回主面板或互传面板
-        else if (oldRouteName === 'settings' && (routeName === 'home' || routeName === 'lanTransfer')) {
+        else if (oldRouteName === 'settings' && isMainLikeRoute(routeName)) {
           // 恢复之前保存的尺寸
           if (savedHomeSize) {
-            console.log('恢复主面板尺寸（逻辑像素）:', savedHomeSize)
-
             await nextTick()
 
             // 使用逻辑像素设置
@@ -109,11 +147,6 @@ export function useWindowSize(route) {
 
             currentRouteName = routeName
             await new Promise((resolve) => setTimeout(resolve, 150))
-            
-            // 验证恢复后的尺寸
-            const restoredSize = await getLogicalSize(appWindow)
-            console.log('实际恢复后尺寸（逻辑像素）:', restoredSize)
-            console.log('尺寸差异: 宽度', restoredSize.width - savedHomeSize.width, '高度', restoredSize.height - savedHomeSize.height)
           } else {
             // 如果没有保存的尺寸，不做调整
             currentRouteName = routeName

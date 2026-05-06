@@ -4,8 +4,8 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::{
     clipboard::platform_capabilities,
-    models::{AppError, AppSettings, PlatformCapabilities, SharedState},
-    usecases::{execute_reset_settings, execute_update_settings},
+    models::{AppError, AppSettings, PlatformCapabilities, SharedState, WindowSizePayload},
+    usecases::{execute_reset_settings, execute_save_main_panel_size, execute_update_settings},
 };
 
 // 获取当前应用设置。
@@ -47,4 +47,13 @@ pub(crate) fn get_default_download_dir(app: AppHandle) -> Result<String, AppErro
         .download_dir()
         .map_err(|error| AppError::Message(error.to_string()))?;
     Ok(dir.to_string_lossy().to_string())
+}
+
+// 保存主面板最近一次使用的宽高，避免设置页尺寸覆盖主面板恢复尺寸。
+#[tauri::command]
+pub(crate) fn save_main_panel_size(
+    state: State<'_, Arc<SharedState>>,
+    payload: WindowSizePayload,
+) -> Result<(), AppError> {
+    execute_save_main_panel_size(state.inner().clone(), payload)
 }

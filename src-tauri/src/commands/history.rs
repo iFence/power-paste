@@ -65,6 +65,18 @@ pub(crate) fn update_text_item(
     Ok(())
 }
 
+// 更新指定历史条目的标签颜色，最多保留三个预设颜色标签。
+#[tauri::command]
+pub(crate) fn update_item_tags(
+    state: State<'_, Arc<SharedState>>,
+    id: String,
+    tag_colors: Vec<String>,
+) -> Result<(), AppError> {
+    let store = state.history_store.lock().unwrap();
+    store.update_item_tags(&id, &tag_colors)?;
+    Ok(())
+}
+
 // 清空可删除的历史记录，并重置剪贴板观察状态。
 #[tauri::command]
 pub(crate) fn clear_history(state: State<'_, Arc<SharedState>>) -> Result<(), AppError> {

@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { formatRelativeTime } from '../utils/format'
 import { looksLikeCode, previewHtml } from '../utils/codePreview'
+import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 
 const props = defineProps({
   canClipboardWrite: { type: Boolean, required: true },
@@ -10,16 +11,24 @@ const props = defineProps({
   locale: { type: String, required: true },
   relativeTimeVersion: { type: Number, required: true },
   selected: { type: Boolean, required: true },
+  tagLabelMap: { type: Object, required: true },
   t: { type: Function, required: true },
   unsupportedDirectPasteMessage: { type: String, required: true },
   unsupportedClipboardWriteMessage: { type: String, required: true },
 })
 
-const emit = defineEmits(['copy', 'edit', 'open-link', 'paste', 'remove', 'select', 'toggle-pin'])
+const emit = defineEmits(['copy', 'edit', 'open-link', 'paste', 'remove', 'select', 'toggle-pin', 'update-tags'])
 const entryRef = ref(null)
+const tagTriggerRef = ref(null)
+const tagPickerRef = ref(null)
+const tagPickerStyle = ref({})
 const imagePreviewStyle = ref({})
 const showImagePreview = ref(false)
+const showTagPicker = ref(false)
 const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
+const tagColors = computed(() => Array.isArray(props.item?.tagColors) ? props.item.tagColors : [])
+const tagColorOptions = HISTORY_TAG_COLORS
+const canAddMoreTags = computed(() => tagColors.value.length < 3)
 const hasTextPreview = computed(() => {
   if (props.item?.kind === 'image') {
     return false
@@ -135,6 +144,136 @@ function handlePreviewMouseEnter(event) {
 function handlePreviewMouseLeave() {
   showImagePreview.value = false
 }
+
+async function updateTagPickerPosition() {
+  if (!showTagPicker.value || !tagTriggerRef.value || !tagPickerRef.value) {
+    return
+  }
+
+  const triggerRect = tagTriggerRef.value.getBoundingClientRect()
+  const pickerRect = tagPickerRef.value.getBoundingClientRect()
+  const gap = 8
+  const viewportPadding = 12
+  const pickerWidth = pickerRect.width || 156
+  const pickerHeight = pickerRect.height || 320
+
+  const left = Math.min(
+    Math.max(viewportPadding, triggerRect.right - pickerWidth),
+    Math.max(viewportPadding, window.innerWidth - pickerWidth - viewportPadding),
+  )
+
+  const preferredTop = triggerRect.bottom + gap
+  const fallbackTop = triggerRect.top - pickerHeight - gap
+  const top =
+    preferredTop + pickerHeight <= window.innerHeight - viewportPadding
+      ? preferredTop
+      : Math.max(viewportPadding, fallbackTop)
+
+  tagPickerStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+  }
+}
+
+async function openTagPicker() {
+  showTagPicker.value = true
+  await nextTick()
+  await updateTagPickerPosition()
+}
+
+function closeTagPicker() {
+  showTagPicker.value = false
+}
+
+async function toggleTagPicker() {
+  if (showTagPicker.value) {
+    closeTagPicker()
+    return
+  }
+
+  await openTagPicker()
+}
+
+function isTagSelected(color) {
+  return tagColors.value.includes(color)
+}
+
+function tagToneClass(color) {
+  return `history-tag-${color}`
+}
+
+function tagDisplayName(color) {
+  return resolveTagLabel(color, props.tagLabelMap, props.t)
+}
+
+function toggleTagColor(color) {
+  const current = [...tagColors.value]
+  if (current.includes(color)) {
+    emit('update-tags', {
+      id: props.item.id,
+      tagColors: current.filter((item) => item !== color),
+    })
+    return
+  }
+
+  if (current.length >= 3) {
+    return
+  }
+
+  emit('update-tags', {
+    id: props.item.id,
+    tagColors: [...current, color],
+  })
+}
+
+function handleDocumentPointerDown(event) {
+  if (!showTagPicker.value) {
+    return
+  }
+
+  const target = event.target
+  if (tagPickerRef.value?.contains(target) || tagTriggerRef.value?.contains(target) || entryRef.value?.contains(target)) {
+    return
+  }
+
+  closeTagPicker()
+}
+
+function handleDocumentKeydown(event) {
+  if (event.key === 'Escape') {
+    closeTagPicker()
+  }
+}
+
+function handleDocumentScroll() {
+  if (!showTagPicker.value) {
+    return
+  }
+
+  void updateTagPickerPosition()
+}
+
+function handleWindowResize() {
+  if (!showTagPicker.value) {
+    return
+  }
+
+  void updateTagPickerPosition()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+  document.addEventListener('keydown', handleDocumentKeydown)
+  document.addEventListener('scroll', handleDocumentScroll, true)
+  window.addEventListener('resize', handleWindowResize)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+  document.removeEventListener('keydown', handleDocumentKeydown)
+  document.removeEventListener('scroll', handleDocumentScroll, true)
+  window.removeEventListener('resize', handleWindowResize)
+})
 </script>
 
 <template>
@@ -190,6 +329,17 @@ function handlePreviewMouseLeave() {
           </svg>
         </div>
         <span v-if="item.favorite" class="pill accent-alt">{{ t("badgeStarred") }}</span>
+        <div v-if="tagColors.length" class="history-tag-list" :aria-label="t('historyTags')">
+          <span
+            v-for="color in tagColors"
+            :key="`${item.id}-${color}`"
+            class="history-tag-chip"
+            :class="tagToneClass(color)"
+          >
+            <span class="history-tag-dot" :class="tagToneClass(color)"></span>
+            <span class="history-tag-chip-label">{{ tagDisplayName(color) }}</span>
+          </span>
+        </div>
       </div>
       <span class="timestamp">{{ relativeTimeLabel }}</span>
     </div>
@@ -230,6 +380,26 @@ function handlePreviewMouseLeave() {
         {{ formatImageSize(item.imageByteSize) }}
       </span>
       <div class="entry-actions">
+        <button
+          ref="tagTriggerRef"
+          class="entry-action-button icon-only tag-action"
+          type="button"
+          :title="t('manageTags')"
+          :aria-label="t('manageTags')"
+          @mousedown.stop
+          @click.stop="toggleTagPicker"
+        >
+          <svg viewBox="0 0 1024 1024" aria-hidden="true" class="action-icon-balance action-icon-balance-tag">
+            <path
+              d="M420.8 919.2c-40 0-78.4-16-108.8-46.4l-160-160.8c-29.6-29.6-45.6-68.8-44.8-110.4 0-41.6 16.8-80 45.6-108l373.6-373.6c10.4-10.4 22.4-15.2 33.6-15.2h310.4c26.4 0 48 21.6 48 48V464c0 11.2-4.8 23.2-15.2 33.6l-373.6 373.6c-32.8 32-69.6 48-108.8 48z m151.2-734.4L208 548.8c-13.6 13.6-21.6 32.8-21.6 52 0 19.2 7.2 39.2 21.6 53.6L368 814.4c29.6 29.6 75.2 29.6 104.8 0L838.4 448V184.8h-266.4z"
+              fill="currentColor"
+            />
+            <path
+              d="M672.8 470.4c-66.4 0-120-53.6-120-120s53.6-120 120-120 120 53.6 120 120-53.6 120-120 120z m0-176c-30.4 0-56 25.6-56 56s25.6 56 56 56 56-25.6 56-56-25.6-56-56-56z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
         <button
           class="entry-action-button icon-only pin-action"
           :class="{ active: item.pinned }"
@@ -303,6 +473,37 @@ function handlePreviewMouseLeave() {
         </button>
       </div>
     </footer>
+
+  <Teleport to="body">
+    <div
+      v-if="showTagPicker"
+      ref="tagPickerRef"
+      class="history-tag-picker"
+      :style="tagPickerStyle"
+      @click.stop
+    >
+      <div class="history-tag-picker-head">
+        <span>{{ t('manageTags') }}</span>
+        <span class="history-tag-picker-count">{{ tagColors.length }}/3</span>
+      </div>
+      <div class="history-tag-picker-grid">
+        <button
+          v-for="color in tagColorOptions"
+          :key="color"
+          class="history-tag-picker-option"
+          :class="[tagToneClass(color), { active: isTagSelected(color) }]"
+          type="button"
+          :title="t(`tagColor${color[0].toUpperCase()}${color.slice(1)}`)"
+          :aria-label="t(`tagColor${color[0].toUpperCase()}${color.slice(1)}`)"
+          :disabled="!isTagSelected(color) && !canAddMoreTags"
+          @click.stop="toggleTagColor(color)"
+        >
+          <span class="history-tag-picker-swatch"></span>
+          <span class="history-tag-picker-option-label">{{ tagDisplayName(color) }}</span>
+        </button>
+      </div>
+    </div>
+  </Teleport>
 
   </article>
 
