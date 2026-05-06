@@ -356,7 +356,7 @@ pub(crate) fn stop(
     Ok(dto)
 }
 
-// 电脑端发送文字给手机，消息会出现在手机聊天页并提供复制按钮。
+// 电脑端发送文字给手机，消息会出现在手机聊天页。
 pub(crate) fn send_desktop_text(
     app: AppHandle,
     state: Arc<SharedState>,
@@ -1480,8 +1480,7 @@ fn mobile_page(max_image_bytes: usize, accent_color: &str) -> String {
     .upload-progress progress::-webkit-progress-value { border-radius: 999px; background: currentColor; }
     .upload-progress progress::-moz-progress-bar { border-radius: 999px; background: currentColor; }
     .upload-error { margin-top: 6px; font-size: 12px; opacity: .82; }
-    a, .copy-button { display: inline-flex; margin-top: 8px; color: inherit; font-weight: 700; }
-    .copy-button { border: 0; background: transparent; padding: 0; text-decoration: underline; }
+    a { display: inline-flex; margin-top: 8px; color: inherit; font-weight: 700; }
     form { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(696px, calc(100% - 24px)); display: grid; grid-template-columns: 42px 1fr 42px; gap: 8px; padding: 10px 12px; background: rgba(245, 241, 233, .94); backdrop-filter: blur(18px); border: 1px solid rgba(42, 48, 56, .12); border-radius: 18px; box-shadow: 0 14px 40px rgba(32,38,46,.16); }
     textarea { min-height: 42px; max-height: 120px; resize: none; border: 1px solid rgba(42, 48, 56, .18); border-radius: 13px; padding: 10px 12px; font: inherit; background: #fff; color: inherit; }
     button.icon { width: 42px; height: 42px; border: 0; border-radius: 13px; background: linear-gradient(135deg, var(--accent-strong), var(--accent-primary)); color: var(--accent-text); font-size: 20px; font-weight: 800; }
@@ -1577,14 +1576,6 @@ fn mobile_page(max_image_bytes: usize, accent_color: &str) -> String {
         const text = document.createElement('div');
         text.textContent = message.text || '';
         bubble.appendChild(text);
-        if (message.sender === 'desktop') {
-          const copy = document.createElement('button');
-          copy.type = 'button';
-          copy.className = 'copy-button';
-          copy.textContent = '复制';
-          copy.addEventListener('click', () => navigator.clipboard.writeText(message.text || ''));
-          bubble.appendChild(copy);
-        }
       }
 
       if (message.imageDataUrl) {

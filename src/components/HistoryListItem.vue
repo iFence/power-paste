@@ -239,7 +239,7 @@ function handleDocumentPointerDown(event) {
   }
 
   const target = event.target
-  if (tagPickerRef.value?.contains(target) || tagTriggerRef.value?.contains(target) || entryRef.value?.contains(target)) {
+  if (tagPickerRef.value?.contains(target) || tagTriggerRef.value?.contains(target)) {
     return
   }
 

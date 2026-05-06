@@ -768,6 +768,10 @@ export function useHistory({ platformCapabilities, settings, t }) {
     syncActiveTagFilter();
   });
 
+  watch(availableTagFilters, () => {
+    syncActiveTagFilter();
+  });
+
   watch(selectedId, () => {
     syncPersistedHistoryState();
   });
