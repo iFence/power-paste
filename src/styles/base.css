@@ -1604,11 +1604,11 @@ select {
 }
 
 .action-icon-balance-edit {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(0.84);
 }
 
 .action-icon-balance-pin {
-    transform: translateY(-0.5px) scale(1.1);
+    transform: translateY(0) scale(1.02);
 }
 
 .action-icon-balance-link {
@@ -1616,11 +1616,11 @@ select {
 }
 
 .action-icon-balance-tag {
-    transform: translateY(0) scale(1.02);
+    transform: translateY(0) scale(0.92);
 }
 
 .action-icon-balance-delete {
-    transform: translateY(0) scale(0.94);
+    transform: translateY(0) scale(0.8);
 }
 
 .edit-action {
@@ -1662,12 +1662,13 @@ select {
 }
 
 .pin-action-icon:not(.active) {
-    transform: translateY(-0.5px) scale(1.1) rotate(45deg);
+    transform: translateY(0) scale(1.02) rotate(45deg);
 }
 
 .pin-action-icon.active {
-    transform: translateY(-0.5px) scale(1.1) rotate(0deg);
+    transform: translateY(0) scale(1.02) rotate(0deg);
 }
+
 
 .entry-action-button svg.delete-action-icon,
 .toolbar-icon-button svg.delete-action-icon {
