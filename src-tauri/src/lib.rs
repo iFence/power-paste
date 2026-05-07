@@ -23,6 +23,7 @@ mod rich_text;
 mod runtime;
 mod startup;
 mod storage;
+mod system_open;
 mod update;
 mod usecases;
 

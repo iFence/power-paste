@@ -84,6 +84,12 @@ const confirmDialogState = ref({
     show: false,
     title: "",
 });
+const directPasteUnavailableMessage = computed(() =>
+    settingsState.directPasteUnavailableMessage(
+        settingsState.platformCapabilities.value,
+        settingsState.t,
+    ),
+);
 
 function cleanupListeners() {
     unlistenHistory?.();
@@ -509,7 +515,7 @@ function openResetSettingsConfirm() {
                             settingsState.t('unsupportedClipboardWrite')
                         "
                         :unsupported-direct-paste-message="
-                            settingsState.t('unsupportedDirectPaste')
+                            directPasteUnavailableMessage
                         "
                         @copy="historyState.copyItem"
                         @edit="historyState.openEditModal"

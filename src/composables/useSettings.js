@@ -51,7 +51,7 @@ function initialPlatformCapabilities(platform) {
     supportsTextWrite: true,
     supportsHtmlWrite: true,
     supportsImageWrite: true,
-    supportsDirectPaste: isWindows || isMacos || isLinux,
+    supportsDirectPaste: isWindows || isMacos,
     supportsLaunchOnStartup: isWindows || isMacos || isLinux,
     supportsMixedReplay: isWindows,
     preferredClipboardBackend: isWindows
@@ -77,6 +77,23 @@ function initialPlatformCapabilities(platform) {
           ? "plugin-degraded-single-payload"
           : "unsupported",
   };
+}
+
+function directPasteUnavailableMessage(capabilities, t) {
+  if (!capabilities || capabilities.supportsDirectPaste) {
+    return t("unsupportedDirectPaste");
+  }
+
+  if (capabilities.platform === "linux") {
+    if (capabilities.directPasteStrategy === "wayland-wtype-required") {
+      return t("linuxWaylandToolsMissing");
+    }
+    if (capabilities.directPasteStrategy === "x11-tooling-required") {
+      return t("linuxX11ToolsMissing");
+    }
+  }
+
+  return t("unsupportedDirectPaste");
 }
 
 export function useSettings() {
@@ -301,6 +318,7 @@ export function useSettings() {
     currentAccentColor,
     currentAccentColorOptions,
     currentDensity,
+    directPasteUnavailableMessage,
     currentLocale,
     currentThemeMode,
     currentThemeModeOptions,

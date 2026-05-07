@@ -2,12 +2,10 @@ use std::{path::Path, sync::Arc};
 
 use tauri::{AppHandle, State};
 
-use crate::models::{AppError, LanReceiverStateDto, SharedState};
-
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::Shell::ShellExecuteW;
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use crate::{
+    models::{AppError, LanReceiverStateDto, SharedState},
+    system_open,
+};
 
 // 启动局域网接收服务，返回手机扫码访问地址、二维码和会话过期时间。
 #[tauri::command]
@@ -82,45 +80,7 @@ fn open_local_path(path: &Path) -> Result<(), AppError> {
         return Err(AppError::Message("lan_transfer_file_not_found".into()));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        let operation: Vec<u16> = "open\0".encode_utf16().collect();
-        let target: Vec<u16> = format!("{}\0", path.to_string_lossy())
-            .encode_utf16()
-            .collect();
-        let result = unsafe {
-            ShellExecuteW(
-                std::ptr::null_mut(),
-                operation.as_ptr(),
-                target.as_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
-                SW_SHOWNORMAL,
-            )
-        };
-
-        if result as usize <= 32 {
-            return Err(anyhow::anyhow!("failed to open local file: {}", path.display()).into());
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(path)
-            .spawn()
-            .map_err(|error| AppError::Message(error.to_string()))?;
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(path)
-            .spawn()
-            .map_err(|error| AppError::Message(error.to_string()))?;
-    }
-
-    Ok(())
+    system_open::open_path(path).map_err(AppError::from)
 }
 
 fn reveal_local_path(path: &Path) -> Result<(), AppError> {
@@ -128,31 +88,5 @@ fn reveal_local_path(path: &Path) -> Result<(), AppError> {
         return Err(AppError::Message("lan_transfer_file_not_found".into()));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(format!("/select,{}", path.to_string_lossy()))
-            .spawn()
-            .map_err(|error| AppError::Message(error.to_string()))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg("-R")
-            .arg(path)
-            .spawn()
-            .map_err(|error| AppError::Message(error.to_string()))?;
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let parent = path.parent().unwrap_or(path);
-        std::process::Command::new("xdg-open")
-            .arg(parent)
-            .spawn()
-            .map_err(|error| AppError::Message(error.to_string()))?;
-    }
-
-    Ok(())
+    system_open::reveal_path(path).map_err(AppError::from)
 }

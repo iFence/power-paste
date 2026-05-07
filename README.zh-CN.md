@@ -98,7 +98,14 @@ English version: [README.md](./README.md)。
 
 - Windows：当前主目标平台，也是目前混合剪贴板回放和目标感知直接粘贴能力最完整的平台
 - macOS：直接粘贴依赖系统授予“辅助功能 / 自动化”权限
-- Linux：直接粘贴依赖 `X11 + xdotool` 或 `Wayland + wtype`；图文混合回放仍会退化为单一优先载荷
+- Linux：直接粘贴依赖 `X11 + xdotool` 或 `Wayland + wtype`；缺少对应工具时，界面会直接提示当前会话所需的安装依赖，而不是只显示泛化的不支持提示；图文混合回放仍会退化为单一优先载荷
+
+### Linux 说明
+
+- `xdotool` 和 `wtype` 都不是 Linux 平台的必备基础依赖，只在“把历史内容直接粘贴回上一个目标应用”时需要。
+- 如果当前是 `X11` 会话，需要安装 `xdotool` 才能启用直接粘贴。
+- 如果当前是 `Wayland` 会话，需要安装 `wtype` 才能启用直接粘贴。
+- 当缺少对应工具时，Power Paste 仍可正常执行“复制回系统剪贴板”，并会根据当前会话类型给出明确安装提示。
 
 ### macOS 升级后重新授权
 
@@ -163,6 +170,22 @@ Linux 如果需要直接粘贴，还需要以下其一：
 - X11 会话 + `xdotool`
 - Wayland 会话 + `wtype`
 
+常见安装示例：
+
+```bash
+# Ubuntu / Debian
+sudo apt install xdotool
+sudo apt install wtype
+
+# Fedora
+sudo dnf install xdotool
+sudo dnf install wtype
+
+# Arch Linux
+sudo pacman -S xdotool
+sudo pacman -S wtype
+```
+
 Windows 开发环境还需要：
 
 - Windows 10 或 Windows 11
@@ -208,6 +231,13 @@ cargo check
 ```bash
 pnpm tauri build
 ```
+
+## 持续校验
+
+仓库当前包含两个 GitHub Actions 工作流：
+
+- `verify.yml`：在日常 `push / pull request` 时执行，检查 `Windows / Linux / macOS` 三个平台上的前端构建、Rust 测试和 release 编译
+- `release.yml`：在版本 Tag 上执行，负责真实的跨平台 Tauri 发版打包
 
 ## 数据存储
 

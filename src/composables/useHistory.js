@@ -53,6 +53,24 @@ function formatActionError(error, t) {
   return message || t("unsupportedCurrentPlatform");
 }
 
+function directPasteUnavailableMessage(platformCapabilities, t) {
+  const capabilities = platformCapabilities?.value;
+  if (!capabilities || capabilities.supportsDirectPaste) {
+    return t("unsupportedDirectPaste");
+  }
+
+  if (capabilities.platform === "linux") {
+    if (capabilities.directPasteStrategy === "wayland-wtype-required") {
+      return t("linuxWaylandToolsMissing");
+    }
+    if (capabilities.directPasteStrategy === "x11-tooling-required") {
+      return t("linuxX11ToolsMissing");
+    }
+  }
+
+  return t("unsupportedDirectPaste");
+}
+
 function compareHistoryItems(left, right) {
   if (left.pinned !== right.pinned) {
     return Number(right.pinned) - Number(left.pinned);
@@ -309,7 +327,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
   async function pasteItem(id) {
     if (!platformCapabilities.value.supportsDirectPaste) {
-      actionFeedback.value = t("unsupportedDirectPaste");
+      actionFeedback.value = directPasteUnavailableMessage(platformCapabilities, t);
       return;
     }
 

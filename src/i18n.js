@@ -306,9 +306,9 @@ Object.assign(messages["zh-CN"], {
   unsupportedDirectPaste:
     "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u76f4\u63a5\u7c98\u8d34\u5230\u76ee\u6807\u5e94\u7528",
   linuxX11ToolsMissing:
-    "Linux \u76f4\u63a5\u7c98\u8d34\u4f9d\u8d56 xdotool\uff0c\u8bf7\u5148\u5b89\u88c5 xdotool \u540e\u91cd\u8bd5",
+    "Linux\uff08X11\uff09\u76f4\u63a5\u7c98\u8d34\u9700\u8981\u989d\u5916\u5b89\u88c5 xdotool\u3002\u53ef\u53c2\u8003\uff1aUbuntu/Debian \u6267\u884c `sudo apt install xdotool`\uff0cFedora \u6267\u884c `sudo dnf install xdotool`\uff0cArch \u6267\u884c `sudo pacman -S xdotool`\uff0c\u5b89\u88c5\u540e\u91cd\u8bd5\u5373\u53ef\u3002",
   linuxWaylandToolsMissing:
-    "Wayland \u4f1a\u8bdd\u4e0b\u7684 Linux \u76f4\u63a5\u7c98\u8d34\u4f9d\u8d56 wtype\uff0c\u8bf7\u5148\u5b89\u88c5 wtype \u540e\u91cd\u8bd5",
+    "Linux\uff08Wayland\uff09\u76f4\u63a5\u7c98\u8d34\u9700\u8981\u989d\u5916\u5b89\u88c5 wtype\u3002\u53ef\u53c2\u8003\uff1aUbuntu/Debian \u6267\u884c `sudo apt install wtype`\uff0cFedora \u6267\u884c `sudo dnf install wtype`\uff0cArch \u6267\u884c `sudo pacman -S wtype`\uff0c\u5b89\u88c5\u540e\u91cd\u8bd5\u5373\u53ef\u3002",
   pasteTargetFocusFailed:
     "\u672a\u80fd\u6062\u590d\u76ee\u6807\u7a97\u53e3\u7126\u70b9\uff0c\u5df2\u53d6\u6d88\u672c\u6b21\u7c98\u8d34",
   pasteTargetPermissionDenied:
@@ -405,9 +405,9 @@ Object.assign(messages["en-US"], {
   unsupportedDirectPaste:
     "Direct paste into the target app is not available on this platform.",
   linuxX11ToolsMissing:
-    "Direct paste on Linux requires xdotool. Install xdotool and try again.",
+    "Direct paste on Linux (X11) requires xdotool. Example installs: `sudo apt install xdotool`, `sudo dnf install xdotool`, or `sudo pacman -S xdotool`, then try again.",
   linuxWaylandToolsMissing:
-    "Direct paste on Wayland requires wtype. Install wtype and try again.",
+    "Direct paste on Linux (Wayland) requires wtype. Example installs: `sudo apt install wtype`, `sudo dnf install wtype`, or `sudo pacman -S wtype`, then try again.",
   pasteTargetFocusFailed:
     "The target window could not be focused. Paste was cancelled.",
   pasteTargetPermissionDenied:

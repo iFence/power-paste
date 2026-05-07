@@ -32,7 +32,7 @@ pub(crate) fn direct_paste_supported() -> bool {
 
     #[cfg(target_os = "linux")]
     {
-        return true;
+        return linux_direct_paste_supported();
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -227,9 +227,20 @@ mod tests {
     fn direct_paste_support_matches_platform_policy() {
         let capabilities = platform_capabilities();
 
-        if cfg!(windows) || cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+        #[cfg(any(windows, target_os = "macos"))]
+        {
             assert!(capabilities.supports_direct_paste);
-        } else {
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let expected = super::linux_direct_paste_supported();
+
+            assert_eq!(capabilities.supports_direct_paste, expected);
+        }
+
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+        {
             let expected = false;
 
             assert_eq!(capabilities.supports_direct_paste, expected);

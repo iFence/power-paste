@@ -99,7 +99,14 @@ Update checks are not configured as a regular setting. The app checks for update
 
 - Windows: primary target platform, and currently the strongest platform for mixed clipboard replay and target-aware direct paste
 - macOS: direct paste depends on system Accessibility / Automation permission
-- Linux: direct paste depends on `X11 + xdotool` or `Wayland + wtype`; mixed replay still degrades to a single preferred payload
+- Linux: direct paste depends on `X11 + xdotool` or `Wayland + wtype`; when the required tool is missing, the UI now shows an explicit install hint instead of a generic unsupported message; mixed replay still degrades to a single preferred payload
+
+### Linux Notes
+
+- `xdotool` and `wtype` are optional runtime dependencies. They are only required for direct paste back into the previous target app.
+- In `X11` sessions, install `xdotool` to enable direct paste.
+- In `Wayland` sessions, install `wtype` to enable direct paste.
+- If the required tool is missing, Power Paste will keep copy-back available and show a targeted installation hint for the current session type.
 
 ### macOS Permission Reset After Upgrade
 
@@ -164,6 +171,22 @@ Linux direct paste also requires one of:
 - `xdotool` in an X11 session
 - `wtype` in a Wayland session
 
+Common installation examples:
+
+```bash
+# Ubuntu / Debian
+sudo apt install xdotool
+sudo apt install wtype
+
+# Fedora
+sudo dnf install xdotool
+sudo dnf install wtype
+
+# Arch Linux
+sudo pacman -S xdotool
+sudo pacman -S wtype
+```
+
 Windows development also requires:
 
 - Windows 10 or Windows 11
@@ -209,6 +232,13 @@ Build desktop bundles:
 ```bash
 pnpm tauri build
 ```
+
+## Continuous Verification
+
+The repository contains two GitHub Actions workflows:
+
+- `verify.yml`: runs on normal push / pull request traffic and checks frontend build, Rust tests, and release-mode compilation on `Windows`, `Linux`, and `macOS`
+- `release.yml`: runs on version tags and performs real cross-platform Tauri release packaging
 
 ## Data Storage
 
