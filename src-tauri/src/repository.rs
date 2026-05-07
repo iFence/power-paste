@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde_json::{from_str, to_string};
 use uuid::Uuid;
 
 use crate::{
-    models::{AppSettings, CapturedClipboard, StoragePaths, StoredClipboardItem},
+    models::{AppSettings, CapturedClipboard, HistoryQueryPayload, StoragePaths, StoredClipboardItem},
     rich_text::normalize_rich_text_payload,
     storage::{image_preview_png_from_bytes, preview_text, sha256_hex},
 };
@@ -92,86 +92,56 @@ impl SqliteHistoryStore {
 
     #[cfg(test)]
     pub(crate) fn list_all(&self) -> Result<Vec<StoredClipboardItem>> {
-        self.query_items(None, None, 0)
+        self.query_items(&HistoryQueryPayload::default(), None, 0)
     }
 
     pub(crate) fn list_history(
         &self,
-        query: Option<&str>,
+        payload: &HistoryQueryPayload,
         limit: usize,
         offset: usize,
     ) -> Result<Vec<StoredClipboardItem>> {
-        self.query_items(query, Some(limit), offset)
+        self.query_items(payload, Some(limit), offset)
     }
 
-    pub(crate) fn count_history(&self, query: Option<&str>) -> Result<usize> {
-        let query = query.unwrap_or("").trim().to_lowercase();
-        if query.is_empty() {
-            return self
-                .connection
-                .query_row("SELECT COUNT(*) FROM clipboard_items", [], |row| {
-                    row.get::<_, i64>(0)
-                })
-                .map(|count| count.max(0) as usize)
-                .map_err(Into::into);
-        }
-
-        self.connection
-            .query_row(
-                r#"
-                SELECT COUNT(*)
-                FROM clipboard_items
-                WHERE lower(
-                  preview || char(10) || coalesce(full_text, '') || char(10) || coalesce(source_app, '')
-                ) LIKE '%' || ?1 || '%'
-                "#,
-                params![query],
-                |row| row.get::<_, i64>(0),
-            )
+    pub(crate) fn count_history(&self, payload: &HistoryQueryPayload) -> Result<usize> {
+        let (where_sql, bind_values) = build_history_filters(payload);
+        let sql = format!("SELECT COUNT(*) FROM clipboard_items{where_sql}");
+        let mut statement = self.connection.prepare(&sql)?;
+        statement
+            .query_row(params_from_iter(bind_values.iter()), |row| row.get::<_, i64>(0))
             .map(|count| count.max(0) as usize)
             .map_err(Into::into)
     }
 
     fn query_items(
         &self,
-        query: Option<&str>,
+        payload: &HistoryQueryPayload,
         limit: Option<usize>,
         offset: usize,
     ) -> Result<Vec<StoredClipboardItem>> {
         let limit = limit.unwrap_or(i64::MAX as usize).min(i64::MAX as usize) as i64;
         let offset = offset.min(i64::MAX as usize) as i64;
-        let query = query.unwrap_or("").trim().to_lowercase();
-        let sql = if query.is_empty() {
+        let (where_sql, mut bind_values) = build_history_filters(payload);
+        let sql = format!(
             r#"
             SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                    image_png, image_original_bytes, image_original_mime,
                    image_preview_png, image_width, image_height, source_app, source_icon_data_url,
                    hash, pinned, favorite, tag_colors
             FROM clipboard_items
+            {where_sql}
             ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
-            LIMIT ?1 OFFSET ?2
-            "#
-        } else {
-            r#"
-            SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
-                   image_png, image_original_bytes, image_original_mime,
-                   image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                   hash, pinned, favorite, tag_colors
-            FROM clipboard_items
-            WHERE lower(
-              preview || char(10) || coalesce(full_text, '') || char(10) || coalesce(source_app, '')
-            ) LIKE '%' || ?1 || '%'
-            ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
-            LIMIT ?2 OFFSET ?3
-            "#
-        };
+            LIMIT ?{} OFFSET ?{}
+            "#,
+            bind_values.len() + 1,
+            bind_values.len() + 2,
+        );
+        bind_values.push(rusqlite::types::Value::Integer(limit));
+        bind_values.push(rusqlite::types::Value::Integer(offset));
 
-        let mut statement = self.connection.prepare(sql)?;
-        let rows = if query.is_empty() {
-            statement.query_map(params![limit, offset], Self::row_to_item)?
-        } else {
-            statement.query_map(params![query, limit, offset], Self::row_to_item)?
-        };
+        let mut statement = self.connection.prepare(&sql)?;
+        let rows = statement.query_map(params_from_iter(bind_values.iter()), Self::row_to_item)?;
 
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(Into::into)
@@ -494,6 +464,65 @@ impl SqliteHistoryStore {
         }
 
         Ok(item)
+    }
+}
+
+fn build_history_filters(payload: &HistoryQueryPayload) -> (String, Vec<rusqlite::types::Value>) {
+    let mut clauses = Vec::new();
+    let mut bind_values = Vec::new();
+
+    if let Some(query) = payload
+        .query
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        clauses.push(
+            "lower(preview || char(10) || coalesce(full_text, '') || char(10) || coalesce(source_app, '')) LIKE '%' || ?1 || '%'".to_string(),
+        );
+        bind_values.push(rusqlite::types::Value::Text(query.to_lowercase()));
+    }
+
+    if let Some(kind) = payload
+        .kind
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let placeholder = bind_values.len() + 1;
+        match kind {
+            "text" => {
+                clauses.push(format!("kind IN (?{placeholder}, ?{})", placeholder + 1));
+                bind_values.push(rusqlite::types::Value::Text("text".into()));
+                bind_values.push(rusqlite::types::Value::Text("link".into()));
+            }
+            "image" | "mixed" | "link" => {
+                clauses.push(format!("kind = ?{placeholder}"));
+                bind_values.push(rusqlite::types::Value::Text(kind.to_string()));
+            }
+            _ => {}
+        }
+    }
+
+    if payload.pinned_only {
+        clauses.push("pinned = 1".to_string());
+    }
+
+    if let Some(tag_color) = payload
+        .tag_color
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let placeholder = bind_values.len() + 1;
+        clauses.push(format!("tag_colors LIKE '%' || ?{placeholder} || '%'"));
+        bind_values.push(rusqlite::types::Value::Text(format!("\"{}\"", tag_color.to_ascii_lowercase())));
+    }
+
+    if clauses.is_empty() {
+        (String::new(), bind_values)
+    } else {
+        (format!(" WHERE {}", clauses.join(" AND ")), bind_values)
     }
 }
 

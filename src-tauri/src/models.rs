@@ -263,6 +263,18 @@ pub(crate) struct WindowSizePayload {
     pub(crate) height: u32,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HistoryQueryPayload {
+    pub(crate) query: Option<String>,
+    pub(crate) kind: Option<String>,
+    pub(crate) pinned_only: bool,
+    pub(crate) tag_color: Option<String>,
+    pub(crate) limit: Option<usize>,
+    pub(crate) offset: Option<usize>,
+}
+
 impl StoragePaths {
     pub(crate) fn new(root: PathBuf) -> Result<Self> {
         fs::create_dir_all(&root)?;

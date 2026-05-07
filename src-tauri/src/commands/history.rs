@@ -4,24 +4,23 @@ use tauri::State;
 
 use crate::{
     history::history_to_dto,
-    models::{AppError, ClipboardHistoryPageDto, SharedState},
+    models::{AppError, ClipboardHistoryPageDto, HistoryQueryPayload, SharedState},
 };
 
 // 历史记录按页从数据库读取，避免记录较多时一次性加载全部内容。
 #[tauri::command]
 pub(crate) fn get_history(
     state: State<'_, Arc<SharedState>>,
-    query: Option<String>,
-    limit: Option<usize>,
-    offset: Option<usize>,
+    payload: Option<HistoryQueryPayload>,
 ) -> Result<ClipboardHistoryPageDto, AppError> {
-    let limit = limit.unwrap_or(500);
-    let offset = offset.unwrap_or(0);
+    let payload = payload.unwrap_or_default();
+    let limit = payload.limit.unwrap_or(500);
+    let offset = payload.offset.unwrap_or(0);
     let store = state.history_store.lock().unwrap();
-    let total_count = store.count_history(query.as_deref())?;
-    let history = store.list_history(query.as_deref(), limit, offset)?;
+    let total_count = store.count_history(&payload)?;
+    let history = store.list_history(&payload, limit, offset)?;
     Ok(ClipboardHistoryPageDto {
-        items: history_to_dto(&history, query.as_deref(), limit),
+        items: history_to_dto(&history, limit),
         total_count,
     })
 }

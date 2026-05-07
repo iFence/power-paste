@@ -1,15 +1,13 @@
 use std::{
     fs,
     io::{Cursor, Read},
-    net::{Ipv4Addr, UdpSocket},
     path::{Path, PathBuf},
-    process::Command,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 
 use anyhow::{Context, Result};
@@ -19,27 +17,35 @@ use image::{
     imageops::FilterType as ResizeFilterType,
     ColorType, DynamicImage, GenericImageView, ImageEncoder,
 };
-use qrcode::{render::svg, QrCode};
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 use uuid::Uuid;
+
+#[path = "lan_receiver_network.rs"]
+mod lan_receiver_network;
+#[path = "lan_receiver_page.rs"]
+mod lan_receiver_page;
+#[path = "lan_receiver_state.rs"]
+mod lan_receiver_state;
 
 use crate::{
     clipboard::write_item_to_clipboard_with_profile,
     history::{build_captured_clipboard, history_item_to_dto, store_capture_item},
     models::{
         AppError, CapturedClipboard, LanReceiverSession, LanReceiverStateDto, LanReceiverStatus,
-        LanTransferFile, LanTransferMessage, LanTransferMessageDto, SharedState,
-        StoredClipboardItem, HISTORY_UPDATED_EVENT, LAN_RECEIVER_STATUS_EVENT,
+        LanTransferFile, LanTransferMessage, SharedState, StoredClipboardItem,
+        HISTORY_UPDATED_EVENT, LAN_RECEIVER_STATUS_EVENT,
     },
     paste_target::TargetProfile,
 };
+use lan_receiver_network::{build_qr_svg, local_lan_ip};
+use lan_receiver_page::mobile_page;
+use lan_receiver_state::{message_to_dto, now_ms, receiver_state_dto};
 
 const UPLOAD_HARD_LIMIT: usize = 128 * 1024 * 1024;
 const MAX_STORED_IMAGE_SIDE: u32 = 1600;
 const MOBILE_POLL_MS: u64 = 1200;
-const ACTIVE_DEVICE_WINDOW: Duration = Duration::from_secs(15);
 const IDLE_SESSION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Deserialize)]
@@ -50,237 +56,10 @@ struct MobileClipboardPayload {
     image_data: Option<String>,
 }
 
-fn system_time_ms(value: SystemTime) -> Option<u64> {
-    value
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|duration| duration.as_millis() as u64)
-}
-
-fn now_ms() -> u64 {
-    system_time_ms(SystemTime::now()).unwrap_or(0)
-}
-
-fn message_to_dto(message: &LanTransferMessage, token: &str) -> LanTransferMessageDto {
-    let download_url = message.download_url.as_ref().map(|url| {
-        if url.contains('?') {
-            url.clone()
-        } else {
-            format!("{url}?token={}", escape_url_component(token))
-        }
-    });
-
-    LanTransferMessageDto {
-        id: message.id.clone(),
-        sender: message.sender.clone(),
-        kind: message.kind.clone(),
-        text: message.text.clone(),
-        file_name: message.file_name.clone(),
-        mime_type: message.mime_type.clone(),
-        size: message.size,
-        image_data_url: message.image_data_url.clone(),
-        download_url,
-        has_local_file: message.local_path.is_some(),
-        created_at: message.created_at,
-        status: message.status.clone(),
-    }
-}
-
-fn connected_devices(session: &LanReceiverSession) -> usize {
-    session
-        .last_phone_seen
-        .and_then(|seen| seen.elapsed().ok())
-        .map(|elapsed| usize::from(elapsed <= ACTIVE_DEVICE_WINDOW))
-        .unwrap_or(0)
-}
-
-fn receiver_state_dto(session: Option<&LanReceiverSession>) -> LanReceiverStateDto {
-    let Some(session) = session else {
-        return LanReceiverStateDto {
-            running: false,
-            url: None,
-            qr_svg: None,
-            ip: None,
-            port: None,
-            token: None,
-            expires_at: None,
-            last_status: None,
-            connected_devices: 0,
-            messages: Vec::new(),
-        };
-    };
-
-    LanReceiverStateDto {
-        running: true,
-        url: Some(session.url.clone()),
-        qr_svg: Some(session.qr_svg.clone()),
-        ip: Some(session.ip.clone()),
-        port: Some(session.port),
-        token: Some(session.token.clone()),
-        expires_at: session.expires_at.and_then(system_time_ms),
-        last_status: session.last_status.clone(),
-        connected_devices: connected_devices(session),
-        messages: session
-            .messages
-            .iter()
-            .map(|message| message_to_dto(message, &session.token))
-            .collect(),
-    }
-}
-
-fn local_lan_ip() -> Result<String> {
-    let mut candidates = local_ipv4_candidates();
-
-    if let Ok(ip) = default_route_ipv4() {
-        candidates.push(ip);
-    }
-
-    candidates
-        .into_iter()
-        .filter(|ip| usable_lan_ipv4(*ip))
-        .max_by_key(|ip| lan_ipv4_score(*ip))
-        .map(|ip| ip.to_string())
-        .ok_or_else(|| anyhow::anyhow!("failed to resolve local lan ip"))
-}
-
-fn default_route_ipv4() -> Result<Ipv4Addr> {
-    let socket = UdpSocket::bind(("0.0.0.0", 0))?;
-    socket.connect(("8.8.8.8", 80))?;
-    match socket.local_addr()?.ip() {
-        std::net::IpAddr::V4(ip) => Ok(ip),
-        std::net::IpAddr::V6(_) => anyhow::bail!("default route resolved to ipv6"),
-    }
-}
-
-fn local_ipv4_candidates() -> Vec<Ipv4Addr> {
-    platform_ipv4_candidates()
-        .into_iter()
-        .fold(Vec::new(), |mut candidates, ip| {
-            if !candidates.contains(&ip) {
-                candidates.push(ip);
-            }
-            candidates
-        })
-}
-
-#[cfg(target_os = "windows")]
-fn platform_ipv4_candidates() -> Vec<Ipv4Addr> {
-    let output = match command_output_text("ipconfig", &["/all"]) {
-        Some(output) => output,
-        None => return Vec::new(),
-    };
-    extract_windows_ipv4_candidates(&output)
-}
-
-#[cfg(target_os = "macos")]
-fn platform_ipv4_candidates() -> Vec<Ipv4Addr> {
-    command_ipv4_candidates("ifconfig", &[])
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-fn platform_ipv4_candidates() -> Vec<Ipv4Addr> {
-    let candidates = command_ipv4_candidates("ip", &["-4", "addr"]);
-    if candidates.is_empty() {
-        command_ipv4_candidates("ifconfig", &[])
-    } else {
-        candidates
-    }
-}
-
-#[cfg(not(any(windows, target_os = "macos", unix)))]
-fn platform_ipv4_candidates() -> Vec<Ipv4Addr> {
-    Vec::new()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn command_ipv4_candidates(program: &str, args: &[&str]) -> Vec<Ipv4Addr> {
-    command_output_text(program, args)
-        .map(|text| extract_ipv4_candidates(&text))
-        .unwrap_or_default()
-}
-
-fn command_output_text(program: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(program).args(args).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn extract_ipv4_candidates(text: &str) -> Vec<Ipv4Addr> {
-    let mut candidates = Vec::new();
-    for token in text.split(|value: char| !(value.is_ascii_digit() || value == '.')) {
-        let Ok(ip) = token.parse::<Ipv4Addr>() else {
-            continue;
-        };
-        if !candidates.contains(&ip) {
-            candidates.push(ip);
-        }
-    }
-    candidates
-}
-
-#[cfg(target_os = "windows")]
-fn extract_windows_ipv4_candidates(text: &str) -> Vec<Ipv4Addr> {
-    let mut candidates = Vec::new();
-    for line in text.lines().filter(|line| line.contains("IPv4")) {
-        for ip in extract_ipv4_candidates(line) {
-            if !candidates.contains(&ip) {
-                candidates.push(ip);
-            }
-        }
-    }
-    candidates
-}
-
-fn usable_lan_ipv4(ip: Ipv4Addr) -> bool {
-    let octets = ip.octets();
-    !ip.is_loopback()
-        && !ip.is_link_local()
-        && !ip.is_multicast()
-        && !ip.is_broadcast()
-        && !ip.is_unspecified()
-        && !(octets[0] == 198 && (octets[1] == 18 || octets[1] == 19))
-        && octets[3] != 0
-        && octets[3] != 255
-}
-
-fn lan_ipv4_score(ip: Ipv4Addr) -> i32 {
-    let octets = ip.octets();
-    let host_score = match octets[3] {
-        1 => -50,
-        2..=9 => -10,
-        _ => i32::from(octets[3]).min(40),
-    };
-    if octets[0] == 192 && octets[1] == 168 {
-        return 400 + host_score;
-    }
-    if octets[0] == 10 {
-        return 390 + host_score;
-    }
-    if octets[0] == 172 && (16..=31).contains(&octets[1]) {
-        return 380 + host_score;
-    }
-    if octets[0] == 100 && (64..=127).contains(&octets[1]) {
-        return 120 + host_score;
-    }
-    80 + host_score
-}
-
-fn build_qr_svg(url: &str) -> Result<String> {
-    let code = QrCode::new(url.as_bytes())?;
-    Ok(code
-        .render::<svg::Color<'_>>()
-        .min_dimensions(220, 220)
-        .dark_color(svg::Color("#1d232d"))
-        .light_color(svg::Color("#ffffff"))
-        .build())
-}
-
 pub(crate) fn get_state(state: &Arc<SharedState>) -> LanReceiverStateDto {
     cleanup_expired_session(state);
     let guard = state.lan_receiver.lock().unwrap();
-    receiver_state_dto(guard.as_ref())
+    receiver_state_dto(guard.as_ref(), escape_url_component)
 }
 
 // 启动局域网互传会话，生成带随机令牌的手机访问地址和二维码。
@@ -290,7 +69,7 @@ pub(crate) fn start(
 ) -> Result<LanReceiverStateDto, AppError> {
     cleanup_expired_session(&state);
     if let Some(existing) = state.lan_receiver.lock().unwrap().as_ref() {
-        return Ok(receiver_state_dto(Some(existing)));
+        return Ok(receiver_state_dto(Some(existing), escape_url_component));
     }
 
     let server = Server::http(("0.0.0.0", 0)).map_err(|error| anyhow::anyhow!("{error}"))?;
@@ -351,7 +130,7 @@ pub(crate) fn stop(
     if let Some(session) = state.lan_receiver.lock().unwrap().take() {
         session.stop_requested.store(true, Ordering::Relaxed);
     }
-    let dto = receiver_state_dto(None);
+    let dto = receiver_state_dto(None, escape_url_component);
     let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, &dto);
     Ok(dto)
 }
@@ -483,7 +262,7 @@ fn run_server(
 ) {
     while !stop_requested.load(Ordering::Relaxed) {
         if cleanup_expired_session(&state) {
-            let dto = receiver_state_dto(None);
+            let dto = receiver_state_dto(None, escape_url_component);
             let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, dto);
         }
         if !session_token_matches(&state, &token) {
@@ -531,7 +310,7 @@ fn route_request(app: AppHandle, state: Arc<SharedState>, mut request: Request, 
         let settings = state.settings.lock().unwrap().clone();
         respond_html(
             request,
-            mobile_page(settings.max_image_bytes, &settings.accent_color),
+            mobile_page(settings.max_image_bytes, &settings.accent_color, MOBILE_POLL_MS),
         );
         return;
     }
@@ -725,7 +504,7 @@ fn mobile_messages_json(state: &Arc<SharedState>, token: &str) -> String {
             session
                 .messages
                 .iter()
-                .map(|message| message_to_dto(message, token))
+                .map(|message| message_to_dto(message, token, escape_url_component))
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
@@ -1430,354 +1209,13 @@ fn escape_url_component(value: &str) -> String {
         .collect()
 }
 
-fn mobile_accent_palette(accent_color: &str) -> (&'static str, &'static str, &'static str) {
-    match accent_color {
-        "ocean" => ("#68b6ff", "#3e7fe6", "#0d1a2a"),
-        "jade" => ("#62d6b1", "#2f9f83", "#0c1f1b"),
-        "rose" => ("#f08db0", "#d45a86", "#2b1019"),
-        _ => ("#f0b35f", "#dd8648", "#24160d"),
-    }
-}
-
-fn mobile_page(max_image_bytes: usize, accent_color: &str) -> String {
-    let (accent_primary, accent_strong, accent_text) = mobile_accent_palette(accent_color);
-    r#"<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Power Paste Transfer</title>
-  <style>
-    :root { color-scheme: light dark; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: #f5f1e9; color: #1c232b; --accent-primary: __ACCENT_PRIMARY__; --accent-strong: __ACCENT_STRONG__; --accent-text: __ACCENT_TEXT__; }
-    main { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; max-width: 720px; margin: 0 auto; }
-    header { padding: 14px 16px 8px; border-bottom: 1px solid rgba(42, 48, 56, .12); }
-    h1 { margin: 0; font-size: 18px; line-height: 1.2; }
-    .status-row { display: flex; align-items: center; gap: 7px; margin-top: 4px; min-height: 20px; color: #65707d; font-size: 13px; }
-    .status-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 999px; }
-    .status-dot.connected { background: #44d17f; box-shadow: 0 0 12px rgba(68, 209, 127, .86); }
-    .status-dot.disconnected { background: #f55656; box-shadow: 0 0 12px rgba(245, 86, 86, .86); }
-    .status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .messages { padding: 14px 12px 128px; overflow: auto; }
-    .message { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; align-items: end; margin: 0 0 10px; }
-    .message.phone { grid-template-columns: minmax(0, 1fr) 34px; }
-    .message.phone .avatar { grid-column: 2; }
-    .message.phone .bubble { grid-column: 1; grid-row: 1; justify-self: end; }
-    .avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 0; background: transparent; color: #65707d; overflow: hidden; }
-    .avatar img { width: 24px; height: 24px; }
-    .avatar svg { width: 20px; height: 20px; }
-    .bubble { max-width: min(86%, 520px); border-radius: 16px; padding: 10px 12px; background: #fff; box-shadow: 0 8px 24px rgba(32, 38, 46, .08); word-break: break-word; }
-    .phone .bubble { background: #1f2937; color: #fff; }
-    .bubble img { display: block; max-width: 100%; border-radius: 10px; margin-top: 6px; }
-    .file-row { display: flex; gap: 10px; align-items: center; }
-    .file-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent-strong) 16%, transparent); color: var(--accent-strong); font-weight: 800; }
-    .file-name { font-weight: 700; }
-    .file-size { font-size: 12px; opacity: .68; }
-    .upload-progress { display: grid; gap: 5px; margin-top: 8px; min-width: 180px; font-size: 12px; opacity: .78; }
-    .upload-progress progress { width: 100%; height: 5px; overflow: hidden; border: 0; border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent); }
-    .upload-progress progress::-webkit-progress-bar { background: color-mix(in srgb, currentColor 18%, transparent); }
-    .upload-progress progress::-webkit-progress-value { border-radius: 999px; background: currentColor; }
-    .upload-progress progress::-moz-progress-bar { border-radius: 999px; background: currentColor; }
-    .upload-error { margin-top: 6px; font-size: 12px; opacity: .82; }
-    a { display: inline-flex; margin-top: 8px; color: inherit; font-weight: 700; }
-    form { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(696px, calc(100% - 24px)); display: grid; grid-template-columns: 42px 1fr 42px; gap: 8px; padding: 10px 12px; background: rgba(245, 241, 233, .94); backdrop-filter: blur(18px); border: 1px solid rgba(42, 48, 56, .12); border-radius: 18px; box-shadow: 0 14px 40px rgba(32,38,46,.16); }
-    textarea { min-height: 42px; max-height: 120px; resize: none; border: 1px solid rgba(42, 48, 56, .18); border-radius: 13px; padding: 10px 12px; font: inherit; background: #fff; color: inherit; }
-    button.icon { width: 42px; height: 42px; border: 0; border-radius: 13px; background: linear-gradient(135deg, var(--accent-strong), var(--accent-primary)); color: var(--accent-text); font-size: 20px; font-weight: 800; }
-    button.icon.secondary { background: #e7ded1; color: #242b35; }
-    input[type="file"] { display: none; }
-    @media (prefers-color-scheme: dark) {
-      body { background: #11161d; color: #f5efe7; }
-      header, form { border-color: rgba(255,255,255,.1); }
-      form { background: rgba(17, 22, 29, .92); }
-      textarea, .bubble { background: #1d242d; }
-      .phone .bubble { background: var(--accent-strong); color: var(--accent-text); }
-      .avatar { background: transparent; color: #aab3bf; }
-      button.icon.secondary { background: #2b3440; color: #f5efe7; }
-      .status-row { color: #aab3bf; }
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <header>
-      <h1>Power Paste 互传</h1>
-      <div class="status-row">
-        <span id="statusDot" class="status-dot disconnected" aria-hidden="true"></span>
-        <div id="status" class="status">正在连接...</div>
-      </div>
-    </header>
-    <section id="messages" class="messages" aria-live="polite"></section>
-    <form id="composer">
-      <button id="fileButton" class="icon secondary" type="button" aria-label="选择文件">+</button>
-      <textarea id="textInput" rows="1" placeholder="输入消息"></textarea>
-      <button id="sendButton" class="icon" type="submit" aria-label="发送">↑</button>
-      <input id="fileInput" type="file" multiple />
-    </form>
-  </main>
-  <script>
-    const token = new URLSearchParams(location.search).get('token') || '';
-    const statusDot = document.getElementById('statusDot');
-    const statusEl = document.getElementById('status');
-    const messagesEl = document.getElementById('messages');
-    const composer = document.getElementById('composer');
-    const textInput = document.getElementById('textInput');
-    const fileInput = document.getElementById('fileInput');
-    const fileButton = document.getElementById('fileButton');
-    const maxImageBytes = __MAX_IMAGE_BYTES__;
-    const maxTransferFiles = 9;
-    let seen = new Set();
-    let messageRows = new Map();
-    let pollTimer = null;
-    let wasConnected = false;
-    let disconnectAlertShown = false;
-
-    function setConnectionState(connected, message) {
-      statusDot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
-      statusEl.textContent = message;
-      if (connected) {
-        wasConnected = true;
-        disconnectAlertShown = false;
-      } else if (wasConnected && !disconnectAlertShown) {
-        disconnectAlertShown = true;
-        window.alert('连接已断开，请退出页面后重新扫码连接。');
-      }
-    }
-
-    function bytesLabel(size) {
-      if (!size) return '';
-      if (size < 1000) return size + ' B';
-      if (size < 1000000) return Math.round(size / 1000) + ' KB';
-      return (size / 1000000).toFixed(1) + ' MB';
-    }
-
-    function renderMessage(message) {
-      const existing = messageRows.get(message.id);
-      if (existing && existing.dataset.localUpload !== 'true') return;
-      if (existing) existing.remove();
-      seen.add(message.id);
-      const row = document.createElement('article');
-      if (message.localUpload) row.dataset.localUpload = 'true';
-      row.className = 'message ' + message.sender;
-      const avatar = document.createElement('div');
-      avatar.className = 'avatar';
-      if (message.sender === 'desktop') {
-        const icon = document.createElement('img');
-        icon.alt = '';
-        icon.src = '/app-icon.png';
-        avatar.appendChild(icon);
-      } else {
-        avatar.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-      }
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-
-      if (message.kind === 'text' || message.kind === 'link' || message.kind === 'mixed') {
-        const text = document.createElement('div');
-        text.textContent = message.text || '';
-        bubble.appendChild(text);
-      }
-
-      if (message.imageDataUrl) {
-        const image = document.createElement('img');
-        image.alt = message.fileName || 'image';
-        image.src = message.imageDataUrl;
-        bubble.appendChild(image);
-      }
-
-      if (message.kind === 'file' || message.downloadUrl || message.fileName) {
-        const wrap = document.createElement('div');
-        wrap.className = 'file-row';
-        const icon = document.createElement('span');
-        icon.className = 'file-icon';
-        icon.textContent = 'F';
-        const info = document.createElement('div');
-        const name = document.createElement('div');
-        name.className = 'file-name';
-        name.textContent = message.fileName || '文件';
-        const size = document.createElement('div');
-        size.className = 'file-size';
-        size.textContent = bytesLabel(message.size);
-        info.append(name, size);
-        wrap.append(icon, info);
-        bubble.appendChild(wrap);
-      }
-
-      if (message.downloadUrl) {
-        const link = document.createElement('a');
-        link.href = message.downloadUrl;
-        link.download = message.fileName || '';
-        link.textContent = '下载';
-        bubble.appendChild(link);
-      }
-
-      if (message.status === 'uploading' || message.status === 'processing') {
-        const progressWrap = document.createElement('div');
-        progressWrap.className = 'upload-progress';
-        const progressText = document.createElement('span');
-        const progress = Math.max(0, Math.min(100, Number(message.progress || 0)));
-        progressText.textContent = message.status === 'processing' ? '已发送，正在处理...' : '发送中 ' + progress + '%';
-        progressWrap.appendChild(progressText);
-        if (message.status === 'uploading') {
-          const progressBar = document.createElement('progress');
-          progressBar.max = 100;
-          progressBar.value = progress;
-          progressWrap.appendChild(progressBar);
-        }
-        bubble.appendChild(progressWrap);
-      }
-
-      if (message.status === 'failed') {
-        const error = document.createElement('div');
-        error.className = 'upload-error';
-        error.textContent = message.text || '发送失败';
-        bubble.appendChild(error);
-      }
-
-      row.append(avatar, bubble);
-      messagesEl.appendChild(row);
-      messageRows.set(message.id, row);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-    async function pollMessages() {
-      try {
-        const response = await fetch('/api/messages?token=' + encodeURIComponent(token), { cache: 'no-store' });
-        const result = await response.json();
-        if (!result.ok) throw new Error(result.message || '连接失败');
-        for (const message of result.messages || []) renderMessage(message);
-        setConnectionState(true, '已连接');
-        pollTimer = window.setTimeout(pollMessages, result.pollMs || __POLL_MS__);
-      } catch (error) {
-        setConnectionState(false, error.message || String(error));
-        pollTimer = window.setTimeout(pollMessages, 2500);
-      }
-    }
-
-    async function sendText(text) {
-      const response = await fetch('/api/clipboard/text?token=' + encodeURIComponent(token), {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        body: text
-      });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.message || '发送失败');
-    }
-
-    function sendFile(file, messageId, onProgress) {
-      if (file.type.startsWith('image/') && file.size > maxImageBytes) {
-        return Promise.reject(new Error('图片超过电脑端大小限制'));
-      }
-      return new Promise((resolve, reject) => {
-        const endpoint = file.type.startsWith('image/') ? '/api/clipboard/image' : '/api/clipboard/file';
-        const params = new URLSearchParams({
-          token,
-          name: file.name || 'file',
-          mime: file.type || 'application/octet-stream',
-          clientId: messageId
-        });
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', endpoint + '?' + params.toString());
-        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            onProgress(Math.max(1, Math.min(99, Math.round((event.loaded / event.total) * 100))));
-          }
-        };
-        xhr.onload = () => {
-          let result = null;
-          try {
-            result = JSON.parse(xhr.responseText || '{}');
-          } catch {
-            reject(new Error('发送失败'));
-            return;
-          }
-          if (xhr.status < 200 || xhr.status >= 300 || !result.ok) {
-            reject(new Error(result.message || '发送失败'));
-            return;
-          }
-          onProgress(100);
-          resolve(result);
-        };
-        xhr.onerror = () => reject(new Error('网络连接失败'));
-        xhr.send(file);
-      });
-    }
-
-    composer.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const text = textInput.value.trim();
-      if (!text) return;
-      textInput.value = '';
-      statusEl.textContent = '发送中...';
-      try {
-        await sendText(text);
-        await pollMessages();
-      } catch (error) {
-        statusEl.textContent = error.message || String(error);
-      }
-    });
-
-    fileButton.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', async () => {
-      const selectedFiles = Array.from(fileInput.files || []);
-      if (!selectedFiles.length) return;
-      fileInput.value = '';
-      const files = selectedFiles.slice(0, maxTransferFiles);
-      statusEl.textContent = selectedFiles.length > maxTransferFiles
-        ? '一次最多选择 9 个文件或图片，已发送前 9 个'
-        : '上传中...';
-
-      for (const [index, file] of files.entries()) {
-        const messageId = 'phone-upload-' + Date.now() + '-' + index;
-        const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
-        const baseMessage = {
-          id: messageId,
-          sender: 'phone',
-          kind: file.type.startsWith('image/') ? 'image' : 'file',
-          fileName: file.name || 'file',
-          mimeType: file.type || 'application/octet-stream',
-          size: file.size,
-          imageDataUrl: previewUrl,
-          progress: 0,
-          status: 'uploading',
-          localUpload: true
-        };
-        renderMessage(baseMessage);
-        sendFile(file, messageId, (progress) => {
-          renderMessage({ ...baseMessage, progress, status: 'uploading' });
-        }).then(() => {
-          renderMessage({ ...baseMessage, progress: 100, status: 'processing' });
-          statusEl.textContent = '已发送，等待电脑处理...';
-          pollMessages();
-        }).catch((error) => {
-          renderMessage({ ...baseMessage, progress: 100, status: 'failed', text: error.message || String(error) });
-          statusEl.textContent = error.message || String(error);
-        });
-      }
-    });
-
-    window.addEventListener('beforeunload', () => {
-      if (pollTimer) window.clearTimeout(pollTimer);
-    });
-    pollMessages();
-  </script>
-</body>
-</html>"#
-    .replace("__MAX_IMAGE_BYTES__", &max_image_bytes.to_string())
-    .replace("__POLL_MS__", &MOBILE_POLL_MS.to_string())
-    .replace("__ACCENT_PRIMARY__", accent_primary)
-    .replace("__ACCENT_STRONG__", accent_strong)
-    .replace("__ACCENT_TEXT__", accent_text)
-}
-
 #[cfg(test)]
 mod tests {
     use std::net::Ipv4Addr;
 
-    use super::{
-        extract_ipv4_candidates, lan_ipv4_score, query_has_token, sanitize_file_name, split_target,
-        unique_file_path, usable_lan_ipv4,
+    use super::{query_has_token, sanitize_file_name, split_target, unique_file_path};
+    use crate::lan_receiver::lan_receiver_network::{
+        extract_ipv4_candidates, lan_ipv4_score, usable_lan_ipv4,
     };
 
     #[test]
@@ -1841,7 +1279,8 @@ mod tests {
 IPv4 Address. . . . . . . . . . . : 192.168.5.174(Preferred)
 Subnet Mask . . . . . . . . . . . : 255.255.255.0
 Default Gateway . . . . . . . . . : 192.168.5.1";
-        let candidates = super::extract_windows_ipv4_candidates(text);
+        let candidates =
+            crate::lan_receiver::lan_receiver_network::extract_windows_ipv4_candidates(text);
         assert_eq!(candidates, vec![Ipv4Addr::new(192, 168, 5, 174)]);
     }
 }

@@ -23,7 +23,7 @@ export function onLanReceiverStatus(handler) {
 }
 
 export function getHistory(payload) {
-  return invoke("get_history", payload);
+  return invoke("get_history", { payload });
 }
 
 export function getSettings() {

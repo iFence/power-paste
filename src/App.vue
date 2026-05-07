@@ -17,10 +17,12 @@ import SettingsView from "./views/SettingsView.vue";
 import { useSettings } from "./composables/useSettings";
 import { useUpdater } from "./composables/useUpdater";
 import {
-    flushPendingCopySound,
-    playCopySoundFallback,
     useHistory,
 } from "./composables/useHistory";
+import {
+    flushPendingCopySound,
+    playCopySoundFallback,
+} from "./composables/useCopySound";
 import { useTheme } from "./composables/useTheme";
 import { useKeyboardShortcuts } from "./composables/useKeyboardShortcuts";
 import { useLanReceiver } from "./composables/useLanReceiver";
@@ -445,7 +447,6 @@ function openResetSettingsConfirm() {
                     :on-clear-query="
                         () => {
                             historyState.query.value = '';
-                            historyState.refreshHistory();
                         }
                     "
                     :on-open-settings="
@@ -461,7 +462,6 @@ function openResetSettingsConfirm() {
                     :lan-receiver-label="settingsState.t('lanReceiverTitle')"
                     @update:query="
                         historyState.query.value = $event;
-                        historyState.refreshHistory();
                     "
                 />
 

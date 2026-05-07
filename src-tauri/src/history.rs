@@ -689,33 +689,8 @@ pub(crate) fn store_capture_item(
     Ok(upserted.item)
 }
 
-pub(crate) fn history_to_dto(
-    items: &[StoredClipboardItem],
-    query: Option<&str>,
-    limit: usize,
-) -> Vec<ClipboardItemDto> {
-    let needle = query.unwrap_or("").trim().to_lowercase();
-
-    items
-        .iter()
-        .filter(|item| {
-            if needle.is_empty() {
-                return true;
-            }
-
-            let haystack = format!(
-                "{}\n{}\n{}",
-                item.preview,
-                item.full_text.clone().unwrap_or_default(),
-                item.source_app.clone().unwrap_or_default()
-            )
-            .to_lowercase();
-
-            haystack.contains(&needle)
-        })
-        .take(limit)
-        .map(history_item_to_dto)
-        .collect()
+pub(crate) fn history_to_dto(items: &[StoredClipboardItem], limit: usize) -> Vec<ClipboardItemDto> {
+    items.iter().take(limit).map(history_item_to_dto).collect()
 }
 
 pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDto {
