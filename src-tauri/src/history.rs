@@ -689,10 +689,6 @@ pub(crate) fn store_capture_item(
     Ok(upserted.item)
 }
 
-pub(crate) fn history_to_dto(items: &[StoredClipboardItem], limit: usize) -> Vec<ClipboardItemDto> {
-    items.iter().take(limit).map(history_item_to_dto).collect()
-}
-
 pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDto {
     let image_data_url = item.image_data_url().or_else(|| {
         item.html_text
@@ -719,7 +715,7 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
     }
 }
 
-fn html_image_preview_data_url(html: &str) -> Option<String> {
+pub(crate) fn html_image_preview_data_url(html: &str) -> Option<String> {
     let src = first_html_image_src(html)?;
     if src.to_ascii_lowercase().starts_with("data:image/") {
         return Some(src);

@@ -145,7 +145,11 @@ const updateDebugBodyValue = computed(() => {
   )
 })
 const updateHeaderMessage = computed(() => {
-  if (!props.updateState || props.updateState.status !== 'downloading') {
+  if (!props.updateState) {
+    return ''
+  }
+
+  if (['idle', 'up_to_date', 'downloaded'].includes(props.updateState.status)) {
     return ''
   }
 
@@ -313,9 +317,14 @@ async function handleUpdateAction() {
     return
   }
 
-  await props.onCheckUpdates()
+  const nextState = await props.onCheckUpdates()
 
-  if (props.updateState?.status === 'up_to_date') {
+  if (nextState?.status === 'available') {
+    showUpdateConfirm.value = true
+    return
+  }
+
+  if (nextState?.status === 'up_to_date') {
     await showLatestVersionFeedback()
   }
 }
@@ -457,7 +466,9 @@ watch(
             </span>
           </Transition>
         </div>
-        <span v-if="updateHeaderMessage">{{ updateHeaderMessage }}</span>
+        <span v-if="updateHeaderMessage" class="modal-update-status settings-update-status">
+          {{ updateHeaderMessage }}
+        </span>
       </div>
       <div class="settings-page-actions">
         <span v-if="settingsSaveError" class="settings-save-feedback">

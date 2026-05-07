@@ -3,7 +3,6 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::{
-    history::history_to_dto,
     models::{AppError, ClipboardHistoryPageDto, HistoryQueryPayload, SharedState},
 };
 
@@ -20,7 +19,7 @@ pub(crate) fn get_history(
     let total_count = store.count_history(&payload)?;
     let history = store.list_history(&payload, limit, offset)?;
     Ok(ClipboardHistoryPageDto {
-        items: history_to_dto(&history, limit),
+        items: history,
         total_count,
     })
 }

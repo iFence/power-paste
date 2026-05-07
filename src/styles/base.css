@@ -486,6 +486,11 @@
     font-size: 0.76rem;
 }
 
+.settings-page-title-block .settings-update-status {
+    justify-self: start;
+    color: color-mix(in srgb, var(--accent-primary) 86%, var(--app-text) 14%);
+}
+
 .settings-page-actions {
     display: flex;
     min-width: 0;
@@ -2499,9 +2504,8 @@ select {
 
 .modal-update-status {
     display: inline-flex;
-    margin-left: auto;
     font-size: 0.78rem;
-    text-align: right;
+    text-align: left;
     white-space: nowrap;
     color: color-mix(in srgb, var(--accent-primary) 74%, var(--app-text) 26%);
 }
@@ -2515,7 +2519,7 @@ select {
     padding: 0;
     border: 0;
     background: transparent;
-    color: #ee502f;
+    color: var(--accent-primary);
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: lowercase;
@@ -2525,6 +2529,7 @@ select {
 }
 
 .modal-update-badge-new {
+    color: #ee332f;
     animation: update-badge-glimmer 1.7s ease-in-out infinite;
     transform-origin: center;
 }
@@ -2540,7 +2545,7 @@ select {
 }
 
 .modal-update-badge-check {
-    color: #1e3d7c;
+    color: var(--accent-primary);
 }
 
 .modal-update-badge-mark {
@@ -2552,19 +2557,19 @@ select {
     0%,
     100% {
         opacity: 0.92;
-        text-shadow: 0 0 0 rgba(238, 80, 47, 0);
+        text-shadow: 0 0 0 rgba(238, 51, 47, 0);
         transform: scale(1);
     }
 
     45% {
         opacity: 1;
-        text-shadow: 0 0 10px rgba(238, 80, 47, 0.28);
+        text-shadow: 0 0 10px rgba(238, 51, 47, 0.28);
         transform: scale(1.04);
     }
 
     60% {
         opacity: 0.7;
-        text-shadow: 0 0 12px rgba(238, 80, 47, 0.1);
+        text-shadow: 0 0 12px rgba(238, 51, 47, 0.1);
         transform: scale(0.98);
     }
 }
@@ -2586,13 +2591,17 @@ select {
     display: inline-flex;
     align-items: center;
     margin-left: 8px;
-    color: color-mix(in srgb, var(--accent-primary) 72%, var(--app-text) 28%);
+    color: color-mix(in srgb, var(--accent-primary) 88%, var(--app-text) 12%);
     font-size: 0.78rem;
     line-height: 1;
     white-space: nowrap;
     overflow: hidden;
     transform-origin: left center;
     will-change: transform, opacity;
+}
+
+.settings-page-title-block .modal-update-feedback {
+    color: color-mix(in srgb, var(--accent-primary) 88%, var(--app-text) 12%);
 }
 
 .update-feedback-enter-active,

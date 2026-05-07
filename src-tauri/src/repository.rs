@@ -1,11 +1,16 @@
 use anyhow::{Context, Result};
+use base64::Engine;
 use chrono::{Duration, Utc};
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde_json::{from_str, to_string};
 use uuid::Uuid;
 
 use crate::{
-    models::{AppSettings, CapturedClipboard, HistoryQueryPayload, StoragePaths, StoredClipboardItem},
+    models::{
+        AppSettings, CapturedClipboard, ClipboardItemDto, HistoryQueryPayload, StoragePaths,
+        StoredClipboardItem,
+    },
+    history::html_image_preview_data_url,
     rich_text::normalize_rich_text_payload,
     storage::{image_preview_png_from_bytes, preview_text, sha256_hex},
 };
@@ -17,6 +22,24 @@ pub(crate) struct SqliteHistoryStore {
 pub(crate) struct UpsertedCapture {
     pub(crate) inserted: bool,
     pub(crate) item: StoredClipboardItem,
+}
+
+struct HistoryListRow {
+    id: String,
+    kind: String,
+    created_at: String,
+    preview: String,
+    full_text: Option<String>,
+    html_text: Option<String>,
+    image_preview_png: Option<Vec<u8>>,
+    image_width: Option<u32>,
+    image_height: Option<u32>,
+    image_byte_size: Option<usize>,
+    source_app: Option<String>,
+    source_icon_data_url: Option<String>,
+    pinned: bool,
+    favorite: bool,
+    tag_colors: Vec<String>,
 }
 
 const ALLOWED_TAG_COLORS: [&str; 7] = ["red", "orange", "yellow", "green", "blue", "purple", "gray"];
@@ -100,8 +123,9 @@ impl SqliteHistoryStore {
         payload: &HistoryQueryPayload,
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<StoredClipboardItem>> {
-        self.query_items(payload, Some(limit), offset)
+    ) -> Result<Vec<ClipboardItemDto>> {
+        self.query_history_rows(payload, limit, offset)
+            .map(|rows| rows.into_iter().map(history_list_row_to_dto).collect())
     }
 
     pub(crate) fn count_history(&self, payload: &HistoryQueryPayload) -> Result<usize> {
@@ -114,6 +138,7 @@ impl SqliteHistoryStore {
             .map_err(Into::into)
     }
 
+    #[cfg(test)]
     fn query_items(
         &self,
         payload: &HistoryQueryPayload,
@@ -384,15 +409,8 @@ impl SqliteHistoryStore {
     }
 
     pub(crate) fn update_item_tags(&self, id: &str, tag_colors: &[String]) -> Result<()> {
-        let item = self
-            .get_item(id)?
-            .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))?;
         let next_colors = sanitize_tag_colors(tag_colors);
-        if next_colors == item.tag_colors {
-            return Ok(());
-        }
-
-        self.connection.execute(
+        let affected = self.connection.execute(
             r#"
             UPDATE clipboard_items
             SET tag_colors = ?2
@@ -400,6 +418,9 @@ impl SqliteHistoryStore {
             "#,
             params![id, serialize_tag_colors(&next_colors)],
         )?;
+        if affected == 0 {
+            anyhow::bail!("Clipboard item not found");
+        }
         Ok(())
     }
 
@@ -465,6 +486,118 @@ impl SqliteHistoryStore {
 
         Ok(item)
     }
+
+    fn query_history_rows(
+        &self,
+        payload: &HistoryQueryPayload,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<HistoryListRow>> {
+        let limit = limit.min(i64::MAX as usize) as i64;
+        let offset = offset.min(i64::MAX as usize) as i64;
+        let (where_sql, mut bind_values) = build_history_filters(payload);
+        let sql = format!(
+            r#"
+            SELECT id, kind, created_at, preview, full_text, html_text,
+                   CASE
+                     WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0
+                       THEN image_preview_png
+                     ELSE image_png
+                   END AS image_list_png,
+                   image_width, image_height,
+                   length(COALESCE(image_original_bytes, image_png)),
+                   source_app, source_icon_data_url,
+                   pinned, favorite, tag_colors
+            FROM clipboard_items
+            {where_sql}
+            ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
+            LIMIT ?{} OFFSET ?{}
+            "#,
+            bind_values.len() + 1,
+            bind_values.len() + 2,
+        );
+        bind_values.push(rusqlite::types::Value::Integer(limit));
+        bind_values.push(rusqlite::types::Value::Integer(offset));
+
+        let mut statement = self.connection.prepare(&sql)?;
+        let rows = statement.query_map(
+            params_from_iter(bind_values.iter()),
+            Self::row_to_history_list_row,
+        )?;
+
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(Into::into)
+    }
+
+    fn row_to_history_list_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryListRow> {
+        let mut full_text = row.get::<_, Option<String>>(4)?;
+        let mut html_text = row.get::<_, Option<String>>(5)?;
+        let (normalized_full_text, normalized_html_text) =
+            normalize_rich_text_payload(full_text.take(), html_text.take());
+
+        let kind = row.get::<_, String>(1)?;
+        let stored_preview = row.get::<_, String>(3)?;
+        let preview = if matches!(kind.as_str(), "text" | "link" | "mixed") {
+            normalized_full_text
+                .as_deref()
+                .map(preview_text)
+                .unwrap_or(stored_preview)
+        } else {
+            stored_preview
+        };
+
+        Ok(HistoryListRow {
+            id: row.get(0)?,
+            kind,
+            created_at: row.get(2)?,
+            preview,
+            full_text: normalized_full_text,
+            html_text: normalized_html_text,
+            image_preview_png: row.get(6)?,
+            image_width: row.get(7)?,
+            image_height: row.get(8)?,
+            image_byte_size: row
+                .get::<_, Option<i64>>(9)?
+                .and_then(|value| usize::try_from(value).ok()),
+            source_app: row.get(10)?,
+            source_icon_data_url: row.get(11)?,
+            pinned: row.get::<_, i64>(12)? != 0,
+            favorite: row.get::<_, i64>(13)? != 0,
+            tag_colors: parse_tag_colors(row.get::<_, String>(14)?),
+        })
+    }
+}
+
+fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
+    let image_data_url = image_data_url_from_bytes(item.image_preview_png.as_deref()).or_else(|| {
+        item.html_text
+            .as_deref()
+            .filter(|_| item.kind == "mixed")
+            .and_then(html_image_preview_data_url)
+    });
+
+    ClipboardItemDto {
+        id: item.id,
+        kind: item.kind,
+        created_at: item.created_at,
+        preview: item.preview,
+        full_text: item.full_text,
+        image_data_url,
+        image_byte_size: item.image_byte_size,
+        image_width: item.image_width,
+        image_height: item.image_height,
+        source_app: item.source_app,
+        source_icon_data_url: item.source_icon_data_url,
+        pinned: item.pinned,
+        favorite: item.favorite,
+        tag_colors: item.tag_colors,
+    }
+}
+
+fn image_data_url_from_bytes(bytes: Option<&[u8]>) -> Option<String> {
+    bytes
+        .filter(|value| !value.is_empty())
+        .map(|value| format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(value)))
 }
 
 fn build_history_filters(payload: &HistoryQueryPayload) -> (String, Vec<rusqlite::types::Value>) {
