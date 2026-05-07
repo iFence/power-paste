@@ -781,14 +781,10 @@ watch(
                 :aria-label="t('chooseFolder')"
                 @click="chooseLanTransferDownloadDir"
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+                <svg viewBox="0 0 1025 960" aria-hidden="true">
                   <path
-                    d="M3.5 7.5h6l1.7 2h9.3v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-10Zm0 2h17"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    d="M86.592 153.6v716.8h853.376V288H472.64L365.696 153.6h-279.04zM1.28 64h404.288L512.64 198.4H1025.28V960H1.28V64z m85.312 281.6v535.616l853.376-1.28V480H472.64L365.696 345.6h-279.04zM33.28 256h372.352L512.64 390.4H993.28a32 32 0 0 1 32 32v458.496l-1025.216 16.192 1.152-609.152A32 32 0 0 1 33.28 256z"
+                    fill="currentColor"
                   />
                 </svg>
               </button>
@@ -935,7 +931,7 @@ watch(
             <div class="setting-head">
               <span class="meta-label">{{ t('version') }}</span>
             </div>
-            <span class="settings-value-text">{{ appVersion || '--' }}</span>
+            <span class="settings-value-text">{{ appVersion ? `v${appVersion}` : '--' }}</span>
           </section>
         </div>
       </section>

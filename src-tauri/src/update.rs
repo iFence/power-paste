@@ -17,6 +17,13 @@ const GITHUB_RELEASES_ACCEPT: &str = "application/vnd.github+json";
 const GITHUB_RELEASES_USER_AGENT: &str = "power-paste-updater";
 const EMPTY_RELEASE_NOTES_TEXT: &str = "No release notes were provided for this version.";
 
+#[derive(Clone, Copy)]
+enum UpdateCheckSource {
+    Startup,
+    Manual,
+    Recovery,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct GithubRelease {
     tag_name: String,
@@ -147,24 +154,42 @@ fn build_debug_status(
 
 pub(crate) fn spawn_startup_check(app: AppHandle, shared: Arc<SharedState>) {
     tauri::async_runtime::spawn(async move {
-        let _ = check_for_updates_inner(app, shared).await;
+        let _ = check_for_updates_inner(app, shared, UpdateCheckSource::Startup, false).await;
     });
 }
 
 pub(crate) fn spawn_manual_check(app: AppHandle, shared: Arc<SharedState>) {
     tauri::async_runtime::spawn(async move {
-        let _ = check_for_updates_inner(app, shared).await;
+        let _ = check_for_updates_inner(app, shared, UpdateCheckSource::Manual, false).await;
     });
 }
 
-async fn check_for_updates_inner(app: AppHandle, shared: Arc<SharedState>) -> Result<UpdateStatus> {
+fn build_idle_status(app: &AppHandle) -> UpdateStatus {
+    UpdateStatus {
+        status: "idle".into(),
+        current_version: version_of(app),
+        latest_version: None,
+        body: None,
+        published_at: None,
+        downloaded_bytes: None,
+        content_length: None,
+        error: None,
+    }
+}
+
+async fn check_for_updates_inner(
+    app: AppHandle,
+    shared: Arc<SharedState>,
+    source: UpdateCheckSource,
+    force: bool,
+) -> Result<UpdateStatus> {
     if let Some(next) = active_debug_status(&shared) {
         *shared.pending_update.lock().unwrap() = None;
         return Ok(emit_status(&app, &shared, next));
     }
 
     let current = current_status(&shared);
-    if matches!(current.status.as_str(), "checking" | "downloading") {
+    if !force && matches!(current.status.as_str(), "checking" | "downloading") {
         return Ok(current);
     }
 
@@ -237,6 +262,10 @@ async fn check_for_updates_inner(app: AppHandle, shared: Arc<SharedState>) -> Re
         }
         Err(error) => {
             *shared.pending_update.lock().unwrap() = None;
+            if matches!(source, UpdateCheckSource::Startup) {
+                return Ok(emit_status(&app, &shared, build_idle_status(&app)));
+            }
+
             Ok(emit_status(
                 &app,
                 &shared,
@@ -267,7 +296,7 @@ pub(crate) async fn check_for_updates(
     app: AppHandle,
     state: State<'_, Arc<SharedState>>,
 ) -> Result<UpdateStatus, AppError> {
-    check_for_updates_inner(app, state.inner().clone())
+    check_for_updates_inner(app, state.inner().clone(), UpdateCheckSource::Manual, false)
         .await
         .map_err(Into::into)
 }
@@ -341,20 +370,10 @@ pub(crate) async fn install_update(
         )
         .await
     {
-        return Ok(emit_status(
-            &app,
-            &shared,
-            UpdateStatus {
-                status: "error".into(),
-                current_version: version_of(&app),
-                latest_version: next.latest_version,
-                body: next.body,
-                published_at: next.published_at,
-                downloaded_bytes: next.downloaded_bytes,
-                content_length: next.content_length,
-                error: Some(error.to_string()),
-            },
-        ));
+        eprintln!("update install error: {error}");
+        return check_for_updates_inner(app, shared, UpdateCheckSource::Recovery, true)
+            .await
+            .map_err(Into::into);
     }
 
     let downloaded_status = UpdateStatus {

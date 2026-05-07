@@ -54,6 +54,11 @@ function formatErrorMessage(error) {
   return normalized;
 }
 
+function normalizeUpdateError(error) {
+  const formatted = formatErrorMessage(error);
+  return formatted || null;
+}
+
 function updateDebugEnabled() {
   return Boolean(import.meta.env.DEV);
 }
@@ -263,9 +268,15 @@ export function useUpdater({ t }) {
   });
 
   function applyUpdateState(next) {
+    const normalizedError =
+      Object.prototype.hasOwnProperty.call(next ?? {}, "error")
+        ? normalizeUpdateError(next?.error)
+        : updateState.value.error;
+
     updateState.value = {
       ...updateState.value,
       ...next,
+      error: normalizedError,
     };
   }
 

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { formatRelativeTime } from '../utils/format'
 import { looksLikeCode, previewHtml } from '../utils/codePreview'
+import { resolvePreviewColor } from '../utils/color'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 
 const props = defineProps({
@@ -40,6 +41,22 @@ const hasTextPreview = computed(() => {
 const hasMixedPreview = computed(
   () => props.item?.kind === 'mixed' && Boolean(props.item?.imageDataUrl) && hasTextPreview.value,
 )
+const textPreviewValue = computed(() => {
+  const fullText = typeof props.item?.fullText === 'string' ? props.item.fullText : ''
+  const preview = typeof props.item?.preview === 'string' ? props.item.preview : ''
+  return fullText || preview
+})
+const previewColorValue = computed(() => {
+  if (props.item?.kind !== 'text') {
+    return null
+  }
+
+  if (looksLikeCode(textPreviewValue.value)) {
+    return null
+  }
+
+  return resolvePreviewColor(textPreviewValue.value)
+})
 const isMobileSource = computed(() => props.item?.sourceApp === 'Mobile')
 const sourceAppInitials = computed(() => {
   const sourceApp = typeof props.item?.sourceApp === 'string' ? props.item.sourceApp.trim() : ''
@@ -385,7 +402,15 @@ onBeforeUnmount(() => {
               class="code-preview"
               v-html="previewHtml(item)"
             ></pre>
-            <pre v-else class="text-preview">{{ item.fullText ?? item.preview }}</pre>
+            <div v-else class="text-preview-row" :class="{ 'has-color-preview': previewColorValue }">
+              <span
+                v-if="previewColorValue"
+                class="text-preview-color-dot"
+                :style="{ backgroundColor: previewColorValue }"
+                aria-hidden="true"
+              ></span>
+              <pre class="text-preview">{{ textPreviewValue }}</pre>
+            </div>
           </div>
         </div>
       </div>
@@ -435,7 +460,7 @@ onBeforeUnmount(() => {
               d="M5.2 2.5h5.6l-.8 3 1.9 1.9v1H8.8v4.8l-.8.8-.8-.8V8.4H4.1v-1L6 5.5l-.8-3Z"
               :fill="item.pinned ? 'currentColor' : 'none'"
               stroke="currentColor"
-              stroke-width="1.2"
+              stroke-width="1.3"
               stroke-linejoin="round"
             />
           </svg>
