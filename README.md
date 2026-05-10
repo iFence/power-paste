@@ -278,6 +278,16 @@ The project no longer relies on a plain `history.json` file as the primary histo
 └── scripts/             # Local development helper scripts
 ```
 
+## Support
+
+If you find Power Paste helpful, consider supporting the project:
+
+| Alipay | WeChat Pay | Appreciation Code |
+|---|---|---|
+| ![Alipay](./docs/alipay.jpg) | ![WeChat Pay](./docs/wechatpay.jpg) |![Appreciation Code](./docs/appreciation.jpg)|
+
+Your support helps maintain and improve Power Paste. Thank you!
+
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0.

@@ -277,6 +277,16 @@ pnpm tauri build
 └── scripts/             # 本地开发辅助脚本
 ```
 
+## 支持项目
+
+如果 Power Paste 对你有帮助，欢迎支持项目开发：
+
+| 支付宝 | 微信支付 | 赞赏码 |
+|---|---|---|
+| ![支付宝](./docs/alipay.jpg) | ![微信支付](./docs/wechatpay.jpg) |![赞赏码](./docs/appreciation.jpg)|
+
+你的支持将帮助维护和改进 Power Paste。感谢！
+
 ## License
 
 本项目采用 GNU Affero General Public License v3.0（AGPLv3）许可证。
