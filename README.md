@@ -8,9 +8,15 @@ It is not only a utility that gets the job done. Power Paste is also built as a 
 
 ## Product Preview
 
-| Main Panel (Light) | QR Panel (Dark) | Settings |
-|---|---|---|
-| ![Power Paste light theme](./docs/light.png) | ![Power Paste dark theme](./docs/qr.png) |![Power Paste settings panel](./docs/settings.png)|
+### Demo Video
+
+<video src="./docs/demo-video.mp4" controls width="100%" title="Power Paste demo video"></video>
+
+[Watch the demo video](./docs/demo-video.mp4)
+
+| Main Panel(Light) |Settings(Dark)|
+|---|---|
+| ![Power Paste light theme](./docs/light.png) | ![Power Paste settings panel](./docs/settings.png)|
 
 ## Why Power Paste
 
