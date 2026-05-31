@@ -8,9 +8,22 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 
 ## Product Preview
 
-| Main Panel (Light) | QR Panel (Dark) | Settings |
-|---|---|---|
-| ![Power Paste light theme](./docs/light.png) | ![Power Paste dark theme](./docs/qr.png) | ![Power Paste settings panel](./docs/settings.png) |
+### Demo Video
+
+<video src="./docs/demo-video.mp4" controls width="100%" title="Power Paste demo video"></video>
+
+[Watch the demo video](./docs/demo-video.mp4)
+
+| Main Panel(Light) |Settings(Dark)|
+|---|---|
+| ![Power Paste light theme](./docs/light.png) | ![Power Paste settings panel](./docs/settings.png)|
+
+## Why Power Paste
+
+- Fast: open the panel with a global shortcut and bring previous clipboard content back in seconds
+- Native-feeling: designed around desktop workflows instead of browser-like interaction patterns
+- Good-looking: translucent surfaces, theme switching, and accent colors are part of the product value
+- Meant to stay around: tray support, single-instance behavior, and update checks make it practical as an always-available companion
 
 ## Highlights
 
