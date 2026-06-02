@@ -2,7 +2,7 @@ import { nextTick } from 'vue'
 
 const WINDOW_SIZES = {
   settings: {
-    width: 600,
+    width: 650,
     height: 500,
   },
 }

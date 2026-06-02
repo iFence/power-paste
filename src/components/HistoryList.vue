@@ -4,6 +4,7 @@ import HistoryListItem from "./HistoryListItem.vue";
 defineProps({
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
+  copyStatsEnabled: { type: Boolean, required: true },
   historyPanelRef: { type: Object, required: true },
   hasMore: { type: Boolean, required: true },
   items: { type: Array, required: true },
@@ -59,6 +60,7 @@ function handleScroll(event) {
           :relative-time-version="relativeTimeVersion"
           :can-clipboard-write="canClipboardWrite"
           :can-direct-paste="canDirectPaste"
+          :copy-stats-enabled="copyStatsEnabled"
           :selected="item.id === selectedId"
           :tag-label-map="tagLabelMap"
           :t="t"

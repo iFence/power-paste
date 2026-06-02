@@ -1496,6 +1496,11 @@ select {
     white-space: nowrap;
 }
 
+.copy-count-note {
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
 .source-app-icon {
     width: 18px;
     height: 18px;
@@ -2484,7 +2489,8 @@ select {
 }
 
 .confirm-modal-footer {
-    justify-content: flex-end;
+    display: flex;
+    justify-content: space-between;
     flex-wrap: nowrap;
     gap: 8px;
 }
@@ -3118,10 +3124,18 @@ select {
 
 /* 文本输入框和 textarea 更宽 */
 .setting-card.wide > input[type="text"],
+.setting-card.wide > input[type="url"],
+.setting-card.wide > input[type="password"],
 .setting-card.wide > .path-picker-wrap,
 .setting-card.wide > textarea,
 .setting-card.wide > .settings-wide-control {
     max-width: 100%;
+}
+
+.setting-card.wide > input[type="text"],
+.setting-card.wide > input[type="url"],
+.setting-card.wide > input[type="password"] {
+    width: min(100%, 360px);
 }
 
 .setting-card.wide > .path-picker-wrap {
@@ -3193,6 +3207,29 @@ select {
     font-size: 0.78rem;
 }
 
+.webdav-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.webdav-actions .ghost,
+.webdav-actions .primary {
+    min-width: 72px;
+    padding: 5px 8px;
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+
+.webdav-password-note,
+.webdav-status-note {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    max-width: 260px;
+    overflow-wrap: anywhere;
+}
+
 .about-card {
     align-items: center;
 }
@@ -3201,6 +3238,7 @@ select {
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 8px;
     width: 100%;
     max-width: min(100%, 420px);
     justify-self: end;
@@ -3229,6 +3267,15 @@ select {
         color 180ms ease;
 }
 
+.about-link:not(.about-link-icon) {
+    width: auto;
+    min-width: 0;
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
 .about-link:hover {
     background: color-mix(
         in srgb,
@@ -3252,6 +3299,11 @@ select {
 .about-link-github-icon {
     width: 19px;
     height: 19px;
+}
+
+.about-link-site-icon {
+    width: 17px;
+    height: 17px;
 }
 
 .update-card .setting-head {
@@ -3546,7 +3598,8 @@ textarea {
         align-items: stretch;
     }
 
-    .edit-modal-footer {
+    .edit-modal-footer,
+    .confirm-modal-footer {
         flex-direction: row;
         align-items: center;
     }

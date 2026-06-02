@@ -22,6 +22,10 @@ export function onLanReceiverStatus(handler) {
   return listen("lan-receiver-status", handler);
 }
 
+export function onWebdavSyncStatus(handler) {
+  return listen("webdav-sync-status", handler);
+}
+
 export function getHistory(payload) {
   return invoke("get_history", { payload });
 }
@@ -64,6 +68,26 @@ export function saveMainPanelSize(payload) {
 
 export function resetSettings() {
   return invoke("reset_settings");
+}
+
+export function getWebdavSyncState() {
+  return invoke("get_webdav_sync_state");
+}
+
+export function updateWebdavCredential(password) {
+  return invoke("update_webdav_credential", { payload: { password } });
+}
+
+export function clearWebdavCredential() {
+  return invoke("clear_webdav_credential");
+}
+
+export function testWebdavSync() {
+  return invoke("test_webdav_sync");
+}
+
+export function syncWebdavNow() {
+  return invoke("sync_webdav_now");
 }
 
 export function togglePin(id) {

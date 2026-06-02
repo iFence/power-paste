@@ -113,7 +113,7 @@ mod windows_clipboard_watch {
                 let context = &*context_ptr;
                 let app = context.app.clone();
                 let shared = context.shared.clone();
-                std::thread::spawn(move || process_clipboard_change(app, shared, true));
+            std::thread::spawn(move || process_clipboard_change(app, shared, true, true));
             }
             return 0;
         }
@@ -204,10 +204,16 @@ fn hydrate_source_icon_async(
         };
 
         let _ = app.emit(HISTORY_UPDATED_EVENT, updated_item);
+        crate::sync::schedule_auto_sync(app, shared);
     });
 }
 
-fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>, allow_initial_sound: bool) {
+fn process_clipboard_change(
+    app: AppHandle,
+    shared: Arc<SharedState>,
+    allow_initial_sound: bool,
+    count_repeated_hash: bool,
+) {
     if clipboard_suppression_remaining(&shared).is_some() {
         return;
     }
@@ -247,7 +253,9 @@ fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>, allow_init
             };
 
             let mut monitor = shared.monitor.lock().unwrap();
-            if monitor.last_seen_hash.as_deref() == Some(hash.as_str()) {
+            if monitor.last_seen_hash.as_deref() == Some(hash.as_str())
+                && !(settings.copy_stats_enabled && count_repeated_hash)
+            {
                 return;
             }
 
@@ -297,6 +305,7 @@ fn process_clipboard_change(app: AppHandle, shared: Arc<SharedState>, allow_init
                     item.id.clone(),
                 );
                 let _ = app.emit(HISTORY_UPDATED_EVENT, item);
+                crate::sync::schedule_auto_sync(app.clone(), shared.clone());
             }
         }
         Ok(None) => {}
@@ -311,7 +320,7 @@ fn start_plugin_watch(app: &AppHandle, shared: Arc<SharedState>) -> bool {
     app.listen(CLIPBOARD_CHANGE_EVENT, move |_| {
         let worker_app = event_app.clone();
         let worker_shared = shared.clone();
-        thread::spawn(move || process_clipboard_change(worker_app, worker_shared, true));
+        thread::spawn(move || process_clipboard_change(worker_app, worker_shared, true, true));
     });
 
     match app.clipboard_next().start_watch(app.clone()) {
@@ -331,7 +340,7 @@ fn start_fallback_polling(app: AppHandle, shared: Arc<SharedState>) {
                 thread::sleep(remaining.min(Duration::from_millis(250)));
                 continue;
             }
-            process_clipboard_change(app.clone(), shared.clone(), allow_sound);
+            process_clipboard_change(app.clone(), shared.clone(), allow_sound, false);
             allow_sound = true;
             let settings = shared.settings.lock().unwrap().clone();
             thread::sleep(Duration::from_millis(settings.polling_interval_ms));

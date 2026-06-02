@@ -6,6 +6,7 @@ import {
     onCopySound,
     onHistoryUpdated,
     onUpdateStatus,
+    onWebdavSyncStatus,
 } from "./services/tauriApi";
 import SearchBar from "./components/SearchBar.vue";
 import FilterTabs from "./components/FilterTabs.vue";
@@ -72,6 +73,7 @@ watch(settingsState.currentLocale, (locale) => {
 let unlistenHistory = null;
 let unlistenCopySound = null;
 let unlistenUpdate = null;
+let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
@@ -95,10 +97,12 @@ function cleanupListeners() {
     unlistenHistory?.();
     unlistenCopySound?.();
     unlistenUpdate?.();
+    unlistenWebdavSync?.();
     unlistenWindowFocus?.();
     unlistenHistory = null;
     unlistenCopySound = null;
     unlistenUpdate = null;
+    unlistenWebdavSync = null;
     unlistenWindowFocus = null;
 }
 
@@ -138,6 +142,7 @@ async function initializeApp() {
         await settingsState.loadPlatformCapabilities();
         await settingsState.refreshSettings();
         await updaterState.refreshUpdateState();
+        await settingsState.refreshWebdavSyncState();
         await historyState.refreshHistory();
         document.documentElement.lang = settingsState.currentLocale.value;
         unlistenHistory = await onHistoryUpdated(async (event) => {
@@ -153,6 +158,11 @@ async function initializeApp() {
         unlistenUpdate = await onUpdateStatus((event) => {
             if (event?.payload) {
                 updaterState.applyUpdateState(event.payload);
+            }
+        });
+        unlistenWebdavSync = await onWebdavSyncStatus((event) => {
+            if (event?.payload) {
+                settingsState.applyWebdavSyncStatus(event.payload);
             }
         });
         unlistenWindowFocus = await getCurrentWindow().onFocusChanged(
@@ -401,7 +411,9 @@ function openResetSettingsConfirm() {
                 <SettingsView
                     :app-version="settingsState.appVersion.value"
                     :apply-setting-patch="settingsState.applySettingPatch"
+                    :apply-webdav-sync-patch="settingsState.applyWebdavSyncPatch"
                     :begin-shortcut-recording="settingsState.beginShortcutRecording"
+                    :clear-webdav-password="settingsState.clearWebdavPassword"
                     :close-select="settingsState.closeSelect"
                     :current-accent-color-options="
                         settingsState.currentAccentColorOptions.value
@@ -426,6 +438,9 @@ function openResetSettingsConfirm() {
                     :pending-setting-key="settingsState.pendingSettingKey.value"
                     :recording-shortcut="settingsState.recordingShortcut.value"
                     :reset-settings="openResetSettingsConfirm"
+                    :run-webdav-sync-now="settingsState.runWebdavSyncNow"
+                    :run-webdav-test="settingsState.runWebdavTest"
+                    :save-webdav-password="settingsState.saveWebdavPassword"
                     :saving-settings="settingsState.savingSettings.value"
                     :segmented-toggle-style="settingsState.segmentedToggleStyle"
                     :selected-option-label="settingsState.selectedOptionLabel"
@@ -441,6 +456,9 @@ function openResetSettingsConfirm() {
                     :update-label="settingsState.t('downloadAndInstall')"
                     :update-status-message="updaterState.statusMessage.value"
                     :update-state="updaterState.updateState.value"
+                    :webdav-credential-saved="settingsState.webdavCredentialSaved.value"
+                    :webdav-password-draft="settingsState.webdavPasswordDraft.value"
+                    :webdav-sync-status="settingsState.webdavSyncStatus.value"
                 />
             </template>
 
@@ -499,6 +517,7 @@ function openResetSettingsConfirm() {
                             settingsState.platformCapabilities.value
                                 .supportsDirectPaste
                         "
+                        :copy-stats-enabled="settingsState.settings.copyStatsEnabled"
                         :history-panel-ref="historyState.historyPanelRef"
                         :has-more="historyState.hasMoreHistory.value"
                         :items="historyState.filteredHistory.value"

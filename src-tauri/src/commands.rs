@@ -2,6 +2,7 @@ mod clipboard;
 mod history;
 mod lan_transfer;
 mod settings;
+mod sync;
 
 pub(crate) use clipboard::{copy_item, open_external_url, paste_item};
 pub(crate) use history::{
@@ -15,4 +16,8 @@ pub(crate) use lan_transfer::{
 pub(crate) use settings::{
     get_default_download_dir, get_platform_capabilities, get_settings, reset_settings,
     save_main_panel_size, update_settings,
+};
+pub(crate) use sync::{
+    clear_webdav_credential, get_webdav_sync_state, sync_webdav_now, test_webdav_sync,
+    update_webdav_credential,
 };
