@@ -38,7 +38,6 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Hover image thumbnails to preview larger images
 - Local-network phone transfer for text, images, and files through a browser page opened by scanning a QR code
 - WebDAV history sync with system credential storage for the remote password
-- Nutstore / Jianguoyun WebDAV protection: sync retries are limited to 3 attempts, and `503` rate-limit responses stop the current sync immediately to avoid burning more request quota
 - Settings for language, theme, accent color, density, launch on startup, sound, history retention, image-size limit, transfer directory, tag labels, debug mode, and global shortcut
 - Tray integration, single-instance behavior, automatic update checks, and manual update checks
 - Custom in-app confirmation dialogs instead of system confirm prompts for destructive actions
@@ -87,7 +86,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Store the WebDAV password in the system credential store instead of `settings.json`
 - Use `.power-paste-sync` under the configured remote folder for app-owned sync data
 - Retry transient WebDAV requests up to `3` attempts
-- Detect Nutstore / Jianguoyun WebDAV (`dav.jianguoyun.com`) `503` responses as likely request-rate limiting and stop the current sync immediately, so the client does not consume more of Nutstore's 30-minute request quota
+- Keep WebDAV sync state visible in settings, including manual sync, test connection, and auto sync controls
 
 ### Settings
 
