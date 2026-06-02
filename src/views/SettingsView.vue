@@ -9,6 +9,7 @@ import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 import checkIcon from '../assets/check.svg'
 
 const ABOUT_INFO = {
+  landingPageUrl: 'https://power-paste.hiaspirin.cc',
   repositoryUrl: 'https://github.com/iFence/power-paste',
 }
 const SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY = 'clipdesk.settings.activeCategory'
@@ -21,7 +22,9 @@ marked.setOptions({
 const props = defineProps({
   appVersion: { type: String, required: true },
   applySettingPatch: { type: Function, required: true },
+  applyWebdavSyncPatch: { type: Function, required: true },
   beginShortcutRecording: { type: Function, required: true },
+  clearWebdavPassword: { type: Function, required: true },
   canToggleLaunchOnStartup: { type: Boolean, required: true },
   closeSelect: { type: Function, required: true },
   currentAccentColorOptions: { type: Array, required: true },
@@ -39,6 +42,9 @@ const props = defineProps({
   platformCapabilities: { type: Object, required: true },
   recordingShortcut: { type: Boolean, required: true },
   resetSettings: { type: Function, required: true },
+  runWebdavSyncNow: { type: Function, required: true },
+  runWebdavTest: { type: Function, required: true },
+  saveWebdavPassword: { type: Function, required: true },
   savingSettings: { type: Boolean, required: true },
   settings: { type: Object, required: true },
   settingsSaveError: { type: String, required: true },
@@ -53,6 +59,9 @@ const props = defineProps({
   updateLabel: { type: String, required: true },
   updateStatusMessage: { type: String, required: true },
   updateState: { type: Object, required: true },
+  webdavPasswordDraft: { type: String, default: '' },
+  webdavCredentialSaved: { type: Boolean, required: true },
+  webdavSyncStatus: { type: Object, required: true },
 })
 
 const activeCategory = ref(window.localStorage.getItem(SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY) || 'general')
@@ -68,6 +77,7 @@ let updateFeedbackTimer = null
 const categories = computed(() => [
   { key: 'general', label: props.t('settingsCategoryGeneral') },
   { key: 'history', label: props.t('settingsCategoryHistory') },
+  { key: 'sync', label: props.t('settingsCategorySync') },
   { key: 'transfer', label: props.t('settingsCategoryTransfer') },
   { key: 'shortcuts', label: props.t('settingsCategoryShortcuts') },
   { key: 'advanced', label: props.t('settingsCategoryAdvanced') },
@@ -79,6 +89,9 @@ const languageToggleIndex = computed(() =>
 const debugToggleIndex = computed(() => (props.settings.debugEnabled ? 0 : 1))
 const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
+const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0 : 1))
+const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
+const webdavAutoSyncToggleIndex = computed(() => (props.settings.webdavSync?.autoSync ? 0 : 1))
 const hasClipboardWriteSupport = computed(
   () =>
     props.platformCapabilities.supportsTextWrite ||
@@ -175,9 +188,22 @@ async function updateSetting(field, value, key = field) {
   await props.applySettingPatch({ [field]: value }, key)
 }
 
+async function updateWebdavSetting(field, value, key = `webdavSync.${field}`) {
+  if ((props.settings.webdavSync?.[field] ?? '') === value) {
+    return
+  }
+
+  await props.applyWebdavSyncPatch({ [field]: value }, key)
+}
+
 async function chooseSelectOption(key, field, value) {
   props.closeSelect()
   await updateSetting(field, value, key)
+}
+
+async function handleWebdavPasswordChange(event) {
+  const password = typeof event?.target?.value === 'string' ? event.target.value : ''
+  await props.saveWebdavPassword(password)
 }
 
 async function chooseLanTransferDownloadDir() {
@@ -344,6 +370,10 @@ async function openRepositoryUrl() {
   await openExternalUrl(ABOUT_INFO.repositoryUrl)
 }
 
+async function openLandingPageUrl() {
+  await openExternalUrl(ABOUT_INFO.landingPageUrl)
+}
+
 async function handleUpdateNotesClick(event) {
   const target = event.target instanceof Element ? event.target : null
   const link = target?.closest('a')
@@ -493,7 +523,7 @@ watch(
 
       <section class="settings-content">
         <div v-if="activeCategory === 'general'" class="settings-grid settings-section-grid">
-          <section class="setting-card">
+          <section class="setting-card wide">
             <div class="setting-head">
               <span class="meta-label">{{ t('language') }}</span>
             </div>
@@ -517,7 +547,7 @@ watch(
             </div>
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card wide">
             <div class="setting-head">
               <span class="meta-label">{{ t('themeMode') }}</span>
             </div>
@@ -550,7 +580,7 @@ watch(
             </div>
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card wide">
             <div class="setting-head">
               <span class="meta-label">{{ t('accentColor') }}</span>
             </div>
@@ -583,7 +613,7 @@ watch(
             </div>
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('launchOnStartup') }}</span>
@@ -620,7 +650,7 @@ watch(
             </div>
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card wide">
             <div class="setting-head">
               <span class="meta-label">{{ t('copySound') }}</span>
             </div>
@@ -651,7 +681,7 @@ watch(
             </div>
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('resetSettings') }}</span>
@@ -667,7 +697,7 @@ watch(
             </button>
           </section>
 
-          <section class="setting-card wide">
+          <section class="setting-card wide webdav-field-card">
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('tagNames') }}</span>
@@ -702,6 +732,40 @@ watch(
           <section class="setting-card">
             <div class="setting-head">
               <span class="setting-label-row">
+                <span class="meta-label">{{ t('copyStatsEnabled') }}</span>
+                <span class="setting-help-icon" :title="t('copyStatsEnabledTip')" tabindex="0">?</span>
+              </span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('copyStatsEnabled')"
+              :style="segmentedToggleStyle(copyStatsToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.copyStatsEnabled }"
+                :disabled="isPending('copyStatsEnabled')"
+                @click="updateSetting('copyStatsEnabled', true, 'copyStatsEnabled')"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.copyStatsEnabled }"
+                :disabled="isPending('copyStatsEnabled')"
+                @click="updateSetting('copyStatsEnabled', false, 'copyStatsEnabled')"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card webdav-field-card">
+            <div class="setting-head">
+              <span class="setting-label-row">
                 <span class="meta-label">{{ t('maxHistoryItems') }}</span>
               </span>
             </div>
@@ -717,7 +781,7 @@ watch(
             />
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card webdav-field-card">
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('maxHistoryDays') }}</span>
@@ -735,7 +799,7 @@ watch(
             />
           </section>
 
-          <section class="setting-card">
+          <section class="setting-card webdav-field-card">
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('maxImageBytes') }} ({{ t('megabytesShort') }})</span>
@@ -756,6 +820,175 @@ watch(
             />
           </section>
 
+        </div>
+
+        <div v-if="activeCategory === 'sync'" class="settings-grid settings-section-grid">
+          <section class="setting-card">
+            <div class="setting-head">
+              <span class="meta-label">{{ t('webdavSyncEnabled') }}</span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('webdavSyncEnabled')"
+              :style="segmentedToggleStyle(webdavEnabledToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.webdavSync?.enabled }"
+                :disabled="isPending('webdavSync.enabled')"
+                @click="updateWebdavSetting('enabled', true)"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.webdavSync?.enabled }"
+                :disabled="isPending('webdavSync.enabled')"
+                @click="updateWebdavSetting('enabled', false)"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card">
+            <div class="setting-head">
+              <span class="meta-label">{{ t('webdavAutoSync') }}</span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('webdavAutoSync')"
+              :style="segmentedToggleStyle(webdavAutoSyncToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.webdavSync?.autoSync }"
+                :disabled="isPending('webdavSync.autoSync')"
+                @click="updateWebdavSetting('autoSync', true)"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.webdavSync?.autoSync }"
+                :disabled="isPending('webdavSync.autoSync')"
+                @click="updateWebdavSetting('autoSync', false)"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('webdavServerUrl') }}</span>
+                <span class="setting-help-icon" :title="t('webdavServerUrlTip')" tabindex="0">?</span>
+              </span>
+            </div>
+            <input
+              :value="settings.webdavSync?.serverUrl"
+              type="url"
+              placeholder="https://example.com/dav"
+              :disabled="isPending('webdavSync.serverUrl')"
+              @change="updateWebdavSetting('serverUrl', $event.target.value.trim())"
+              @keydown.enter.prevent="updateWebdavSetting('serverUrl', $event.target.value.trim())"
+            />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="meta-label">{{ t('webdavUsername') }}</span>
+            </div>
+            <input
+              :value="settings.webdavSync?.username"
+              type="text"
+              autocomplete="username"
+              :disabled="isPending('webdavSync.username')"
+              @change="updateWebdavSetting('username', $event.target.value.trim())"
+              @keydown.enter.prevent="updateWebdavSetting('username', $event.target.value.trim())"
+            />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="meta-label">{{ t('webdavPassword') }}</span>
+              <span v-if="webdavCredentialSaved" class="setting-note webdav-password-note">
+                {{ t('webdavPasswordSaved') }}
+              </span>
+            </div>
+            <input
+              :value="webdavPasswordDraft"
+              type="password"
+              autocomplete="current-password"
+              :placeholder="webdavCredentialSaved ? t('webdavPasswordSavedPlaceholder') : t('webdavPasswordPlaceholder')"
+              :disabled="isPending('webdavSync.password')"
+              @change="handleWebdavPasswordChange"
+              @keydown.enter.prevent="handleWebdavPasswordChange"
+            />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="meta-label">{{ t('webdavRemoteDir') }}</span>
+            </div>
+            <input
+              :value="settings.webdavSync?.remoteDir"
+              type="text"
+              :disabled="isPending('webdavSync.remoteDir')"
+              @change="updateWebdavSetting('remoteDir', $event.target.value.trim())"
+              @keydown.enter.prevent="updateWebdavSetting('remoteDir', $event.target.value.trim())"
+            />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('webdavSyncStatus') }}</span>
+              </span>
+              <span class="setting-note webdav-status-note">
+                {{
+                  webdavSyncStatus?.error
+                    ? webdavSyncStatus.error
+                    : webdavSyncStatus?.lastSyncAt
+                      ? t('webdavLastSyncAt', { time: webdavSyncStatus.lastSyncAt })
+                      : t('webdavNeverSynced')
+                }}
+              </span>
+            </div>
+            <div class="settings-wide-control webdav-actions">
+              <button
+                class="ghost"
+                type="button"
+                :disabled="savingSettings"
+                @click="runWebdavTest"
+              >
+                {{ t('webdavTestConnection') }}
+              </button>
+              <button
+                class="primary"
+                type="button"
+                :disabled="savingSettings || !settings.webdavSync?.enabled"
+                @click="runWebdavSyncNow"
+              >
+                {{ webdavSyncStatus?.status === 'syncing' ? t('webdavSyncing') : t('webdavSyncNow') }}
+              </button>
+              <button
+                class="ghost"
+                type="button"
+                :disabled="savingSettings"
+                @click="clearWebdavPassword"
+              >
+                {{ t('webdavClearPassword') }}
+              </button>
+            </div>
+          </section>
         </div>
 
         <div v-if="activeCategory === 'transfer'" class="settings-grid settings-section-grid">
@@ -910,6 +1143,21 @@ watch(
               <span class="meta-label">{{ t('aboutTitle') }}</span>
             </div>
             <div class="about-content">
+              <button
+                class="about-link"
+                type="button"
+                :aria-label="t('landingPageLabel')"
+                :title="t('landingPageLabel')"
+                @click="openLandingPageUrl"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" class="about-link-site-icon">
+                  <path
+                    d="M12 3.25a8.75 8.75 0 1 0 0 17.5 8.75 8.75 0 0 0 0-17.5Zm0 1.5c.95 0 1.91.92 2.54 2.55h-5.08C10.09 5.67 11.05 4.75 12 4.75Zm-3.01 4.8h6.02c.16.77.25 1.6.25 2.45s-.09 1.68-.25 2.45H8.99A12.3 12.3 0 0 1 8.74 12c0-.85.09-1.68.25-2.45Zm-1.53-2.3a10.75 10.75 0 0 0-.97 2.3H5.18a7.28 7.28 0 0 1 2.28-2.3Zm-2.93 3.8h1.65A13.4 13.4 0 0 0 6.1 12c0 .32.03.64.08.95H4.53a7.4 7.4 0 0 1 0-1.9Zm.65 4.4h1.31c.24.86.57 1.64.97 2.3a7.28 7.28 0 0 1-2.28-2.3Zm4.28 0h5.08C13.91 17.33 12.95 18.25 12 18.25s-1.91-.92-2.54-2.8Zm7.08 2.3c.4-.66.73-1.44.97-2.3h1.31a7.28 7.28 0 0 1-2.28 2.3Zm2.93-4.4h-1.65c.05-.31.08-.63.08-.95 0-.32-.03-.64-.08-.95h1.65a7.4 7.4 0 0 1 0 1.9Zm-1.96-3.8a10.75 10.75 0 0 0-.97-2.3 7.28 7.28 0 0 1 2.28 2.3h-1.31Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span>{{ t('landingPageLabel') }}</span>
+              </button>
               <button
                 class="about-link about-link-icon"
                 type="button"

@@ -37,6 +37,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Copy history items back to the system clipboard, or paste directly to the previous target app when supported
 - Hover image thumbnails to preview larger images
 - Local-network phone transfer for text, images, and files through a browser page opened by scanning a QR code
+- WebDAV history sync with system credential storage for the remote password
 - Settings for language, theme, accent color, density, launch on startup, sound, history retention, image-size limit, transfer directory, tag labels, debug mode, and global shortcut
 - Tray integration, single-instance behavior, automatic update checks, and manual update checks
 - Custom in-app confirmation dialogs instead of system confirm prompts for destructive actions
@@ -79,6 +80,14 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Desktop-side transfer history can open or reveal received files
 - Session status shows connected / disconnected state and is cleaned up after idle timeout
 
+### WebDAV Sync
+
+- Sync clipboard history through a configured WebDAV endpoint
+- Store the WebDAV password in the system credential store instead of `settings.json`
+- Use `.power-paste-sync` under the configured remote folder for app-owned sync data
+- Retry transient WebDAV requests up to `3` attempts
+- Keep WebDAV sync state visible in settings, including manual sync, test connection, and auto sync controls
+
 ### Settings
 
 The settings view is split into these categories:
@@ -86,6 +95,7 @@ The settings view is split into these categories:
 - `General`
 - `History`
 - `Transfer`
+- `Sync`
 - `Shortcuts`
 - `Advanced`
 - `About`
@@ -103,6 +113,7 @@ Current configurable options include:
 - Maximum stored image size
 - Tag display names
 - LAN transfer download directory
+- WebDAV sync endpoint, username, remote directory, auto sync, and credential management
 - Global shortcut recording / clearing
 - Debug mode
 
@@ -143,7 +154,7 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 - Settings are persisted in `settings.json`
 - Received LAN transfer files are stored in the configured download folder
 - Main-panel window size is persisted separately from the settings-panel size
-- WebDAV history sync is not implemented in the current codebase
+- WebDAV history sync stores remote data under an app-owned `.power-paste-sync` folder and treats SQLite as the local source of truth
 
 ## Tech Stack
 

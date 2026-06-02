@@ -76,6 +76,9 @@ export const messages = {
     maxHistoryItems: "最大历史数量",
     maxHistoryDays: "最大保留天数",
     maxImageBytes: "图片大小",
+    copyStatsEnabled: "复制次数统计",
+    copyStatsEnabledTip: "开启后，重新复制历史记录会累计次数，并优先显示复制次数更多的内容。",
+    copyCountLabel: "复制 {count} 次",
     copySound: "复制音效",
     lanTransferDownloadDir: "互传文件保存位置",
     lanTransferDownloadDirPlaceholder: "请选择文件保存位置",
@@ -88,6 +91,7 @@ export const messages = {
     accentColor: "主题颜色",
     aboutTitle: "关于",
     githubRepoLabel: "GitHub 仓库",
+    landingPageLabel: "访问官网",
     ignoredAppsPlaceholder: "例如 1Password, Bitwarden, KeePassXC",
     launchOnStartupTip: "应用启动时自动运行 Power Paste。",
     maxHistoryItemsTip: "超过数量上限时，会优先清理未置顶的旧记录。",
@@ -178,6 +182,10 @@ export const messages = {
     maxHistoryItems: "Max history items",
     maxHistoryDays: "Max retention days",
     maxImageBytes: "Image size",
+    copyStatsEnabled: "Copy count stats",
+    copyStatsEnabledTip:
+      "When enabled, copying history items again counts usage and moves frequently copied items higher.",
+    copyCountLabel: "Copied {count} times",
     copySound: "Copy sound",
     lanTransferDownloadDir: "Transfer download folder",
     lanTransferDownloadDirPlaceholder: "Choose a download folder",
@@ -193,6 +201,7 @@ export const messages = {
     accentColor: "Accent color",
     aboutTitle: "About",
     githubRepoLabel: "GitHub Repository",
+    landingPageLabel: "Website",
     ignoredAppsPlaceholder: "e.g. 1Password, Bitwarden, KeePassXC",
     launchOnStartupTip: "Run Power Paste automatically when the system starts.",
     maxHistoryItemsTip: "When the limit is exceeded, old unpinned items are removed first.",
@@ -395,6 +404,54 @@ Object.assign(messages["zh-CN"], {
     "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u4f4d\u7f6e\u4e0d\u662f\u76ee\u5f55",
   lanTransferDownloadDirNotWritable:
     "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u76ee\u5f55\u4e0d\u53ef\u5199",
+  settingsCategorySync: "\u540c\u6b65",
+  webdavSyncEnabled: "WebDAV \u540c\u6b65",
+  webdavAutoSync: "\u81ea\u52a8\u540c\u6b65",
+  webdavServerUrl: "WebDAV \u5730\u5740",
+  webdavServerUrlTip:
+    "\u586b\u5199 WebDAV \u670d\u52a1\u6839\u5730\u5740\uff0c\u5efa\u8bae\u4f7f\u7528 HTTPS\u3002",
+  webdavUsername: "\u7528\u6237\u540d",
+  webdavPassword: "\u5bc6\u7801",
+  webdavPasswordPlaceholder: "\u7559\u7a7a\u8868\u793a\u4e0d\u66f4\u6539",
+  webdavPasswordSaved: "\u5df2\u4fdd\u5b58\u5230\u7cfb\u7edf\u51ed\u636e",
+  webdavPasswordSavedPlaceholder: "\u5bc6\u7801\u5df2\u4fdd\u5b58\uff0c\u8f93\u5165\u65b0\u5bc6\u7801\u53ef\u8986\u76d6",
+  webdavRemoteDir: "\u8fdc\u7a0b\u76ee\u5f55",
+  webdavSyncStatus: "\u540c\u6b65\u72b6\u6001",
+  webdavLastSyncAt: "\u4e0a\u6b21\u540c\u6b65\uff1a{time}",
+  webdavNeverSynced: "\u5c1a\u672a\u540c\u6b65",
+  webdavTestConnection: "\u6d4b\u8bd5\u8fde\u63a5",
+  webdavSyncNow: "\u7acb\u5373\u540c\u6b65",
+  webdavSyncing: "\u540c\u6b65\u4e2d",
+  webdavClearPassword: "\u6e05\u9664\u5bc6\u7801",
+  webdavSyncFailed: "WebDAV \u540c\u6b65\u5931\u8d25",
+  webdavSettingsIncomplete: "\u8bf7\u5148\u586b\u5199 WebDAV \u5730\u5740\u548c\u7528\u6237\u540d",
+  webdavCredentialMissing: "\u8bf7\u5148\u586b\u5199\u5e76\u4fdd\u5b58 WebDAV \u5bc6\u7801",
+  webdavConnectionFailed:
+    "WebDAV \u8fde\u63a5\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u5730\u5740\u3001\u7528\u6237\u540d\u548c\u5bc6\u7801",
+  webdavUnauthorized:
+    "WebDAV \u8ba4\u8bc1\u5931\u8d25\uff08401\uff09\uff0c\u575a\u679c\u4e91\u9700\u4f7f\u7528\u5e94\u7528\u5bc6\u7801\uff0c\u4e0d\u662f\u767b\u5f55\u5bc6\u7801",
+  webdavForbidden:
+    "WebDAV \u6743\u9650\u4e0d\u8db3\uff08403\uff09\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6743\u9650\u548c\u8fdc\u7a0b\u76ee\u5f55",
+  webdavNotFound:
+    "WebDAV \u5730\u5740\u4e0d\u5b58\u5728\uff08404\uff09\uff0c\u575a\u679c\u4e91\u901a\u5e38\u4f7f\u7528 https://dav.jianguoyun.com/dav/",
+  webdavMethodNotAllowed:
+    "WebDAV \u65b9\u6cd5\u4e0d\u88ab\u8be5\u8def\u5f84\u652f\u6301\uff08405\uff09\uff0c\u8bf7\u68c0\u67e5\u5730\u5740\u662f\u5426\u4e3a WebDAV \u6839\u5730\u5740",
+  webdavServiceUnavailable:
+    "WebDAV \u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff08503\uff09\uff0c\u53ef\u80fd\u662f\u670d\u52a1\u7aef\u9650\u6d41\u6216\u6b63\u5728\u5904\u7406\u5927\u91cf\u6587\u4ef6\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5",
+  webdavEndpointGone:
+    "WebDAV \u5730\u5740\u8fd4\u56de 410 Gone\uff0c\u8bf7\u68c0\u67e5\u670d\u52a1\u5730\u5740\u662f\u5426\u6b63\u786e\u3002\u575a\u679c\u4e91\u901a\u5e38\u4f7f\u7528 https://dav.jianguoyun.com/dav/",
+  webdavRemoteCleanupFailed:
+    "\u5185\u5bb9\u5df2\u4e0a\u4f20\uff0c\u4f46\u8fdc\u7a0b\u5220\u9664\u6807\u8bb0\u6e05\u7406\u5931\u8d25\uff0c\u8bf7\u518d\u6b21\u540c\u6b65",
+  webdavManifestSaveFailed:
+    "\u5185\u5bb9\u5df2\u4e0a\u4f20\uff0c\u4f46\u540c\u6b65\u7d22\u5f15\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u518d\u6b21\u540c\u6b65",
+  webdavManifestFetchFailed:
+    "\u8bfb\u53d6 WebDAV \u540c\u6b65\u7d22\u5f15\u5931\u8d25\uff0c\u8bf7\u518d\u8bd5",
+  webdavItemUploadFailed:
+    "\u4e0a\u4f20\u5386\u53f2\u6761\u76ee\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 WebDAV \u7a7a\u95f4\u548c\u7f51\u7edc",
+  webdavItemDownloadFailed:
+    "\u4e0b\u8f7d\u8fdc\u7a0b\u5386\u53f2\u6761\u76ee\u5931\u8d25\uff0c\u8bf7\u518d\u8bd5",
+  webdavFolderCreateFailed:
+    "\u521b\u5efa WebDAV \u540c\u6b65\u76ee\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8fdc\u7a0b\u76ee\u5f55\u6743\u9650",
 });
 
 Object.assign(messages["en-US"], {
@@ -487,6 +544,54 @@ Object.assign(messages["en-US"], {
     "The transfer download location is not a folder.",
   lanTransferDownloadDirNotWritable:
     "The transfer download folder is not writable.",
+  settingsCategorySync: "Sync",
+  webdavSyncEnabled: "WebDAV Sync",
+  webdavAutoSync: "Auto sync",
+  webdavServerUrl: "WebDAV URL",
+  webdavServerUrlTip:
+    "Enter the WebDAV service root URL. HTTPS is recommended.",
+  webdavUsername: "Username",
+  webdavPassword: "Password",
+  webdavPasswordPlaceholder: "Leave blank to keep current password",
+  webdavPasswordSaved: "Saved to system credentials",
+  webdavPasswordSavedPlaceholder: "Password saved. Enter a new one to replace it",
+  webdavRemoteDir: "Remote folder",
+  webdavSyncStatus: "Sync status",
+  webdavLastSyncAt: "Last sync: {time}",
+  webdavNeverSynced: "Not synced yet",
+  webdavTestConnection: "Test connection",
+  webdavSyncNow: "Sync now",
+  webdavSyncing: "Syncing",
+  webdavClearPassword: "Clear password",
+  webdavSyncFailed: "WebDAV sync failed",
+  webdavSettingsIncomplete: "Enter the WebDAV URL and username first.",
+  webdavCredentialMissing: "Enter and save the WebDAV password first.",
+  webdavConnectionFailed:
+    "WebDAV connection failed. Check the URL, username, and password.",
+  webdavUnauthorized:
+    "WebDAV authentication failed (401). Jianguoyun requires an app password, not the login password.",
+  webdavForbidden:
+    "WebDAV permission denied (403). Check account permissions and the remote folder.",
+  webdavNotFound:
+    "WebDAV URL not found (404). Jianguoyun usually uses https://dav.jianguoyun.com/dav/.",
+  webdavMethodNotAllowed:
+    "This WebDAV method is not allowed on that path (405). Check that the URL is the WebDAV root.",
+  webdavServiceUnavailable:
+    "The WebDAV service is temporarily unavailable (503). It may be rate-limited or processing many files. Try again later.",
+  webdavEndpointGone:
+    "The WebDAV URL returned 410 Gone. Check the service URL. Jianguoyun usually uses https://dav.jianguoyun.com/dav/.",
+  webdavRemoteCleanupFailed:
+    "Content was uploaded, but remote deletion cleanup failed. Sync again.",
+  webdavManifestSaveFailed:
+    "Content was uploaded, but the sync index could not be saved. Sync again.",
+  webdavManifestFetchFailed:
+    "Failed to read the WebDAV sync index. Try again.",
+  webdavItemUploadFailed:
+    "Failed to upload a history item. Check WebDAV storage and network.",
+  webdavItemDownloadFailed:
+    "Failed to download a remote history item. Try again.",
+  webdavFolderCreateFailed:
+    "Failed to create the WebDAV sync folder. Check remote folder permissions.",
 });
 
 export function translate(locale, key, params = {}) {

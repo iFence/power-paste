@@ -71,19 +71,29 @@ function directPasteUnavailableMessage(platformCapabilities, t) {
   return t("unsupportedDirectPaste");
 }
 
-function compareHistoryItems(left, right) {
+function compareHistoryItems(left, right, copyStatsEnabled = false) {
   if (left.pinned !== right.pinned) {
     return Number(right.pinned) - Number(left.pinned);
   }
 
-  const pinnedAtCompare = (right.pinnedAt ?? right.createdAt ?? "").localeCompare(
-    left.pinnedAt ?? left.createdAt ?? "",
-  );
-  if (pinnedAtCompare !== 0) {
-    return pinnedAtCompare;
+  if (left.pinned && right.pinned) {
+    const pinnedAtCompare = (right.pinnedAt ?? right.createdAt ?? "").localeCompare(
+      left.pinnedAt ?? left.createdAt ?? "",
+    );
+    if (pinnedAtCompare !== 0) {
+      return pinnedAtCompare;
+    }
   }
 
-  if (left.favorite !== right.favorite) {
+  if (copyStatsEnabled) {
+    const copyCountCompare =
+      (Number(right.copyCount) || 0) - (Number(left.copyCount) || 0);
+    if (copyCountCompare !== 0) {
+      return copyCountCompare;
+    }
+  }
+
+  if (!copyStatsEnabled && left.favorite !== right.favorite) {
     return Number(right.favorite) - Number(left.favorite);
   }
 
@@ -130,7 +140,9 @@ export function useHistory({ platformCapabilities, settings, t }) {
   });
 
   function sortHistory(nextHistory = history.value) {
-    return [...nextHistory].sort(compareHistoryItems);
+    return [...nextHistory].sort((left, right) =>
+      compareHistoryItems(left, right, Boolean(settings.copyStatsEnabled)),
+    );
   }
 
   function replaceHistory(nextHistory) {
@@ -537,6 +549,15 @@ export function useHistory({ platformCapabilities, settings, t }) {
       detectNewHistory: false,
     });
   });
+
+  watch(
+    () => settings.copyStatsEnabled,
+    () => {
+      void refreshHistory({
+        detectNewHistory: false,
+      });
+    },
+  );
 
   watch(selectedId, () => {
     syncPersistedHistoryState(history.value);

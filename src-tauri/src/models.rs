@@ -18,6 +18,7 @@ pub(crate) const HISTORY_UPDATED_EVENT: &str = "history-updated";
 pub(crate) const COPY_SOUND_EVENT: &str = "copy-sound";
 pub(crate) const LAN_RECEIVER_STATUS_EVENT: &str = "lan-receiver-status";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
+pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
 pub(crate) const PANEL_LABEL: &str = "main";
 
 #[cfg(windows)]
@@ -82,6 +83,7 @@ pub(crate) struct AppSettings {
     pub(crate) max_history_items: usize,
     pub(crate) max_history_days: u64,
     pub(crate) max_image_bytes: usize,
+    pub(crate) copy_stats_enabled: bool,
     pub(crate) lan_transfer_download_dir: Option<String>,
     pub(crate) global_shortcut: String,
     pub(crate) ignored_apps: Vec<String>,
@@ -90,6 +92,7 @@ pub(crate) struct AppSettings {
     pub(crate) theme_mode: String,
     pub(crate) accent_color: String,
     pub(crate) tag_labels: HashMap<String, String>,
+    pub(crate) webdav_sync: WebdavSyncSettings,
     pub(crate) window_x: Option<i32>,
     pub(crate) window_y: Option<i32>,
     pub(crate) window_width: Option<u32>,
@@ -109,6 +112,7 @@ impl Default for AppSettings {
             max_history_items: 200,
             max_history_days: 30,
             max_image_bytes: 6_000_000,
+            copy_stats_enabled: false,
             lan_transfer_download_dir: None,
             global_shortcut: "Ctrl+Shift+V".into(),
             ignored_apps: vec!["1Password".into(), "Bitwarden".into(), "KeePassXC".into()],
@@ -117,6 +121,7 @@ impl Default for AppSettings {
             theme_mode: "system".into(),
             accent_color: "amber".into(),
             tag_labels: HashMap::new(),
+            webdav_sync: WebdavSyncSettings::default(),
             window_x: None,
             window_y: None,
             window_width: None,
@@ -159,6 +164,48 @@ impl AppSettings {
                 Some((normalized_key, normalized_value))
             })
             .collect();
+        self.webdav_sync = self.webdav_sync.normalized();
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WebdavSyncSettings {
+    pub(crate) enabled: bool,
+    pub(crate) auto_sync: bool,
+    pub(crate) credential_saved: bool,
+    pub(crate) server_url: String,
+    pub(crate) username: String,
+    pub(crate) remote_dir: String,
+}
+
+impl Default for WebdavSyncSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            auto_sync: true,
+            credential_saved: false,
+            server_url: String::new(),
+            username: String::new(),
+            remote_dir: "power-paste".into(),
+        }
+    }
+}
+
+impl WebdavSyncSettings {
+    pub(crate) fn normalized(mut self) -> Self {
+        self.server_url = self.server_url.trim().trim_end_matches('/').to_string();
+        self.username = self.username.trim().to_string();
+        self.remote_dir = self
+            .remote_dir
+            .trim()
+            .trim_matches('/')
+            .replace('\\', "/");
+        if self.remote_dir.is_empty() {
+            self.remote_dir = Self::default().remote_dir;
+        }
         self
     }
 }
@@ -204,6 +251,10 @@ pub(crate) struct StoredClipboardItem {
     pub(crate) pinned: bool,
     pub(crate) favorite: bool,
     pub(crate) tag_colors: Vec<String>,
+    pub(crate) copy_count: u64,
+    pub(crate) updated_at: String,
+    pub(crate) sync_updated_at: String,
+    pub(crate) sync_device_id: String,
 }
 
 impl StoredClipboardItem {
@@ -241,6 +292,7 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) pinned: bool,
     pub(crate) favorite: bool,
     pub(crate) tag_colors: Vec<String>,
+    pub(crate) copy_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -248,6 +300,41 @@ pub(crate) struct ClipboardItemDto {
 pub(crate) struct ClipboardHistoryPageDto {
     pub(crate) items: Vec<ClipboardItemDto>,
     pub(crate) total_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeletedClipboardItem {
+    pub(crate) id: String,
+    pub(crate) deleted_at: String,
+    pub(crate) sync_updated_at: String,
+    pub(crate) sync_device_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WebdavCredentialPayload {
+    pub(crate) password: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WebdavSyncStatusDto {
+    pub(crate) status: String,
+    pub(crate) last_sync_at: Option<String>,
+    pub(crate) error: Option<String>,
+    pub(crate) changed_count: usize,
+}
+
+impl WebdavSyncStatusDto {
+    pub(crate) fn idle(last_sync_at: Option<String>) -> Self {
+        Self {
+            status: "idle".into(),
+            last_sync_at,
+            error: None,
+            changed_count: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -273,6 +360,7 @@ pub(crate) struct HistoryQueryPayload {
     pub(crate) tag_color: Option<String>,
     pub(crate) limit: Option<usize>,
     pub(crate) offset: Option<usize>,
+    pub(crate) copy_stats_enabled: bool,
 }
 
 impl StoragePaths {
@@ -314,6 +402,9 @@ pub(crate) struct SharedState {
     pub(crate) pending_update: Arc<Mutex<Option<Update>>>,
     pub(crate) update_debug_override: Arc<Mutex<Option<UpdateStatus>>>,
     pub(crate) lan_receiver: Arc<Mutex<Option<LanReceiverSession>>>,
+    pub(crate) webdav_sync_status: Arc<Mutex<WebdavSyncStatusDto>>,
+    pub(crate) webdav_sync_running: Arc<AtomicBool>,
+    pub(crate) webdav_sync_pending: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]

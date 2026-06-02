@@ -3,9 +3,14 @@ import { accentColorOptions, localeOptions, themeModeOptions, translate } from "
 import {
   getAppVersion,
   getDefaultDownloadDir,
+  getWebdavSyncState,
   getPlatformCapabilities as fetchPlatformCapabilities,
   getSettings as fetchSettings,
   resetSettings as resetPersistedSettings,
+  clearWebdavCredential as removeWebdavCredential,
+  syncWebdavNow,
+  testWebdavSync,
+  updateWebdavCredential as saveWebdavCredential,
   updateSettings as persistSettings,
 } from "../services/tauriApi";
 import { normalizeShortcutValue } from "../utils/shortcut";
@@ -106,6 +111,7 @@ export function useSettings() {
     maxHistoryItems: 200,
     maxHistoryDays: 30,
     maxImageBytes: 6_000_000,
+    copyStatsEnabled: false,
     lanTransferDownloadDir: "",
     globalShortcut: "Ctrl+Shift+V",
     ignoredApps: [],
@@ -114,6 +120,13 @@ export function useSettings() {
     themeMode: "system",
     accentColor: "amber",
     tagLabels: createEmptyTagLabels(),
+    webdavSync: {
+      enabled: false,
+      autoSync: true,
+      serverUrl: "",
+      username: "",
+      remoteDir: "power-paste",
+    },
   });
   const recordingShortcut = ref(false);
   const openSelectKey = ref(null);
@@ -123,6 +136,14 @@ export function useSettings() {
   const startupError = ref("");
   const appVersion = ref("");
   const platformCapabilities = ref(initialPlatformCapabilities(detectedPlatform));
+  const webdavSyncStatus = ref({
+    status: "idle",
+    lastSyncAt: null,
+    error: null,
+    changedCount: 0,
+  });
+  const webdavPasswordDraft = ref("");
+  const webdavCredentialSaved = ref(false);
 
   const currentLocale = computed(() => settings.locale || "zh-CN");
   const currentDensity = computed(() => settings.density || "compact");
@@ -187,6 +208,69 @@ export function useSettings() {
     if (code === "unsupported_direct_paste") {
       return t("unsupportedDirectPaste");
     }
+    if (code === "webdav_settings_incomplete") {
+      return t("webdavSettingsIncomplete");
+    }
+    if (code.includes("webdav_credential_missing")) {
+      return t("webdavCredentialMissing");
+    }
+    if (code.includes("webdav_endpoint_gone") || code.includes("410 Gone")) {
+      return t("webdavEndpointGone");
+    }
+    if (code.startsWith("webdav_") && code.includes("401")) {
+      return t("webdavUnauthorized");
+    }
+    if (code.startsWith("webdav_") && code.includes("403")) {
+      return t("webdavForbidden");
+    }
+    if (code.startsWith("webdav_") && code.includes("404")) {
+      return t("webdavNotFound");
+    }
+    if (code.startsWith("webdav_") && code.includes("405")) {
+      return t("webdavMethodNotAllowed");
+    }
+    if (code.startsWith("webdav_") && code.includes("503")) {
+      return t("webdavServiceUnavailable");
+    }
+    if (code.includes("webdav_connection_failed")) {
+      if (code.includes("401")) {
+        return t("webdavUnauthorized");
+      }
+      if (code.includes("403")) {
+        return t("webdavForbidden");
+      }
+      if (code.includes("404")) {
+        return t("webdavNotFound");
+      }
+      if (code.includes("405")) {
+        return t("webdavMethodNotAllowed");
+      }
+      if (code.includes("503")) {
+        return t("webdavServiceUnavailable");
+      }
+      return t("webdavConnectionFailed");
+    }
+    if (code.includes("webdav_item_delete_failed")) {
+      return t("webdavRemoteCleanupFailed");
+    }
+    if (code.includes("webdav_manifest_put_failed")) {
+      return t("webdavManifestSaveFailed");
+    }
+    if (code.includes("webdav_manifest_fetch_failed")) {
+      return t("webdavManifestFetchFailed");
+    }
+    if (code.includes("webdav_item_put_failed")) {
+      return t("webdavItemUploadFailed");
+    }
+    if (code.includes("webdav_item_fetch_failed")) {
+      return t("webdavItemDownloadFailed");
+    }
+    if (code.includes("webdav_mkcol_failed")) {
+      return t("webdavFolderCreateFailed");
+    }
+    if (code.startsWith("webdav_")) {
+      return t("webdavSyncFailed");
+    }
     if (typeof error === "string") {
       return error;
     }
@@ -233,6 +317,10 @@ export function useSettings() {
     await syncSettings(next);
   }
 
+  async function refreshWebdavSyncState() {
+    webdavSyncStatus.value = await getWebdavSyncState();
+  }
+
   async function syncSettings(next) {
     const defaultDownloadDir = await getDefaultDownloadDir();
     Object.assign(settings, {
@@ -240,7 +328,16 @@ export function useSettings() {
       lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
       tagLabels: normalizeTagLabels(next.tagLabels),
+      webdavSync: {
+        enabled: Boolean(next.webdavSync?.enabled),
+        autoSync: next.webdavSync?.autoSync !== false,
+        credentialSaved: Boolean(next.webdavSync?.credentialSaved),
+        serverUrl: next.webdavSync?.serverUrl || "",
+        username: next.webdavSync?.username || "",
+        remoteDir: next.webdavSync?.remoteDir || "power-paste",
+      },
     });
+    webdavCredentialSaved.value = Boolean(next.webdavSync?.credentialSaved);
     if (!platformCapabilities.value.supportsLaunchOnStartup) {
       settings.launchOnStartup = false;
     }
@@ -286,6 +383,77 @@ export function useSettings() {
     }
   }
 
+  async function applyWebdavSyncPatch(patch, key = "webdavSync") {
+    await applySettingPatch(
+      {
+        webdavSync: {
+          ...settings.webdavSync,
+          ...patch,
+        },
+      },
+      key,
+    );
+  }
+
+  async function saveWebdavPassword(password = webdavPasswordDraft.value) {
+    if (!password) {
+      return;
+    }
+    await saveWebdavCredential(password);
+    webdavPasswordDraft.value = "";
+    webdavCredentialSaved.value = true;
+    await applyWebdavSyncPatch({ credentialSaved: true }, "webdavSync.credentialSaved");
+  }
+
+  async function clearWebdavPassword() {
+    await removeWebdavCredential();
+    webdavPasswordDraft.value = "";
+    webdavCredentialSaved.value = false;
+    await applyWebdavSyncPatch({ credentialSaved: false }, "webdavSync.credentialSaved");
+  }
+
+  async function runWebdavTest() {
+    savingSettings.value = true;
+    pendingSettingKey.value = "webdavSync.test";
+    try {
+      webdavSyncStatus.value = await testWebdavSync();
+    } catch (error) {
+      const message = formatErrorMessage(error, "webdavSyncFailed");
+      webdavSyncStatus.value = {
+        ...webdavSyncStatus.value,
+        status: "error",
+        error: message,
+      };
+    } finally {
+      pendingSettingKey.value = "";
+      savingSettings.value = false;
+    }
+  }
+
+  async function runWebdavSyncNow() {
+    savingSettings.value = true;
+    pendingSettingKey.value = "webdavSync.now";
+    try {
+      webdavSyncStatus.value = await syncWebdavNow();
+    } catch (error) {
+      const message = formatErrorMessage(error, "webdavSyncFailed");
+      webdavSyncStatus.value = {
+        ...webdavSyncStatus.value,
+        status: "error",
+        error: message,
+      };
+    } finally {
+      pendingSettingKey.value = "";
+      savingSettings.value = false;
+    }
+  }
+
+  function applyWebdavSyncStatus(status) {
+    if (status) {
+      webdavSyncStatus.value = status;
+    }
+  }
+
   async function resetVisibleSettings() {
     if (savingSettings.value) {
       return;
@@ -310,6 +478,8 @@ export function useSettings() {
 
   return {
     applySettingPatch,
+    applyWebdavSyncPatch,
+    applyWebdavSyncStatus,
     appVersion,
     beginShortcutRecording,
     canToggleLaunchOnStartup,
@@ -331,7 +501,12 @@ export function useSettings() {
     platformCapabilities,
     recordingShortcut,
     refreshSettings,
+    refreshWebdavSyncState,
     resetVisibleSettings,
+    runWebdavSyncNow,
+    runWebdavTest,
+    saveWebdavPassword,
+    clearWebdavPassword,
     savingSettings,
     segmentedToggleStyle,
     selectedOptionLabel,
@@ -341,5 +516,8 @@ export function useSettings() {
     startupError,
     t,
     toggleSelect,
+    webdavCredentialSaved,
+    webdavPasswordDraft,
+    webdavSyncStatus,
   };
 }

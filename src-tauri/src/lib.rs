@@ -23,6 +23,7 @@ mod rich_text;
 mod runtime;
 mod startup;
 mod storage;
+mod sync;
 mod system_open;
 mod update;
 mod usecases;
@@ -33,10 +34,11 @@ use commands::{
     get_lan_receiver_state, get_platform_capabilities, get_settings, open_external_url,
     open_lan_transfer_file, paste_item, reset_settings, reveal_lan_transfer_file,
     save_main_panel_size, send_lan_transfer_file, send_lan_transfer_text, start_lan_receiver,
-    stop_lan_receiver, toggle_favorite, toggle_pin, update_item_tags, update_settings,
-    update_text_item,
+    stop_lan_receiver, sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin,
+    update_item_tags, update_settings, update_text_item, update_webdav_credential,
+    clear_webdav_credential, get_webdav_sync_state,
 };
-use models::{MonitorState, SharedState, StoragePaths, UpdateStatus};
+use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto};
 use repository::SqliteHistoryStore;
 use runtime::{configure_window, toggle_panel};
 use startup::set_launch_on_startup;
@@ -121,6 +123,9 @@ pub fn run() {
                 load_settings(&paths).context("failed to load settings")?,
             ));
             let history_store = Arc::new(Mutex::new(SqliteHistoryStore::new(&paths)?));
+            let webdav_sync_status = WebdavSyncStatusDto::idle(
+                history_store.lock().unwrap().last_sync_at()?,
+            );
 
             let shared = Arc::new(SharedState {
                 paths,
@@ -138,6 +143,9 @@ pub fn run() {
                 pending_update: Arc::new(Mutex::new(None)),
                 update_debug_override: Arc::new(Mutex::new(None)),
                 lan_receiver: Arc::new(Mutex::new(None)),
+                webdav_sync_status: Arc::new(Mutex::new(webdav_sync_status)),
+                webdav_sync_running: Arc::new(AtomicBool::new(false)),
+                webdav_sync_pending: Arc::new(AtomicBool::new(false)),
             });
 
             let launch_on_startup = settings.lock().unwrap().launch_on_startup;
@@ -160,6 +168,10 @@ pub fn run() {
             capture::start_clipboard_monitor(app.handle().clone(), shared.clone());
             app.manage(shared);
             update::spawn_startup_check(
+                app.handle().clone(),
+                app.state::<Arc<SharedState>>().inner().clone(),
+            );
+            sync::schedule_auto_sync(
                 app.handle().clone(),
                 app.state::<Arc<SharedState>>().inner().clone(),
             );
@@ -189,6 +201,11 @@ pub fn run() {
             send_lan_transfer_file,
             open_lan_transfer_file,
             reveal_lan_transfer_file,
+            get_webdav_sync_state,
+            update_webdav_credential,
+            clear_webdav_credential,
+            test_webdav_sync,
+            sync_webdav_now,
             update::get_update_state,
             update::check_for_updates,
             update::install_update,

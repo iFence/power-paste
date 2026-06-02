@@ -188,6 +188,15 @@ pub(crate) fn execute_copy_item(
     clipboard
         .write_item(&app, &item, &target)
         .map_err(AppError::from)?;
+    if state.settings.lock().unwrap().copy_stats_enabled {
+        let updated_item = state
+            .history_store
+            .lock()
+            .unwrap()
+            .increment_copy_count(&id)
+            .map_err(AppError::from)?;
+        let _ = app.emit(crate::models::HISTORY_UPDATED_EVENT, updated_item);
+    }
     Ok(())
 }
 

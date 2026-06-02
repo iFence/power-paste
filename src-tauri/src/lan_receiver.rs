@@ -752,6 +752,7 @@ fn store_and_write_capture(
     };
 
     let _ = app.emit(HISTORY_UPDATED_EVENT, history_item_to_dto(&item));
+    crate::sync::schedule_auto_sync(app.clone(), state.clone());
     crate::capture::mark_clipboard_suppressed(&state, item.hash.clone());
     write_received_item_to_clipboard(&app, &item)?;
     push_message(
