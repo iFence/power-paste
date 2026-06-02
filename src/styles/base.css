@@ -2321,8 +2321,8 @@ select {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: rgba(5, 8, 12, 0.48);
-    backdrop-filter: blur(14px);
+    background: rgba(246, 248, 252, 0.12);
+    backdrop-filter: blur(18px) saturate(116%);
     -webkit-app-region: no-drag;
     app-region: no-drag;
 }
@@ -2490,9 +2490,9 @@ select {
 
 .confirm-modal-footer {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 12px;
 }
 
 .confirm-modal-footer .ghost,
@@ -3509,8 +3509,8 @@ textarea {
 }
 
 :root:not([data-theme="light"]) .modal-backdrop {
-    background: rgba(5, 8, 12, 0.36);
-    backdrop-filter: blur(16px) saturate(112%);
+    background: rgba(238, 243, 250, 0.12);
+    backdrop-filter: blur(18px) saturate(118%);
 }
 
 :root:not([data-theme="light"]) .settings-modal {
