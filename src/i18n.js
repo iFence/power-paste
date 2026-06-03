@@ -76,6 +76,8 @@ export const messages = {
     maxHistoryItems: "最大历史数量",
     maxHistoryDays: "最大保留天数",
     maxImageBytes: "图片大小",
+    autoMaskSensitiveText: "敏感信息脱敏",
+    autoMaskSensitiveTextTip: "检测到疑似密码、令牌或密钥时，历史列表默认脱敏展示；复制和粘贴仍使用原文。",
     copyStatsEnabled: "复制次数统计",
     copyStatsEnabledTip: "开启后，重新复制历史记录会累计次数，并优先显示复制次数更多的内容。",
     copyCountLabel: "复制 {count} 次",
@@ -123,7 +125,7 @@ export const messages = {
     removeTag: "移除标签",
     tagNames: "标签名称",
     tagNamesTip: "颜色固定不变，可为每种标签颜色设置自己的显示名称。",
-    tagDefaultNameRed: "红色",
+    tagDefaultNameRed: "敏感信息",
     tagDefaultNameOrange: "橙色",
     tagDefaultNameYellow: "黄色",
     tagDefaultNameGreen: "绿色",
@@ -141,6 +143,8 @@ export const messages = {
     statusCopied: "已重新复制到剪贴板",
     statusSaved: "设置已保存",
     statusUpdated: "历史记录已更新",
+    showSensitiveText: "查看敏感信息",
+    hideSensitiveText: "隐藏敏感信息",
   },
   "en-US": {
     appName: "Power Paste",
@@ -182,6 +186,9 @@ export const messages = {
     maxHistoryItems: "Max history items",
     maxHistoryDays: "Max retention days",
     maxImageBytes: "Image size",
+    autoMaskSensitiveText: "Sensitive info masking",
+    autoMaskSensitiveTextTip:
+      "Mask likely passwords, tokens, or keys in history previews. Copy and paste still use the original text.",
     copyStatsEnabled: "Copy count stats",
     copyStatsEnabledTip:
       "When enabled, copying history items again counts usage and moves frequently copied items higher.",
@@ -237,7 +244,7 @@ export const messages = {
     removeTag: "Remove tag",
     tagNames: "Tag Names",
     tagNamesTip: "Colors stay fixed. You can customize the display name for each color.",
-    tagDefaultNameRed: "Red",
+    tagDefaultNameRed: "Sensitive info",
     tagDefaultNameOrange: "Orange",
     tagDefaultNameYellow: "Yellow",
     tagDefaultNameGreen: "Green",
@@ -255,6 +262,8 @@ export const messages = {
     statusCopied: "Copied back to clipboard",
     statusSaved: "Settings saved",
     statusUpdated: "History updated",
+    showSensitiveText: "Show sensitive info",
+    hideSensitiveText: "Hide sensitive info",
   },
 };
 

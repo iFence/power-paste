@@ -12,6 +12,7 @@ use crate::{
     },
     history::html_image_preview_data_url,
     rich_text::normalize_rich_text_payload,
+    sensitive_text::{build_sensitive_text_mask, SensitiveTextMask},
     storage::{image_preview_png_from_bytes, preview_text, sha256_hex},
 };
 
@@ -903,6 +904,8 @@ fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
             .filter(|_| item.kind == "mixed")
             .and_then(html_image_preview_data_url)
     });
+    let sensitive_mask =
+        build_sensitive_text_mask(&item.kind, &item.preview, item.full_text.as_deref());
 
     ClipboardItemDto {
         id: item.id,
@@ -910,6 +913,9 @@ fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
         created_at: item.created_at,
         preview: item.preview,
         full_text: item.full_text,
+        is_sensitive: sensitive_mask.is_sensitive,
+        masked_preview: sensitive_mask.masked_preview,
+        masked_full_text: sensitive_mask.masked_full_text,
         image_data_url,
         image_byte_size: item.image_byte_size,
         image_width: item.image_width,
@@ -1108,6 +1114,8 @@ fn apply_capture(
         }
     }
 
+    apply_sensitive_red_tag(&mut item);
+
     item
 }
 
@@ -1165,6 +1173,26 @@ fn sanitize_tag_colors(colors: &[String]) -> Vec<String> {
         }
     }
     next
+}
+
+fn apply_sensitive_red_tag(item: &mut StoredClipboardItem) {
+    let SensitiveTextMask { is_sensitive, .. } =
+        build_sensitive_text_mask(&item.kind, &item.preview, item.full_text.as_deref());
+    if !is_sensitive {
+        return;
+    }
+
+    let mut next_colors = vec!["red".to_string()];
+    for color in &item.tag_colors {
+        if color.trim().eq_ignore_ascii_case("red") {
+            continue;
+        }
+        next_colors.push(color.clone());
+        if next_colors.len() == 3 {
+            break;
+        }
+    }
+    item.tag_colors = sanitize_tag_colors(&next_colors);
 }
 
 fn serialize_tag_colors(colors: &[String]) -> String {
@@ -1643,6 +1671,32 @@ mod tests {
         let item = store.get_item(&id).expect("item").expect("row");
         assert_eq!(item.full_text.as_deref(), Some("beta"));
         assert_eq!(item.hash, sha256_hex("beta".as_bytes()));
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
+
+    #[test]
+    fn auto_marks_sensitive_text_with_red_tag() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        let inserted = store
+            .upsert_capture(
+                text_capture("tp-cbs7fccxc3qetc2axwabzgw9kah62xrsz9nxy0w6"),
+                None,
+                &settings,
+            )
+            .expect("insert sensitive text");
+
+        assert_eq!(inserted.item.tag_colors, vec!["red".to_string()]);
+        assert_eq!(
+            inserted.item.full_text.as_deref(),
+            Some("tp-cbs7fccxc3qetc2axwabzgw9kah62xrsz9nxy0w6")
+        );
+
+        let stored = store.list_all().expect("all").remove(0);
+        assert_eq!(stored.tag_colors, vec!["red".to_string()]);
 
         let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
     }

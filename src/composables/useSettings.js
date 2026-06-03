@@ -106,6 +106,7 @@ export function useSettings() {
   const settings = reactive({
     debugEnabled: false,
     soundEnabled: true,
+    autoMaskSensitiveText: true,
     launchOnStartup: false,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
@@ -325,6 +326,7 @@ export function useSettings() {
     const defaultDownloadDir = await getDefaultDownloadDir();
     Object.assign(settings, {
       ...next,
+      autoMaskSensitiveText: next.autoMaskSensitiveText !== false,
       lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
       tagLabels: normalizeTagLabels(next.tagLabels),

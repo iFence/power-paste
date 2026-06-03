@@ -517,6 +517,9 @@ function openResetSettingsConfirm() {
                             settingsState.platformCapabilities.value
                                 .supportsDirectPaste
                         "
+                        :auto-mask-sensitive-text="
+                            settingsState.settings.autoMaskSensitiveText
+                        "
                         :copy-stats-enabled="settingsState.settings.copyStatsEnabled"
                         :history-panel-ref="historyState.historyPanelRef"
                         :has-more="historyState.hasMoreHistory.value"

@@ -89,6 +89,7 @@ const languageToggleIndex = computed(() =>
 const debugToggleIndex = computed(() => (props.settings.debugEnabled ? 0 : 1))
 const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
+const autoMaskSensitiveTextToggleIndex = computed(() => (props.settings.autoMaskSensitiveText ? 0 : 1))
 const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0 : 1))
 const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
 const webdavAutoSyncToggleIndex = computed(() => (props.settings.webdavSync?.autoSync ? 0 : 1))
@@ -236,6 +237,10 @@ async function commitMaxImageBytes() {
 }
 
 async function updateTagLabel(color, value) {
+  if (color === 'red') {
+    return
+  }
+
   await props.applySettingPatch(
     {
       tagLabels: {
@@ -248,6 +253,13 @@ async function updateTagLabel(color, value) {
 }
 
 async function handleTagLabelChange(color, event) {
+  if (color === 'red') {
+    if (event?.target && typeof event.target.value === 'string') {
+      event.target.value = resolvedTagLabel(color)
+    }
+    return
+  }
+
   const value =
     typeof event?.target?.value === 'string' ? event.target.value.slice(0, 5) : ''
   if (event?.target && typeof event.target.value === 'string') {
@@ -684,6 +696,40 @@ watch(
           <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">
+                <span class="meta-label">{{ t('autoMaskSensitiveText') }}</span>
+                <span class="setting-help-icon" :title="t('autoMaskSensitiveTextTip')" tabindex="0">?</span>
+              </span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('autoMaskSensitiveText')"
+              :style="segmentedToggleStyle(autoMaskSensitiveTextToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.autoMaskSensitiveText }"
+                :disabled="isPending('autoMaskSensitiveText')"
+                @click="updateSetting('autoMaskSensitiveText', true, 'autoMaskSensitiveText')"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.autoMaskSensitiveText }"
+                :disabled="isPending('autoMaskSensitiveText')"
+                @click="updateSetting('autoMaskSensitiveText', false, 'autoMaskSensitiveText')"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
                 <span class="meta-label">{{ t('resetSettings') }}</span>
               </span>
             </div>
@@ -714,12 +760,12 @@ watch(
                   <span>{{ t(`tagDefaultName${color[0].toUpperCase()}${color.slice(1)}`) }}</span>
                 </span>
                 <input
-                  :value="props.settings.tagLabels?.[color] ?? ''"
+                  :value="color === 'red' ? resolvedTagLabel(color) : props.settings.tagLabels?.[color] ?? ''"
                   type="text"
                   class="tag-settings-input"
                   maxlength="5"
                   :placeholder="resolvedTagLabel(color)"
-                  :disabled="isPending(`tagLabels.${color}`)"
+                  :disabled="color === 'red' || isPending(`tagLabels.${color}`)"
                   @change="handleTagLabelChange(color, $event)"
                   @keydown.enter.prevent="handleTagLabelChange(color, $event)"
                 />

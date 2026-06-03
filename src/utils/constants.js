@@ -19,6 +19,9 @@ export function normalizeTagLabels(input) {
   }
 
   for (const color of HISTORY_TAG_COLORS) {
+    if (color === 'red') {
+      continue
+    }
     const value = input[color]
     next[color] = typeof value === 'string' ? value : ''
   }
@@ -31,6 +34,10 @@ export function defaultTagLabelKey(color) {
 }
 
 export function resolveTagLabel(color, tagLabels, t) {
+  if (color === 'red') {
+    return t(defaultTagLabelKey(color))
+  }
+
   const customLabel = tagLabels?.[color]
   if (typeof customLabel === 'string' && customLabel.trim()) {
     return customLabel.trim()

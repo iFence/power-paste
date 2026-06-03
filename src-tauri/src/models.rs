@@ -78,6 +78,7 @@ impl serde::Serialize for AppError {
 pub(crate) struct AppSettings {
     pub(crate) debug_enabled: bool,
     pub(crate) sound_enabled: bool,
+    pub(crate) auto_mask_sensitive_text: bool,
     pub(crate) launch_on_startup: bool,
     pub(crate) polling_interval_ms: u64,
     pub(crate) max_history_items: usize,
@@ -107,6 +108,7 @@ impl Default for AppSettings {
         Self {
             debug_enabled: false,
             sound_enabled: true,
+            auto_mask_sensitive_text: true,
             launch_on_startup: false,
             polling_interval_ms: 500,
             max_history_items: 200,
@@ -155,7 +157,7 @@ impl AppSettings {
                 let normalized_key = key.trim().to_ascii_lowercase();
                 if !matches!(
                     normalized_key.as_str(),
-                    "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "gray"
+                    "orange" | "yellow" | "green" | "blue" | "purple" | "gray"
                 ) {
                     return None;
                 }
@@ -283,6 +285,9 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) created_at: String,
     pub(crate) preview: String,
     pub(crate) full_text: Option<String>,
+    pub(crate) is_sensitive: bool,
+    pub(crate) masked_preview: Option<String>,
+    pub(crate) masked_full_text: Option<String>,
     pub(crate) image_data_url: Option<String>,
     pub(crate) image_byte_size: Option<usize>,
     pub(crate) image_width: Option<u32>,

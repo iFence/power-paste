@@ -21,6 +21,7 @@ mod ports;
 mod repository;
 mod rich_text;
 mod runtime;
+mod sensitive_text;
 mod startup;
 mod storage;
 mod sync;

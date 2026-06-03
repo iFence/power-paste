@@ -6,6 +6,7 @@ import { resolvePreviewColor } from '../utils/color'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 
 const props = defineProps({
+  autoMaskSensitiveText: { type: Boolean, required: true },
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
   copyStatsEnabled: { type: Boolean, required: true },
@@ -27,6 +28,7 @@ const tagPickerStyle = ref({})
 const imagePreviewStyle = ref({})
 const showImagePreview = ref(false)
 const showTagPicker = ref(false)
+const revealSensitiveText = ref(false)
 const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
 const tagColors = computed(() => Array.isArray(props.item?.tagColors) ? props.item.tagColors : [])
 const tagColorOptions = HISTORY_TAG_COLORS
@@ -35,16 +37,30 @@ const hasTextPreview = computed(() => {
   if (props.item?.kind === 'image') {
     return false
   }
-  const text = typeof props.item?.fullText === 'string' ? props.item.fullText : ''
-  const preview = typeof props.item?.preview === 'string' ? props.item.preview : ''
+  const text = textPreviewValue.value
+  const preview = visiblePreviewValue.value
   return Boolean(text.trim() || preview.trim())
+})
+const shouldMaskSensitiveText = computed(() => Boolean(props.autoMaskSensitiveText && props.item?.isSensitive))
+const visiblePreviewValue = computed(() => {
+  if (!shouldMaskSensitiveText.value) {
+    return typeof props.item?.preview === 'string' ? props.item.preview : ''
+  }
+
+  return typeof props.item?.maskedPreview === 'string' ? props.item.maskedPreview : props.item.preview ?? ''
 })
 const hasMixedPreview = computed(
   () => props.item?.kind === 'mixed' && Boolean(props.item?.imageDataUrl) && hasTextPreview.value,
 )
 const textPreviewValue = computed(() => {
+  if (shouldMaskSensitiveText.value && !revealSensitiveText.value) {
+    const maskedText = typeof props.item?.maskedFullText === 'string' ? props.item.maskedFullText : ''
+    if (maskedText) {
+      return maskedText
+    }
+  }
   const fullText = typeof props.item?.fullText === 'string' ? props.item.fullText : ''
-  const preview = typeof props.item?.preview === 'string' ? props.item.preview : ''
+  const preview = visiblePreviewValue.value
   return fullText || preview
 })
 const previewColorValue = computed(() => {
@@ -294,6 +310,13 @@ function handleWindowResize() {
   void updateTagPickerPosition()
 }
 
+function toggleSensitiveTextPreview() {
+  if (!shouldMaskSensitiveText.value) {
+    return
+  }
+  revealSensitiveText.value = !revealSensitiveText.value
+}
+
 onMounted(() => {
   document.addEventListener('pointerdown', handleDocumentPointerDown)
   document.addEventListener('keydown', handleDocumentKeydown)
@@ -407,7 +430,7 @@ onBeforeUnmount(() => {
         <div v-if="hasTextPreview" class="entry-text-preview">
           <div class="entry-text-scroll">
             <pre
-              v-if="item.fullText && looksLikeCode(item.fullText ?? item.preview)"
+              v-if="item.fullText && !shouldMaskSensitiveText && looksLikeCode(item.fullText ?? item.preview)"
               class="code-preview"
               v-html="previewHtml(item)"
             ></pre>
@@ -433,6 +456,46 @@ onBeforeUnmount(() => {
         {{ formatImageSize(item.imageByteSize) }}
       </span>
       <div class="entry-actions">
+        <button
+          v-if="shouldMaskSensitiveText"
+          class="entry-action-button icon-only sensitive-reveal-action"
+          type="button"
+          :class="{ active: revealSensitiveText }"
+          :title="revealSensitiveText ? t('hideSensitiveText') : t('showSensitiveText')"
+          :aria-label="revealSensitiveText ? t('hideSensitiveText') : t('showSensitiveText')"
+          :aria-pressed="revealSensitiveText"
+          @mousedown.stop
+          @click.stop="toggleSensitiveTextPreview"
+        >
+          <svg v-if="!revealSensitiveText" viewBox="0 0 24 24" aria-hidden="true" class="sensitive-reveal-icon">
+            <path
+              d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="2.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" aria-hidden="true" class="sensitive-reveal-icon">
+            <path
+              d="M3 3l18 18M9.5 5.5A9.8 9.8 0 0 1 12 5c6.1 0 9.5 7 9.5 7a16 16 0 0 1-3 3.9M6.2 6.9C3.8 8.8 2.5 12 2.5 12s3.4 7 9.5 7a9.7 9.7 0 0 0 4.1-.9M9.8 9.8a3 3 0 0 0 4.4 4.4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
         <button
           ref="tagTriggerRef"
           class="entry-action-button icon-only tag-action"
@@ -580,3 +643,15 @@ onBeforeUnmount(() => {
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.sensitive-reveal-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.sensitive-reveal-action,
+.sensitive-reveal-action.active {
+  color: var(--accent-primary);
+}
+</style>
