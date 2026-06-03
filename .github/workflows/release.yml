@@ -81,3 +81,22 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Create Windows portable zip
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $portableDir = "src-tauri/target/release/portable"
+          $zipPath = "src-tauri/target/release/Power-Paste_${tag}_windows-portable.zip"
+
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          Copy-Item -Path "src-tauri/target/release/power-paste.exe" -Destination "$portableDir/Power Paste.exe" -Force
+          Compress-Archive -Path "$portableDir/*" -DestinationPath $zipPath -Force
+
+      - name: Upload Windows portable zip
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: src-tauri/target/release/Power-Paste_${{ github.ref_name }}_windows-portable.zip
