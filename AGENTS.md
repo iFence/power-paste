@@ -4,9 +4,6 @@
 
 ---
 
-## Response rules
-- 回答我时，先输出一行：AGENTS_OK
-
 ## 技术栈
 
 - **桌面框架**：Tauri 2
@@ -109,9 +106,7 @@ src-tauri/
 
 ### 工作流约定
 
-1. 禁止直接向 `main` / `master` 分支提交代码。
-2. 每个功能或修复对应一个独立分支，完成后通过 PR/MR 合并。
-3. 合并前须确保本地已同步最新 `main` 分支（`git rebase` 或 `git merge`）。
+合并前须确保本地已同步最新 `main` 分支（`git rebase` 或 `git merge`）。
 
 ---
 
