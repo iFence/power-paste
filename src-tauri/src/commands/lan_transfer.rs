@@ -48,11 +48,11 @@ pub(crate) fn send_lan_transfer_text(
 pub(crate) fn send_lan_transfer_file(
     app: AppHandle,
     state: State<'_, Arc<SharedState>>,
-    file_name: String,
+    path: String,
+    file_name: Option<String>,
     mime_type: Option<String>,
-    bytes: Vec<u8>,
 ) -> Result<LanReceiverStateDto, AppError> {
-    crate::lan_receiver::send_desktop_file(app, state.inner().clone(), file_name, mime_type, bytes)
+    crate::lan_receiver::send_desktop_file(app, state.inner().clone(), path, file_name, mime_type)
 }
 
 // 打开互传消息对应的本地文件，仅允许打开当前会话中记录过的文件。

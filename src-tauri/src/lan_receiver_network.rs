@@ -6,19 +6,31 @@ use std::{
 use anyhow::Result;
 use qrcode::{render::svg, QrCode};
 
-pub(crate) fn local_lan_ip() -> Result<String> {
+pub(crate) fn local_lan_ips() -> Result<Vec<String>> {
     let mut candidates = local_ipv4_candidates();
 
     if let Ok(ip) = default_route_ipv4() {
         candidates.push(ip);
     }
 
-    candidates
+    let mut candidates = candidates
         .into_iter()
         .filter(|ip| usable_lan_ipv4(*ip))
-        .max_by_key(|ip| lan_ipv4_score(*ip))
+        .fold(Vec::new(), |mut unique, ip| {
+            if !unique.contains(&ip) {
+                unique.push(ip);
+            }
+            unique
+        });
+    candidates.sort_by_key(|ip| std::cmp::Reverse(lan_ipv4_score(*ip)));
+    let candidates = candidates
+        .into_iter()
         .map(|ip| ip.to_string())
-        .ok_or_else(|| anyhow::anyhow!("failed to resolve local lan ip"))
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        anyhow::bail!("failed to resolve local lan ip");
+    }
+    Ok(candidates)
 }
 
 fn default_route_ipv4() -> Result<Ipv4Addr> {

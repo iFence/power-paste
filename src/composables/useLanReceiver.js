@@ -20,29 +20,6 @@ function formatError(error) {
   return String(error || "");
 }
 
-function readFileBytes(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress?.(
-          Math.max(
-            1,
-            Math.min(95, Math.round((event.loaded / event.total) * 95)),
-          ),
-        );
-      }
-    };
-    reader.onerror = () =>
-      reject(reader.error || new Error("file_read_failed"));
-    reader.onload = () => {
-      onProgress?.(96);
-      resolve(Array.from(new Uint8Array(reader.result)));
-    };
-    reader.readAsArrayBuffer(file);
-  });
-}
-
 export function useLanReceiver({ t }) {
   const showLanReceiver = ref(false);
   const lanReceiverState = ref({
@@ -50,6 +27,7 @@ export function useLanReceiver({ t }) {
     url: null,
     qrSvg: null,
     ip: null,
+    ipCandidates: [],
     port: null,
     token: null,
     expiresAt: null,
@@ -107,6 +85,7 @@ export function useLanReceiver({ t }) {
       url: next?.url || null,
       qrSvg: next?.qrSvg || null,
       ip: next?.ip || null,
+      ipCandidates: Array.isArray(next?.ipCandidates) ? next.ipCandidates : [],
       port: next?.port || null,
       token: next?.token || null,
       expiresAt: next?.expiresAt || null,
@@ -178,13 +157,12 @@ export function useLanReceiver({ t }) {
     lanReceiverError.value = "";
     lanReceiverBusy.value = true;
     try {
-      const bytes = await readFileBytes(file, onProgress);
-      onProgress?.(98);
+      onProgress?.(10);
       applyState(
         await sendLanTransferFile(
+          file.path,
           file.name || "transfer-file",
-          file.type || "application/octet-stream",
-          bytes,
+          file.mimeType || null,
         ),
       );
       onProgress?.(100);

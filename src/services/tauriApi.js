@@ -142,11 +142,11 @@ export function sendLanTransferText(text) {
   return invoke("send_lan_transfer_text", { text });
 }
 
-export function sendLanTransferFile(fileName, mimeType, bytes) {
+export function sendLanTransferFile(path, fileName, mimeType) {
   return invoke("send_lan_transfer_file", {
+    path,
     fileName,
     mimeType,
-    bytes,
   });
 }
 

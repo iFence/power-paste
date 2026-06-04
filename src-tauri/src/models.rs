@@ -205,11 +205,7 @@ impl WebdavSyncSettings {
     pub(crate) fn normalized(mut self) -> Self {
         self.server_url = self.server_url.trim().trim_end_matches('/').to_string();
         self.username = self.username.trim().to_string();
-        self.remote_dir = self
-            .remote_dir
-            .trim()
-            .trim_matches('/')
-            .replace('\\', "/");
+        self.remote_dir = self.remote_dir.trim().trim_matches('/').replace('\\', "/");
         if self.remote_dir.is_empty() {
             self.remote_dir = Self::default().remote_dir;
         }
@@ -425,12 +421,14 @@ pub(crate) struct LanReceiverSession {
     pub(crate) url: String,
     pub(crate) qr_svg: String,
     pub(crate) ip: String,
+    pub(crate) ip_candidates: Vec<String>,
     pub(crate) port: u16,
     pub(crate) token: String,
     pub(crate) expires_at: Option<SystemTime>,
     pub(crate) stop_requested: Arc<AtomicBool>,
     pub(crate) last_status: Option<LanReceiverStatus>,
     pub(crate) last_phone_seen: Option<SystemTime>,
+    pub(crate) last_phone_seen_emit: Option<SystemTime>,
     pub(crate) last_activity: SystemTime,
     pub(crate) messages: Vec<LanTransferMessage>,
     pub(crate) files: HashMap<String, LanTransferFile>,
@@ -443,6 +441,7 @@ pub(crate) struct LanReceiverStateDto {
     pub(crate) url: Option<String>,
     pub(crate) qr_svg: Option<String>,
     pub(crate) ip: Option<String>,
+    pub(crate) ip_candidates: Vec<String>,
     pub(crate) port: Option<u16>,
     pub(crate) token: Option<String>,
     pub(crate) expires_at: Option<u64>,
@@ -463,7 +462,8 @@ pub(crate) struct LanReceiverStatus {
 pub(crate) struct LanTransferFile {
     pub(crate) file_name: String,
     pub(crate) mime_type: String,
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) path: PathBuf,
+    pub(crate) size: usize,
 }
 
 #[derive(Debug, Clone)]

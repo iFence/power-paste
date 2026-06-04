@@ -1,4 +1,5 @@
 <script setup>
+import { open } from "@tauri-apps/plugin-dialog";
 import {
     computed,
     nextTick,
@@ -22,7 +23,6 @@ const props = defineProps({
 });
 
 const draft = ref("");
-const fileInputRef = ref(null);
 const messagesRef = ref(null);
 const localError = ref("");
 const pendingMessages = ref([]);
@@ -132,10 +132,39 @@ async function copyTransferUrl() {
     }
 }
 
-async function handleFileChange(event) {
-    const selectedFiles = Array.from(event.target.files || []);
-    event.target.value = "";
-    if (!selectedFiles.length || props.busy) {
+function fileNameFromPath(path) {
+    return String(path || "")
+        .split(/[\\/]/)
+        .filter(Boolean)
+        .pop() || "transfer-file";
+}
+
+function fileKindFromName(name) {
+    const extension = String(name || "")
+        .split(".")
+        .pop()
+        ?.toLowerCase();
+    return ["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(extension)
+        ? "image"
+        : "file";
+}
+
+async function chooseFile() {
+    if (props.busy || !props.state.running) {
+        return;
+    }
+
+    localError.value = "";
+    const selected = await open({
+        multiple: true,
+        directory: false,
+    });
+    const selectedFiles = Array.isArray(selected)
+        ? selected
+        : selected
+          ? [selected]
+          : [];
+    if (!selectedFiles.length) {
         return;
     }
 
@@ -145,17 +174,18 @@ async function handleFileChange(event) {
             ? props.t("lanTransferTooManyFiles", { max: 9 })
             : "";
 
-    for (const [index, file] of files.entries()) {
+    for (const [index, path] of files.entries()) {
+        const name = fileNameFromPath(path);
         const id = `desktop-upload-${Date.now()}-${index}`;
         pendingMessages.value = [
             ...pendingMessages.value,
             {
                 id,
                 sender: "desktop",
-                kind: file.type?.startsWith("image/") ? "image" : "file",
-                fileName: file.name || "transfer-file",
-                mimeType: file.type || "application/octet-stream",
-                size: file.size,
+                kind: fileKindFromName(name),
+                fileName: name,
+                mimeType: null,
+                size: null,
                 progress: 0,
                 status: "uploading",
                 hasLocalFile: false,
@@ -164,8 +194,13 @@ async function handleFileChange(event) {
         await scrollToBottom();
 
         try {
-            await props.onSendFile(file, (progress) =>
-                upsertPendingMessage(id, { progress }),
+            await props.onSendFile(
+                {
+                    path,
+                    name,
+                    mimeType: null,
+                },
+                (progress) => upsertPendingMessage(id, { progress }),
             );
             removePendingMessage(id);
             await scrollToBottom();
@@ -178,10 +213,6 @@ async function handleFileChange(event) {
             localError.value = error?.message || String(error);
         }
     }
-}
-
-function chooseFile() {
-    fileInputRef.value?.click();
 }
 
 function closeContextMenu() {
@@ -468,13 +499,6 @@ watch(messages, scrollToBottom, { deep: true });
             >
                 {{ t("lanTransferSend") }}
             </button>
-            <input
-                ref="fileInputRef"
-                type="file"
-                multiple
-                hidden
-                @change="handleFileChange"
-            />
         </form>
 
         <p v-if="error || localError" class="lan-transfer-error">

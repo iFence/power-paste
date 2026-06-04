@@ -3,7 +3,7 @@ use std::{
     io::{Cursor, Read},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     thread,
@@ -39,7 +39,7 @@ use crate::{
     },
     paste_target::TargetProfile,
 };
-use lan_receiver_network::{build_qr_svg, local_lan_ip};
+use lan_receiver_network::{build_qr_svg, local_lan_ips};
 use lan_receiver_page::mobile_page;
 use lan_receiver_state::{message_to_dto, now_ms, receiver_state_dto};
 
@@ -47,6 +47,11 @@ const UPLOAD_HARD_LIMIT: usize = 128 * 1024 * 1024;
 const MAX_STORED_IMAGE_SIDE: u32 = 1600;
 const MOBILE_POLL_MS: u64 = 1200;
 const IDLE_SESSION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const MAX_SESSION_MESSAGES: usize = 100;
+const PHONE_SEEN_EMIT_INTERVAL: Duration = Duration::from_secs(5);
+const MAX_IMAGE_WORKERS: usize = 2;
+
+static ACTIVE_IMAGE_WORKERS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -78,7 +83,11 @@ pub(crate) fn start(
         .to_ip()
         .map(|addr| addr.port())
         .ok_or_else(|| anyhow::anyhow!("failed to resolve receiver port"))?;
-    let ip = local_lan_ip().unwrap_or_else(|_| "127.0.0.1".into());
+    let ip_candidates = local_lan_ips().unwrap_or_else(|_| vec!["127.0.0.1".into()]);
+    let ip = ip_candidates
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "127.0.0.1".into());
     let token = Uuid::new_v4().to_string();
     let url = format!("http://{ip}:{port}/?token={token}");
     let qr_svg = build_qr_svg(&url).map_err(anyhow::Error::from)?;
@@ -91,12 +100,14 @@ pub(crate) fn start(
             url,
             qr_svg,
             ip,
+            ip_candidates,
             port,
             token: token.clone(),
             expires_at: Some(now + IDLE_SESSION_TIMEOUT),
             stop_requested: stop_requested.clone(),
             last_status: None,
             last_phone_seen: None,
+            last_phone_seen_emit: None,
             last_activity: now,
             messages: Vec::new(),
             files: std::collections::HashMap::new(),
@@ -129,6 +140,7 @@ pub(crate) fn stop(
 ) -> Result<LanReceiverStateDto, AppError> {
     if let Some(session) = state.lan_receiver.lock().unwrap().take() {
         session.stop_requested.store(true, Ordering::Relaxed);
+        cleanup_session_files(&session);
     }
     let dto = receiver_state_dto(None, escape_url_component);
     let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, &dto);
@@ -169,34 +181,45 @@ pub(crate) fn send_desktop_text(
 pub(crate) fn send_desktop_file(
     app: AppHandle,
     state: Arc<SharedState>,
-    file_name: String,
+    file_path: String,
+    file_name: Option<String>,
     mime_type: Option<String>,
-    bytes: Vec<u8>,
 ) -> Result<LanReceiverStateDto, AppError> {
-    if bytes.is_empty() {
+    if state.lan_receiver.lock().unwrap().is_none() {
+        return Err(AppError::Message("lan_transfer_not_running".into()));
+    }
+
+    let source_path = PathBuf::from(file_path);
+    let metadata = fs::metadata(&source_path).map_err(anyhow::Error::from)?;
+    if !metadata.is_file() {
+        return Err(AppError::Message("lan_transfer_file_not_found".into()));
+    }
+    let size = usize::try_from(metadata.len())
+        .map_err(|_| AppError::Message("request body too large".into()))?;
+    if size == 0 {
         return Err(AppError::Message("empty_payload".into()));
     }
-    if bytes.len() > UPLOAD_HARD_LIMIT {
+    if size > UPLOAD_HARD_LIMIT {
         return Err(AppError::Message("request body too large".into()));
     }
 
-    let safe_name = sanitize_file_name(&file_name);
+    let fallback_name = source_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("transfer-file")
+        .to_string();
+    let safe_name = sanitize_file_name(file_name.as_deref().unwrap_or(&fallback_name));
     let mime_type = mime_type
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "application/octet-stream".into());
+        .unwrap_or_else(|| infer_mime_type(&source_path));
     let file_id = Uuid::new_v4().to_string();
     let kind = if mime_type.starts_with("image/") {
         "image"
     } else {
         "file"
     };
-    let image_data_url = if kind == "image" {
-        Some(format!("data:{mime_type};base64,{}", BASE64.encode(&bytes)))
-    } else {
-        None
-    };
-    let local_path = save_session_local_file(&state, &safe_name, &bytes).ok();
+    let local_path = save_session_local_file_from_path(&state, &safe_name, &source_path)?;
 
     {
         let mut guard = state.lan_receiver.lock().unwrap();
@@ -208,7 +231,8 @@ pub(crate) fn send_desktop_file(
             LanTransferFile {
                 file_name: safe_name.clone(),
                 mime_type: mime_type.clone(),
-                bytes: bytes.clone(),
+                path: local_path.clone(),
+                size,
             },
         );
     }
@@ -223,10 +247,10 @@ pub(crate) fn send_desktop_file(
             text: None,
             file_name: Some(safe_name),
             mime_type: Some(mime_type),
-            size: Some(bytes.len()),
-            image_data_url,
+            size: Some(size),
+            image_data_url: None,
             download_url: Some(format!("/api/files/{file_id}")),
-            local_path,
+            local_path: Some(local_path),
             created_at: now_ms(),
             status: "sent".into(),
         },
@@ -247,6 +271,7 @@ fn cleanup_expired_session(state: &Arc<SharedState>) -> bool {
     if expired {
         if let Some(session) = guard.take() {
             session.stop_requested.store(true, Ordering::Relaxed);
+            cleanup_session_files(&session);
         }
         return true;
     }
@@ -310,7 +335,11 @@ fn route_request(app: AppHandle, state: Arc<SharedState>, mut request: Request, 
         let settings = state.settings.lock().unwrap().clone();
         respond_html(
             request,
-            mobile_page(settings.max_image_bytes, &settings.accent_color, MOBILE_POLL_MS),
+            mobile_page(
+                settings.max_image_bytes,
+                &settings.accent_color,
+                MOBILE_POLL_MS,
+            ),
         );
         return;
     }
@@ -416,6 +445,11 @@ fn route_request(app: AppHandle, state: Arc<SharedState>, mut request: Request, 
             return;
         }
 
+        let Some(permit) = ImageWorkerPermit::try_acquire() else {
+            respond_error(request, &app, &state, anyhow::anyhow!("lan_transfer_busy"));
+            return;
+        };
+
         set_status(
             &app,
             &state,
@@ -430,6 +464,7 @@ fn route_request(app: AppHandle, state: Arc<SharedState>, mut request: Request, 
         let image_bytes = body;
         let message_id = query_param(&query, "clientId").map(|value| sanitize_message_id(&value));
         thread::spawn(move || {
+            let _permit = permit;
             if let Err(error) = receive_image_payload(
                 worker_app.clone(),
                 worker_state.clone(),
@@ -530,8 +565,19 @@ fn respond_session_file(request: Request, state: &Arc<SharedState>, file_id: &st
         return;
     };
 
-    let mut response = Response::from_data(file.bytes).with_status_code(StatusCode(200));
+    let body = match fs::File::open(&file.path) {
+        Ok(body) => body,
+        Err(_) => {
+            respond_text(request, 404, "file not found");
+            return;
+        }
+    };
+
+    let mut response = Response::from_file(body).with_status_code(StatusCode(200));
     if let Ok(header) = Header::from_bytes("Content-Type", file.mime_type.as_str()) {
+        response.add_header(header);
+    }
+    if let Ok(header) = Header::from_bytes("Content-Length", file.size.to_string().as_str()) {
         response.add_header(header);
     }
     if let Ok(header) = Header::from_bytes(
@@ -790,14 +836,34 @@ fn store_and_write_capture(
 }
 
 fn mark_phone_seen(app: &AppHandle, state: &Arc<SharedState>) {
-    {
+    let should_emit = {
         let mut guard = state.lan_receiver.lock().unwrap();
-        if let Some(session) = guard.as_mut() {
-            session.last_phone_seen = Some(SystemTime::now());
+        let Some(session) = guard.as_mut() else {
+            return;
+        };
+        let now = SystemTime::now();
+        let was_connected = session
+            .last_phone_seen
+            .and_then(|seen| now.duration_since(seen).ok())
+            .map(|elapsed| elapsed <= Duration::from_secs(15))
+            .unwrap_or(false);
+        let emit_interval_elapsed = session
+            .last_phone_seen_emit
+            .and_then(|emitted| now.duration_since(emitted).ok())
+            .map(|elapsed| elapsed >= PHONE_SEEN_EMIT_INTERVAL)
+            .unwrap_or(true);
+        session.last_phone_seen = Some(now);
+        if !was_connected || emit_interval_elapsed {
+            session.last_phone_seen_emit = Some(now);
+            true
+        } else {
+            false
         }
+    };
+    if should_emit {
+        let dto = get_state(state);
+        let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, &dto);
     }
-    let dto = get_state(state);
-    let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, &dto);
 }
 
 fn capture_text(capture: &CapturedClipboard) -> Option<String> {
@@ -865,6 +931,7 @@ fn push_message(
         session.last_activity = now;
         session.expires_at = Some(now + IDLE_SESSION_TIMEOUT);
         session.messages.push(message);
+        prune_session_messages(session);
     }
     let dto = get_state(state);
     let _ = app.emit(LAN_RECEIVER_STATUS_EVENT, &dto);
@@ -914,10 +981,10 @@ fn save_uploaded_file(
     Ok(target)
 }
 
-fn save_session_local_file(
+fn save_session_local_file_from_path(
     state: &Arc<SharedState>,
     file_name: &str,
-    body: &[u8],
+    source_path: &Path,
 ) -> Result<PathBuf> {
     let root = state
         .paths
@@ -927,8 +994,60 @@ fn save_session_local_file(
         .join("lan-transfer-sent");
     fs::create_dir_all(&root)?;
     let target = unique_file_path(&root, file_name);
-    fs::write(&target, body)?;
+    fs::copy(source_path, &target)?;
     Ok(target)
+}
+
+fn cleanup_session_files(session: &LanReceiverSession) {
+    for file in session.files.values() {
+        let _ = fs::remove_file(&file.path);
+    }
+}
+
+fn message_file_id(message: &LanTransferMessage) -> Option<String> {
+    message
+        .download_url
+        .as_ref()
+        .and_then(|value| value.strip_prefix("/api/files/"))
+        .map(ToString::to_string)
+}
+
+fn prune_session_messages(session: &mut LanReceiverSession) {
+    if session.messages.len() <= MAX_SESSION_MESSAGES {
+        return;
+    }
+
+    let removed_count = session.messages.len() - MAX_SESSION_MESSAGES;
+    let removed = session.messages.drain(0..removed_count).collect::<Vec<_>>();
+    for message in removed {
+        if let Some(file_id) = message_file_id(&message) {
+            if let Some(file) = session.files.remove(&file_id) {
+                let _ = fs::remove_file(file.path);
+            }
+        }
+    }
+}
+
+fn infer_mime_type(path: &Path) -> String {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "webp" => "image/webp",
+        "txt" | "log" | "md" => "text/plain",
+        "json" => "application/json",
+        "pdf" => "application/pdf",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
+    .into()
 }
 
 pub(crate) fn message_local_path(state: &Arc<SharedState>, id: &str) -> Result<PathBuf> {
@@ -1208,6 +1327,34 @@ fn escape_url_component(value: &str) -> String {
             _ => format!("%{byte:02X}").chars().collect(),
         })
         .collect()
+}
+
+struct ImageWorkerPermit;
+
+impl ImageWorkerPermit {
+    fn try_acquire() -> Option<Self> {
+        let mut current = ACTIVE_IMAGE_WORKERS.load(Ordering::Relaxed);
+        loop {
+            if current >= MAX_IMAGE_WORKERS {
+                return None;
+            }
+            match ACTIVE_IMAGE_WORKERS.compare_exchange(
+                current,
+                current + 1,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Some(Self),
+                Err(next) => current = next,
+            }
+        }
+    }
+}
+
+impl Drop for ImageWorkerPermit {
+    fn drop(&mut self) {
+        ACTIVE_IMAGE_WORKERS.fetch_sub(1, Ordering::Release);
+    }
 }
 
 #[cfg(test)]

@@ -8,6 +8,7 @@ src-tauri/gen/
 .claude/
 .idea/
 .vscode/
+.codegraph/
 ~/.tauri/
 
 .DS_Store
