@@ -222,5 +222,15 @@ pub(crate) fn execute_paste_item(
     paste
         .dispatch_paste(&app, &state, &item, &target)
         .map(|_| ())
-        .map_err(AppError::from)
+        .map_err(AppError::from)?;
+    if state.settings.lock().unwrap().paste_stats_enabled {
+        let updated_item = state
+            .history_store
+            .lock()
+            .unwrap()
+            .increment_paste_count(&id)
+            .map_err(AppError::from)?;
+        let _ = app.emit(crate::models::HISTORY_UPDATED_EVENT, updated_item);
+    }
+    Ok(())
 }

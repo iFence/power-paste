@@ -85,6 +85,7 @@ pub(crate) struct AppSettings {
     pub(crate) max_history_days: u64,
     pub(crate) max_image_bytes: usize,
     pub(crate) copy_stats_enabled: bool,
+    pub(crate) paste_stats_enabled: bool,
     pub(crate) lan_transfer_download_dir: Option<String>,
     pub(crate) global_shortcut: String,
     pub(crate) ignored_apps: Vec<String>,
@@ -115,6 +116,7 @@ impl Default for AppSettings {
             max_history_days: 30,
             max_image_bytes: 6_000_000,
             copy_stats_enabled: false,
+            paste_stats_enabled: false,
             lan_transfer_download_dir: None,
             global_shortcut: "Ctrl+Shift+V".into(),
             ignored_apps: vec!["1Password".into(), "Bitwarden".into(), "KeePassXC".into()],
@@ -146,6 +148,9 @@ impl AppSettings {
             self.max_history_days = Self::default().max_history_days;
         }
         self.max_history_days = self.max_history_days.min(3650);
+        if self.paste_stats_enabled {
+            self.copy_stats_enabled = false;
+        }
         self.lan_transfer_download_dir = self
             .lan_transfer_download_dir
             .map(|value| value.trim().to_string())
@@ -254,6 +259,7 @@ pub(crate) struct StoredClipboardItem {
     pub(crate) favorite: bool,
     pub(crate) tag_colors: Vec<String>,
     pub(crate) copy_count: u64,
+    pub(crate) paste_count: u64,
     pub(crate) updated_at: String,
     pub(crate) sync_updated_at: String,
     pub(crate) sync_device_id: String,
@@ -298,6 +304,7 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) favorite: bool,
     pub(crate) tag_colors: Vec<String>,
     pub(crate) copy_count: u64,
+    pub(crate) paste_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -366,6 +373,7 @@ pub(crate) struct HistoryQueryPayload {
     pub(crate) limit: Option<usize>,
     pub(crate) offset: Option<usize>,
     pub(crate) copy_stats_enabled: bool,
+    pub(crate) paste_stats_enabled: bool,
 }
 
 impl StoragePaths {
@@ -572,4 +580,21 @@ pub(crate) struct ForegroundAppResult {
     pub(crate) display_name: String,
     pub(crate) icon_png_base64: Option<String>,
     pub(crate) app_path: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+
+    #[test]
+    fn paste_stats_disable_copy_stats_when_normalized() {
+        let mut settings = AppSettings::default();
+        settings.copy_stats_enabled = true;
+        settings.paste_stats_enabled = true;
+
+        let normalized = settings.normalized();
+
+        assert!(!normalized.copy_stats_enabled);
+        assert!(normalized.paste_stats_enabled);
+    }
 }

@@ -81,6 +81,9 @@ export const messages = {
     copyStatsEnabled: "复制次数统计",
     copyStatsEnabledTip: "开启后，重新复制历史记录会累计次数，并优先显示复制次数更多的内容。",
     copyCountLabel: "复制 {count} 次",
+    pasteStatsEnabled: "粘贴次数统计",
+    pasteStatsEnabledTip: "开启后，通过 Power Paste 直接粘贴历史记录会累计次数，并优先显示粘贴次数更多的内容。",
+    pasteCountLabel: "粘贴 {count} 次",
     copySound: "复制音效",
     lanTransferDownloadDir: "互传文件保存位置",
     lanTransferDownloadDirPlaceholder: "请选择文件保存位置",
@@ -193,6 +196,10 @@ export const messages = {
     copyStatsEnabledTip:
       "When enabled, copying history items again counts usage and moves frequently copied items higher.",
     copyCountLabel: "Copied {count} times",
+    pasteStatsEnabled: "Paste count stats",
+    pasteStatsEnabledTip:
+      "When enabled, direct pasting history items counts usage and moves frequently pasted items higher.",
+    pasteCountLabel: "Pasted {count} times",
     copySound: "Copy sound",
     lanTransferDownloadDir: "Transfer download folder",
     lanTransferDownloadDirPlaceholder: "Choose a download folder",

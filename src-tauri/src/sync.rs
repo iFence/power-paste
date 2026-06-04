@@ -386,6 +386,7 @@ impl TryFrom<SyncedClipboardItem> for StoredClipboardItem {
             favorite: item.favorite,
             tag_colors: item.tag_colors,
             copy_count: 0,
+            paste_count: 0,
             updated_at: item.updated_at,
             sync_updated_at: item.sync_updated_at,
             sync_device_id: item.sync_device_id,

@@ -42,6 +42,7 @@ struct HistoryListRow {
     favorite: bool,
     tag_colors: Vec<String>,
     copy_count: u64,
+    paste_count: u64,
 }
 
 const ALLOWED_TAG_COLORS: [&str; 7] = ["red", "orange", "yellow", "green", "blue", "purple", "gray"];
@@ -101,6 +102,7 @@ impl SqliteHistoryStore {
               favorite INTEGER NOT NULL DEFAULT 0,
               tag_colors TEXT NOT NULL DEFAULT '[]',
               copy_count INTEGER NOT NULL DEFAULT 0,
+              paste_count INTEGER NOT NULL DEFAULT 0,
               updated_at TEXT NOT NULL DEFAULT '',
               sync_updated_at TEXT NOT NULL DEFAULT '',
               sync_device_id TEXT NOT NULL DEFAULT ''
@@ -131,6 +133,7 @@ impl SqliteHistoryStore {
         ensure_column(&self.connection, "image_preview_png", "BLOB")?;
         ensure_column(&self.connection, "tag_colors", "TEXT NOT NULL DEFAULT '[]'")?;
         ensure_column(&self.connection, "copy_count", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&self.connection, "paste_count", "INTEGER NOT NULL DEFAULT 0")?;
         ensure_column(&self.connection, "updated_at", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&self.connection, "sync_updated_at", "TEXT NOT NULL DEFAULT ''")?;
         ensure_column(&self.connection, "sync_device_id", "TEXT NOT NULL DEFAULT ''")?;
@@ -185,7 +188,7 @@ impl SqliteHistoryStore {
             SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                    image_png, image_original_bytes, image_original_mime,
                    image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                   hash, pinned, favorite, tag_colors, copy_count, updated_at, sync_updated_at, sync_device_id
+                   hash, pinned, favorite, tag_colors, copy_count, paste_count, updated_at, sync_updated_at, sync_device_id
             FROM clipboard_items
             {where_sql}
             ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC
@@ -210,7 +213,7 @@ impl SqliteHistoryStore {
             SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                    image_png, image_original_bytes, image_original_mime,
                    image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                   hash, pinned, favorite, tag_colors, copy_count, updated_at, sync_updated_at, sync_device_id
+                   hash, pinned, favorite, tag_colors, copy_count, paste_count, updated_at, sync_updated_at, sync_device_id
             FROM clipboard_items
             WHERE id = ?1
             "#,
@@ -251,7 +254,7 @@ impl SqliteHistoryStore {
                 SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                        image_png, image_original_bytes, image_original_mime,
                        image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                       hash, pinned, favorite, tag_colors, copy_count, updated_at, sync_updated_at, sync_device_id
+                       hash, pinned, favorite, tag_colors, copy_count, paste_count, updated_at, sync_updated_at, sync_device_id
                 FROM clipboard_items
                 WHERE hash = ?1 OR (kind = 'text' AND full_text = ?2)
                 LIMIT 1
@@ -265,7 +268,7 @@ impl SqliteHistoryStore {
                 SELECT id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                        image_png, image_original_bytes, image_original_mime,
                        image_preview_png, image_width, image_height, source_app, source_icon_data_url,
-                       hash, pinned, favorite, tag_colors, copy_count, updated_at, sync_updated_at, sync_device_id
+                       hash, pinned, favorite, tag_colors, copy_count, paste_count, updated_at, sync_updated_at, sync_device_id
                 FROM clipboard_items
                 WHERE hash = ?1
                 LIMIT 1
@@ -315,9 +318,10 @@ impl SqliteHistoryStore {
                         favorite = ?19,
                         tag_colors = ?20,
                         copy_count = ?21,
-                        updated_at = ?22,
-                        sync_updated_at = ?23,
-                        sync_device_id = ?24
+                        paste_count = ?22,
+                        updated_at = ?23,
+                        sync_updated_at = ?24,
+                        sync_device_id = ?25
                     WHERE id = ?1
                     "#,
                     params![
@@ -342,6 +346,7 @@ impl SqliteHistoryStore {
                         next.favorite as i64,
                         serialize_tag_colors(&next.tag_colors),
                         next.copy_count as i64,
+                        next.paste_count as i64,
                         now,
                         now,
                         device_id,
@@ -366,9 +371,9 @@ impl SqliteHistoryStore {
                       id, kind, created_at, pinned_at, preview, full_text, html_text, rtf_text,
                       image_png, image_original_bytes, image_original_mime, image_preview_png,
                       image_width, image_height, source_app, source_icon_data_url,
-                      hash, pinned, favorite, tag_colors, copy_count, updated_at, sync_updated_at, sync_device_id
+                      hash, pinned, favorite, tag_colors, copy_count, paste_count, updated_at, sync_updated_at, sync_device_id
                     ) VALUES (
-                      ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24
+                      ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25
                     )
                     "#,
                     params![
@@ -393,6 +398,7 @@ impl SqliteHistoryStore {
                         item.favorite as i64,
                         serialize_tag_colors(&item.tag_colors),
                         item.copy_count as i64,
+                        item.paste_count as i64,
                         now,
                         now,
                         device_id,
@@ -687,6 +693,19 @@ impl SqliteHistoryStore {
             .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))
     }
 
+    pub(crate) fn increment_paste_count(&self, id: &str) -> Result<ClipboardItemDto> {
+        let affected = self.connection.execute(
+            "UPDATE clipboard_items SET paste_count = paste_count + 1 WHERE id = ?1",
+            params![id],
+        )?;
+        if affected == 0 {
+            anyhow::bail!("Clipboard item not found");
+        }
+
+        self.get_history_item(id)?
+            .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))
+    }
+
     pub(crate) fn apply_synced_deletion(&self, deletion: &DeletedClipboardItem) -> Result<bool> {
         let existing = self.get_item(&deletion.id)?;
         let should_delete = existing.as_ref().is_some_and(|item| {
@@ -765,9 +784,12 @@ impl SqliteHistoryStore {
             copy_count: row
                 .get::<_, i64>(20)
                 .map(|value| u64::try_from(value.max(0)).unwrap_or(0))?,
-            updated_at: row.get(21)?,
-            sync_updated_at: row.get(22)?,
-            sync_device_id: row.get(23)?,
+            paste_count: row
+                .get::<_, i64>(21)
+                .map(|value| u64::try_from(value.max(0)).unwrap_or(0))?,
+            updated_at: row.get(22)?,
+            sync_updated_at: row.get(23)?,
+            sync_device_id: row.get(24)?,
         };
 
         let (full_text, html_text) =
@@ -793,7 +815,9 @@ impl SqliteHistoryStore {
         let limit = limit.min(i64::MAX as usize) as i64;
         let offset = offset.min(i64::MAX as usize) as i64;
         let (where_sql, mut bind_values) = build_history_filters(payload);
-        let order_sql = if payload.copy_stats_enabled {
+        let order_sql = if payload.paste_stats_enabled {
+            "ORDER BY pinned DESC, pinned_at DESC, paste_count DESC, created_at DESC"
+        } else if payload.copy_stats_enabled {
             "ORDER BY pinned DESC, pinned_at DESC, copy_count DESC, created_at DESC"
         } else {
             "ORDER BY pinned DESC, pinned_at DESC, favorite DESC, created_at DESC"
@@ -809,7 +833,7 @@ impl SqliteHistoryStore {
                    image_width, image_height,
                    length(COALESCE(image_original_bytes, image_png)),
                    source_app, source_icon_data_url,
-                   pinned, favorite, tag_colors, copy_count
+                   pinned, favorite, tag_colors, copy_count, paste_count
             FROM clipboard_items
             {where_sql}
             {order_sql}
@@ -869,6 +893,9 @@ impl SqliteHistoryStore {
             copy_count: row
                 .get::<_, i64>(15)
                 .map(|value| u64::try_from(value.max(0)).unwrap_or(0))?,
+            paste_count: row
+                .get::<_, i64>(16)
+                .map(|value| u64::try_from(value.max(0)).unwrap_or(0))?,
         })
     }
 
@@ -884,7 +911,7 @@ impl SqliteHistoryStore {
                    image_width, image_height,
                    length(COALESCE(image_original_bytes, image_png)),
                    source_app, source_icon_data_url,
-                   pinned, favorite, tag_colors, copy_count
+                   pinned, favorite, tag_colors, copy_count, paste_count
             FROM clipboard_items
             WHERE id = ?1
             "#,
@@ -926,6 +953,7 @@ fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
         favorite: item.favorite,
         tag_colors: item.tag_colors,
         copy_count: item.copy_count,
+        paste_count: item.paste_count,
     }
 }
 
@@ -1147,6 +1175,7 @@ fn build_new_item(
         favorite: false,
         tag_colors: Vec::new(),
         copy_count: 0,
+        paste_count: 0,
         updated_at: now.to_string(),
         sync_updated_at: now.to_string(),
         sync_device_id: String::new(),
@@ -1351,6 +1380,7 @@ mod tests {
         let items = store.list_all().expect("all");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].copy_count, 0);
+        assert_eq!(items[0].paste_count, 0);
 
         let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
     }
@@ -1396,6 +1426,30 @@ mod tests {
         assert_eq!(second.copy_count, 2);
         assert_eq!(
             store.get_item(&id).expect("item").expect("row").copy_count,
+            2
+        );
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
+
+    #[test]
+    fn increments_paste_count_for_existing_items() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        store
+            .upsert_capture(text_capture("alpha"), None, &settings)
+            .expect("alpha");
+        let id = store.list_all().expect("all")[0].id.clone();
+
+        let first = store.increment_paste_count(&id).expect("first paste");
+        let second = store.increment_paste_count(&id).expect("second paste");
+
+        assert_eq!(first.paste_count, 1);
+        assert_eq!(second.paste_count, 2);
+        assert_eq!(
+            store.get_item(&id).expect("item").expect("row").paste_count,
             2
         );
 
@@ -1513,6 +1567,98 @@ mod tests {
         assert!(history[0].pinned);
         assert_eq!(history[1].full_text.as_deref(), Some("alpha"));
         assert_eq!(history[1].copy_count, 2);
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
+
+    #[test]
+    fn sorts_by_paste_count_when_stats_are_enabled() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        store
+            .upsert_capture(text_capture("alpha"), None, &settings)
+            .expect("alpha");
+        store
+            .upsert_capture(text_capture("beta"), None, &settings)
+            .expect("beta");
+        store
+            .upsert_capture(text_capture("gamma"), None, &settings)
+            .expect("gamma");
+
+        let items = store.list_all().expect("all");
+        let alpha_id = items
+            .iter()
+            .find(|item| item.full_text.as_deref() == Some("alpha"))
+            .expect("alpha item")
+            .id
+            .clone();
+        let beta_id = items
+            .iter()
+            .find(|item| item.full_text.as_deref() == Some("beta"))
+            .expect("beta item")
+            .id
+            .clone();
+
+        store.increment_paste_count(&beta_id).expect("paste beta");
+        store.increment_paste_count(&alpha_id).expect("paste alpha once");
+        store.increment_paste_count(&alpha_id).expect("paste alpha twice");
+
+        let payload = crate::models::HistoryQueryPayload {
+            paste_stats_enabled: true,
+            ..Default::default()
+        };
+        let history = store.list_history(&payload, 10, 0).expect("history");
+
+        assert_eq!(history[0].full_text.as_deref(), Some("alpha"));
+        assert_eq!(history[0].paste_count, 2);
+        assert_eq!(history[1].full_text.as_deref(), Some("beta"));
+        assert_eq!(history[1].paste_count, 1);
+
+        let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
+    }
+
+    #[test]
+    fn keeps_pinned_items_before_paste_count_sort() {
+        let paths = test_paths();
+        let mut store = SqliteHistoryStore::new(&paths).expect("store");
+        let settings = AppSettings::default();
+
+        store
+            .upsert_capture(text_capture("alpha"), None, &settings)
+            .expect("alpha");
+        store
+            .upsert_capture(text_capture("beta"), None, &settings)
+            .expect("beta");
+        let items = store.list_all().expect("all");
+        let alpha_id = items
+            .iter()
+            .find(|item| item.full_text.as_deref() == Some("alpha"))
+            .expect("alpha item")
+            .id
+            .clone();
+        let beta_id = items
+            .iter()
+            .find(|item| item.full_text.as_deref() == Some("beta"))
+            .expect("beta item")
+            .id
+            .clone();
+
+        store.toggle_pin(&beta_id).expect("pin beta");
+        store.increment_paste_count(&alpha_id).expect("paste alpha once");
+        store.increment_paste_count(&alpha_id).expect("paste alpha twice");
+
+        let payload = crate::models::HistoryQueryPayload {
+            paste_stats_enabled: true,
+            ..Default::default()
+        };
+        let history = store.list_history(&payload, 10, 0).expect("history");
+
+        assert_eq!(history[0].full_text.as_deref(), Some("beta"));
+        assert!(history[0].pinned);
+        assert_eq!(history[1].full_text.as_deref(), Some("alpha"));
+        assert_eq!(history[1].paste_count, 2);
 
         let _ = fs::remove_dir_all(paths.db_path.parent().unwrap_or(paths.db_path.as_path()));
     }

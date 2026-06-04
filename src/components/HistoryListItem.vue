@@ -10,6 +10,7 @@ const props = defineProps({
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
   copyStatsEnabled: { type: Boolean, required: true },
+  pasteStatsEnabled: { type: Boolean, required: true },
   item: { type: Object, required: true },
   locale: { type: String, required: true },
   relativeTimeVersion: { type: Number, required: true },
@@ -108,6 +109,14 @@ const copyCountLabel = computed(() => {
   }
 
   return props.t('copyCountLabel', { count })
+})
+const pasteCountLabel = computed(() => {
+  const count = Number(props.item?.pasteCount) || 0
+  if (!props.pasteStatsEnabled || count < 2) {
+    return ''
+  }
+
+  return props.t('pasteCountLabel', { count })
 })
 
 function formatImageSize(bytes) {
@@ -451,6 +460,9 @@ onBeforeUnmount(() => {
     <footer class="entry-footer">
       <span v-if="copyCountLabel" class="entry-meta-note copy-count-note">
         {{ copyCountLabel }}
+      </span>
+      <span v-if="pasteCountLabel" class="entry-meta-note copy-count-note">
+        {{ pasteCountLabel }}
       </span>
       <span v-if="item.imageDataUrl && item.imageByteSize" class="entry-meta-note">
         {{ formatImageSize(item.imageByteSize) }}

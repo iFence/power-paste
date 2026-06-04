@@ -719,6 +719,7 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
         favorite: item.favorite,
         tag_colors: item.tag_colors.clone(),
         copy_count: item.copy_count,
+        paste_count: item.paste_count,
     }
 }
 
@@ -926,6 +927,7 @@ mod tests {
             favorite: false,
             tag_colors: Vec::new(),
             copy_count: 0,
+            paste_count: 0,
             updated_at: "2026-04-13T00:00:00Z".into(),
             sync_updated_at: "2026-04-13T00:00:00Z".into(),
             sync_device_id: "test-device".into(),
@@ -976,6 +978,7 @@ mod tests {
             favorite: false,
             tag_colors: Vec::new(),
             copy_count: 0,
+            paste_count: 0,
             updated_at: "2026-04-13T00:00:00Z".into(),
             sync_updated_at: "2026-04-13T00:00:00Z".into(),
             sync_device_id: "test-device".into(),

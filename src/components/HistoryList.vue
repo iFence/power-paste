@@ -6,6 +6,7 @@ defineProps({
   canDirectPaste: { type: Boolean, required: true },
   autoMaskSensitiveText: { type: Boolean, required: true },
   copyStatsEnabled: { type: Boolean, required: true },
+  pasteStatsEnabled: { type: Boolean, required: true },
   historyPanelRef: { type: Object, required: true },
   hasMore: { type: Boolean, required: true },
   items: { type: Array, required: true },
@@ -63,6 +64,7 @@ function handleScroll(event) {
           :can-direct-paste="canDirectPaste"
           :auto-mask-sensitive-text="autoMaskSensitiveText"
           :copy-stats-enabled="copyStatsEnabled"
+          :paste-stats-enabled="pasteStatsEnabled"
           :selected="item.id === selectedId"
           :tag-label-map="tagLabelMap"
           :t="t"

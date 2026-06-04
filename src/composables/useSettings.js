@@ -113,6 +113,7 @@ export function useSettings() {
     maxHistoryDays: 30,
     maxImageBytes: 6_000_000,
     copyStatsEnabled: false,
+    pasteStatsEnabled: false,
     lanTransferDownloadDir: "",
     globalShortcut: "Ctrl+Shift+V",
     ignoredApps: [],

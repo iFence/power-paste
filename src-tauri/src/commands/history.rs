@@ -13,7 +13,15 @@ pub(crate) fn get_history(
     payload: Option<HistoryQueryPayload>,
 ) -> Result<ClipboardHistoryPageDto, AppError> {
     let mut payload = payload.unwrap_or_default();
-    payload.copy_stats_enabled = state.settings.lock().unwrap().copy_stats_enabled;
+    let (copy_stats_enabled, paste_stats_enabled) = {
+        let settings = state.settings.lock().unwrap();
+        (
+            settings.copy_stats_enabled && !settings.paste_stats_enabled,
+            settings.paste_stats_enabled,
+        )
+    };
+    payload.copy_stats_enabled = copy_stats_enabled;
+    payload.paste_stats_enabled = paste_stats_enabled;
     let limit = payload.limit.unwrap_or(500);
     let offset = payload.offset.unwrap_or(0);
     let store = state.history_store.lock().unwrap();

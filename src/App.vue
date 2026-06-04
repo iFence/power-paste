@@ -521,6 +521,7 @@ function openResetSettingsConfirm() {
                             settingsState.settings.autoMaskSensitiveText
                         "
                         :copy-stats-enabled="settingsState.settings.copyStatsEnabled"
+                        :paste-stats-enabled="settingsState.settings.pasteStatsEnabled"
                         :history-panel-ref="historyState.historyPanelRef"
                         :has-more="historyState.hasMoreHistory.value"
                         :items="historyState.filteredHistory.value"

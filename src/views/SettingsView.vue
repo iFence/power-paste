@@ -91,6 +91,7 @@ const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
 const autoMaskSensitiveTextToggleIndex = computed(() => (props.settings.autoMaskSensitiveText ? 0 : 1))
 const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0 : 1))
+const pasteStatsToggleIndex = computed(() => (props.settings.pasteStatsEnabled ? 0 : 1))
 const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
 const webdavAutoSyncToggleIndex = computed(() => (props.settings.webdavSync?.autoSync ? 0 : 1))
 const hasClipboardWriteSupport = computed(
@@ -200,6 +201,26 @@ async function updateWebdavSetting(field, value, key = `webdavSync.${field}`) {
 async function chooseSelectOption(key, field, value) {
   props.closeSelect()
   await updateSetting(field, value, key)
+}
+
+async function updateCopyStatsEnabled(value) {
+  await props.applySettingPatch(
+    {
+      copyStatsEnabled: value,
+      pasteStatsEnabled: value ? false : props.settings.pasteStatsEnabled,
+    },
+    'copyStatsEnabled',
+  )
+}
+
+async function updatePasteStatsEnabled(value) {
+  await props.applySettingPatch(
+    {
+      pasteStatsEnabled: value,
+      copyStatsEnabled: value ? false : props.settings.copyStatsEnabled,
+    },
+    'pasteStatsEnabled',
+  )
 }
 
 async function handleWebdavPasswordChange(event) {
@@ -793,7 +814,7 @@ watch(
                 class="setting-toggle-option"
                 :class="{ active: settings.copyStatsEnabled }"
                 :disabled="isPending('copyStatsEnabled')"
-                @click="updateSetting('copyStatsEnabled', true, 'copyStatsEnabled')"
+                @click="updateCopyStatsEnabled(true)"
               >
                 {{ t('toggleOn') }}
               </button>
@@ -802,7 +823,41 @@ watch(
                 class="setting-toggle-option"
                 :class="{ active: !settings.copyStatsEnabled }"
                 :disabled="isPending('copyStatsEnabled')"
-                @click="updateSetting('copyStatsEnabled', false, 'copyStatsEnabled')"
+                @click="updateCopyStatsEnabled(false)"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('pasteStatsEnabled') }}</span>
+                <span class="setting-help-icon" :title="t('pasteStatsEnabledTip')" tabindex="0">?</span>
+              </span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('pasteStatsEnabled')"
+              :style="segmentedToggleStyle(pasteStatsToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.pasteStatsEnabled }"
+                :disabled="isPending('pasteStatsEnabled')"
+                @click="updatePasteStatsEnabled(true)"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.pasteStatsEnabled }"
+                :disabled="isPending('pasteStatsEnabled')"
+                @click="updatePasteStatsEnabled(false)"
               >
                 {{ t('toggleOff') }}
               </button>

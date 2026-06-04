@@ -71,7 +71,7 @@ function directPasteUnavailableMessage(platformCapabilities, t) {
   return t("unsupportedDirectPaste");
 }
 
-function compareHistoryItems(left, right, copyStatsEnabled = false) {
+function compareHistoryItems(left, right, statsMode = "") {
   if (left.pinned !== right.pinned) {
     return Number(right.pinned) - Number(left.pinned);
   }
@@ -85,7 +85,13 @@ function compareHistoryItems(left, right, copyStatsEnabled = false) {
     }
   }
 
-  if (copyStatsEnabled) {
+  if (statsMode === "paste") {
+    const pasteCountCompare =
+      (Number(right.pasteCount) || 0) - (Number(left.pasteCount) || 0);
+    if (pasteCountCompare !== 0) {
+      return pasteCountCompare;
+    }
+  } else if (statsMode === "copy") {
     const copyCountCompare =
       (Number(right.copyCount) || 0) - (Number(left.copyCount) || 0);
     if (copyCountCompare !== 0) {
@@ -93,7 +99,7 @@ function compareHistoryItems(left, right, copyStatsEnabled = false) {
     }
   }
 
-  if (!copyStatsEnabled && left.favorite !== right.favorite) {
+  if (!statsMode && left.favorite !== right.favorite) {
     return Number(right.favorite) - Number(left.favorite);
   }
 
@@ -140,8 +146,13 @@ export function useHistory({ platformCapabilities, settings, t }) {
   });
 
   function sortHistory(nextHistory = history.value) {
+    const statsMode = settings.pasteStatsEnabled
+      ? "paste"
+      : settings.copyStatsEnabled
+        ? "copy"
+        : "";
     return [...nextHistory].sort((left, right) =>
-      compareHistoryItems(left, right, Boolean(settings.copyStatsEnabled)),
+      compareHistoryItems(left, right, statsMode),
     );
   }
 
@@ -551,7 +562,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
   });
 
   watch(
-    () => settings.copyStatsEnabled,
+    () => [settings.copyStatsEnabled, settings.pasteStatsEnabled],
     () => {
       void refreshHistory({
         detectNewHistory: false,
