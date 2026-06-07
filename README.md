@@ -32,13 +32,15 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Search and filter by `All`, `Pinned`, `Text`, `Image`, and `Mixed`
 - Pin important items and keep them out of bulk clear / retention cleanup
 - Favorite items for an extra visual priority marker
-- Finder-style color tags: up to 3 tags per item, with 7 fixed colors and customizable labels
+- Finder-style color tags: up to 3 tags per item, with 7 fixed colors and 6 customizable labels (red is reserved for sensitive content)
 - Edit plain-text history items in place
 - Copy history items back to the system clipboard, or paste directly to the previous target app when supported
 - Hover image thumbnails to preview larger images
+- Auto-masking of sensitive text (passwords, tokens, keys) in history previews while keeping copy/paste original
+- Optional copy count and paste count statistics with smart sorting
 - Local-network phone transfer for text, images, and files through a browser page opened by scanning a QR code
 - WebDAV history sync with system credential storage for the remote password
-- Settings for language, theme, accent color, density, launch on startup, sound, history retention, image-size limit, transfer directory, tag labels, debug mode, and global shortcut
+- Settings for language, theme, accent color, launch on startup, sound, sensitive info masking, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, and global shortcut
 - Tray integration, single-instance behavior, automatic update checks, and manual update checks
 - Custom in-app confirmation dialogs instead of system confirm prompts for destructive actions
 
@@ -66,7 +68,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Each history item can carry up to `3` tags
 - Built-in tag colors match the Finder-style palette: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `gray`
 - Tag color and display name are separate
-- Tag names are editable from settings
+- Tag names are editable from settings, except `red` which is reserved for "Sensitive info" detection
 - Tag filters are available directly in the main panel
 
 ### Phone and PC Transfer
@@ -94,8 +96,8 @@ The settings view is split into these categories:
 
 - `General`
 - `History`
-- `Transfer`
 - `Sync`
+- `Transfer`
 - `Shortcuts`
 - `Advanced`
 - `About`
@@ -105,13 +107,15 @@ Current configurable options include:
 - Language: Simplified Chinese / English
 - Theme mode: Light / Dark / System
 - Accent color: Ocean / Amber / Jade / Rose
-- Density: compact / cozy
 - Launch on startup
 - Copy sound on capture / replay
+- Sensitive info masking (auto-masks passwords, tokens, keys in previews)
 - Maximum history item count
 - Maximum retention days for unpinned history
 - Maximum stored image size
-- Tag display names
+- Copy count statistics toggle (tracks repeat-copy usage and affects sort order)
+- Paste count statistics toggle (tracks direct-paste usage and affects sort order)
+- Tag display names (6 customizable, red reserved for sensitive info)
 - LAN transfer download directory
 - WebDAV sync endpoint, username, remote directory, auto sync, and credential management
 - Global shortcut recording / clearing

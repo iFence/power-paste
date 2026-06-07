@@ -6,11 +6,11 @@ use serde_json::{from_str, to_string};
 use uuid::Uuid;
 
 use crate::{
+    history::html_image_preview_data_url,
     models::{
         AppSettings, CapturedClipboard, ClipboardItemDto, DeletedClipboardItem,
         HistoryQueryPayload, StoragePaths, StoredClipboardItem,
     },
-    history::html_image_preview_data_url,
     rich_text::normalize_rich_text_payload,
     sensitive_text::{build_sensitive_text_mask, SensitiveTextMask},
     storage::{image_preview_png_from_bytes, preview_text, sha256_hex},
@@ -45,7 +45,8 @@ struct HistoryListRow {
     paste_count: u64,
 }
 
-const ALLOWED_TAG_COLORS: [&str; 7] = ["red", "orange", "yellow", "green", "blue", "purple", "gray"];
+const ALLOWED_TAG_COLORS: [&str; 7] =
+    ["red", "orange", "yellow", "green", "blue", "purple", "gray"];
 const DEVICE_ID_KEY: &str = "device_id";
 const LAST_SYNC_AT_KEY: &str = "last_sync_at";
 
@@ -133,10 +134,22 @@ impl SqliteHistoryStore {
         ensure_column(&self.connection, "image_preview_png", "BLOB")?;
         ensure_column(&self.connection, "tag_colors", "TEXT NOT NULL DEFAULT '[]'")?;
         ensure_column(&self.connection, "copy_count", "INTEGER NOT NULL DEFAULT 0")?;
-        ensure_column(&self.connection, "paste_count", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(
+            &self.connection,
+            "paste_count",
+            "INTEGER NOT NULL DEFAULT 0",
+        )?;
         ensure_column(&self.connection, "updated_at", "TEXT NOT NULL DEFAULT ''")?;
-        ensure_column(&self.connection, "sync_updated_at", "TEXT NOT NULL DEFAULT ''")?;
-        ensure_column(&self.connection, "sync_device_id", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_column(
+            &self.connection,
+            "sync_updated_at",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        ensure_column(
+            &self.connection,
+            "sync_device_id",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
         let now = Utc::now().to_rfc3339();
         self.connection.execute(
             "UPDATE clipboard_items SET updated_at = COALESCE(NULLIF(updated_at, ''), created_at, ?1)",
@@ -169,7 +182,9 @@ impl SqliteHistoryStore {
         let sql = format!("SELECT COUNT(*) FROM clipboard_items{where_sql}");
         let mut statement = self.connection.prepare(&sql)?;
         statement
-            .query_row(params_from_iter(bind_values.iter()), |row| row.get::<_, i64>(0))
+            .query_row(params_from_iter(bind_values.iter()), |row| {
+                row.get::<_, i64>(0)
+            })
             .map(|count| count.max(0) as usize)
             .map_err(Into::into)
     }
@@ -735,7 +750,10 @@ impl SqliteHistoryStore {
 
         let tx = self.connection.unchecked_transaction()?;
         if should_delete {
-            tx.execute("DELETE FROM clipboard_items WHERE id = ?1", params![deletion.id])?;
+            tx.execute(
+                "DELETE FROM clipboard_items WHERE id = ?1",
+                params![deletion.id],
+            )?;
         }
         if should_store_tombstone {
             tx.execute(
@@ -925,12 +943,13 @@ impl SqliteHistoryStore {
 }
 
 fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
-    let image_data_url = image_data_url_from_bytes(item.image_preview_png.as_deref()).or_else(|| {
-        item.html_text
-            .as_deref()
-            .filter(|_| item.kind == "mixed")
-            .and_then(html_image_preview_data_url)
-    });
+    let image_data_url =
+        image_data_url_from_bytes(item.image_preview_png.as_deref()).or_else(|| {
+            item.html_text
+                .as_deref()
+                .filter(|_| item.kind == "mixed")
+                .and_then(html_image_preview_data_url)
+        });
     let sensitive_mask =
         build_sensitive_text_mask(&item.kind, &item.preview, item.full_text.as_deref());
 
@@ -958,9 +977,12 @@ fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
 }
 
 fn image_data_url_from_bytes(bytes: Option<&[u8]>) -> Option<String> {
-    bytes
-        .filter(|value| !value.is_empty())
-        .map(|value| format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(value)))
+    bytes.filter(|value| !value.is_empty()).map(|value| {
+        format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(value)
+        )
+    })
 }
 
 fn build_history_filters(payload: &HistoryQueryPayload) -> (String, Vec<rusqlite::types::Value>) {
@@ -1012,7 +1034,10 @@ fn build_history_filters(payload: &HistoryQueryPayload) -> (String, Vec<rusqlite
     {
         let placeholder = bind_values.len() + 1;
         clauses.push(format!("tag_colors LIKE '%' || ?{placeholder} || '%'"));
-        bind_values.push(rusqlite::types::Value::Text(format!("\"{}\"", tag_color.to_ascii_lowercase())));
+        bind_values.push(rusqlite::types::Value::Text(format!(
+            "\"{}\"",
+            tag_color.to_ascii_lowercase()
+        )));
     }
 
     if clauses.is_empty() {
@@ -1510,8 +1535,12 @@ mod tests {
             .clone();
 
         store.increment_copy_count(&beta_id).expect("copy beta");
-        store.increment_copy_count(&alpha_id).expect("copy alpha once");
-        store.increment_copy_count(&alpha_id).expect("copy alpha twice");
+        store
+            .increment_copy_count(&alpha_id)
+            .expect("copy alpha once");
+        store
+            .increment_copy_count(&alpha_id)
+            .expect("copy alpha twice");
 
         let payload = crate::models::HistoryQueryPayload {
             copy_stats_enabled: true,
@@ -1554,8 +1583,12 @@ mod tests {
             .clone();
 
         store.toggle_pin(&beta_id).expect("pin beta");
-        store.increment_copy_count(&alpha_id).expect("copy alpha once");
-        store.increment_copy_count(&alpha_id).expect("copy alpha twice");
+        store
+            .increment_copy_count(&alpha_id)
+            .expect("copy alpha once");
+        store
+            .increment_copy_count(&alpha_id)
+            .expect("copy alpha twice");
 
         let payload = crate::models::HistoryQueryPayload {
             copy_stats_enabled: true,
@@ -1602,8 +1635,12 @@ mod tests {
             .clone();
 
         store.increment_paste_count(&beta_id).expect("paste beta");
-        store.increment_paste_count(&alpha_id).expect("paste alpha once");
-        store.increment_paste_count(&alpha_id).expect("paste alpha twice");
+        store
+            .increment_paste_count(&alpha_id)
+            .expect("paste alpha once");
+        store
+            .increment_paste_count(&alpha_id)
+            .expect("paste alpha twice");
 
         let payload = crate::models::HistoryQueryPayload {
             paste_stats_enabled: true,
@@ -1646,8 +1683,12 @@ mod tests {
             .clone();
 
         store.toggle_pin(&beta_id).expect("pin beta");
-        store.increment_paste_count(&alpha_id).expect("paste alpha once");
-        store.increment_paste_count(&alpha_id).expect("paste alpha twice");
+        store
+            .increment_paste_count(&alpha_id)
+            .expect("paste alpha once");
+        store
+            .increment_paste_count(&alpha_id)
+            .expect("paste alpha twice");
 
         let payload = crate::models::HistoryQueryPayload {
             paste_stats_enabled: true,

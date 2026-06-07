@@ -113,7 +113,7 @@ mod windows_clipboard_watch {
                 let context = &*context_ptr;
                 let app = context.app.clone();
                 let shared = context.shared.clone();
-            std::thread::spawn(move || process_clipboard_change(app, shared, true, true));
+                std::thread::spawn(move || process_clipboard_change(app, shared, true, true));
             }
             return 0;
         }

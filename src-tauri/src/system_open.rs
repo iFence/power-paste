@@ -157,7 +157,9 @@ fn spawn_linux_open_candidates(target: &std::ffi::OsStr, target_kind: &str) -> R
     }
 
     if let Some(error) = last_error {
-        Err(error.context(format!("failed to open linux {target_kind} with desktop opener")))
+        Err(error.context(format!(
+            "failed to open linux {target_kind} with desktop opener"
+        )))
     } else {
         anyhow::bail!("failed to find a desktop opener for linux {target_kind}")
     }

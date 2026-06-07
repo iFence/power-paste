@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, State};
 
-use crate::{
-    models::{AppError, ClipboardHistoryPageDto, HistoryQueryPayload, SharedState},
-};
+use crate::models::{AppError, ClipboardHistoryPageDto, HistoryQueryPayload, SharedState};
 
 // 历史记录按页从数据库读取，避免记录较多时一次性加载全部内容。
 #[tauri::command]
