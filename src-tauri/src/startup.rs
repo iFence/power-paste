@@ -4,9 +4,11 @@ use tauri_plugin_autostart::ManagerExt;
 
 use crate::clipboard::launch_on_startup_supported;
 
+pub(crate) const BACKGROUND_STARTUP_ARG: &str = "--background-startup";
+
 fn should_apply_launch_on_startup(current_enabled: Option<bool>, target_enabled: bool) -> bool {
     match current_enabled {
-        Some(current_enabled) => current_enabled != target_enabled,
+        Some(current_enabled) => target_enabled || current_enabled != target_enabled,
         None => target_enabled,
     }
 }
@@ -27,6 +29,7 @@ pub(crate) fn set_launch_on_startup(app: &AppHandle, enabled: bool) -> Result<()
     }
 
     if enabled {
+        let _ = autostart.disable();
         autostart.enable()?;
     } else {
         autostart.disable()?;
@@ -50,8 +53,12 @@ mod tests {
 
     #[test]
     fn skips_transition_when_state_already_matches_target() {
-        assert!(!should_apply_launch_on_startup(Some(true), true));
         assert!(!should_apply_launch_on_startup(Some(false), false));
+    }
+
+    #[test]
+    fn reapplies_when_target_is_enabled_to_refresh_arguments() {
+        assert!(should_apply_launch_on_startup(Some(true), true));
     }
 
     #[test]

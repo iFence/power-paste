@@ -42,7 +42,7 @@ use commands::{
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto};
 use repository::SqliteHistoryStore;
 use runtime::{configure_window, toggle_panel};
-use startup::set_launch_on_startup;
+use startup::{set_launch_on_startup, BACKGROUND_STARTUP_ARG};
 use storage::{load_settings, save_settings};
 
 // Keeps the frontend debug switches and the native WebView settings in sync.
@@ -94,15 +94,30 @@ pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
     debug_enabled
 }
 
+fn is_background_startup_args<I, S>(args: I) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    args.into_iter()
+        .any(|arg| arg.as_ref() == BACKGROUND_STARTUP_ARG)
+}
+
 // The crate root only assembles modules, shared state and Tauri plugins.
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if is_background_startup_args(args.iter().map(String::as_str)) {
+                if let Some(window) = app.get_webview_window(models::PANEL_LABEL) {
+                    let _ = window.hide();
+                }
+                return;
+            }
             let _ = toggle_panel(app);
         }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            None::<Vec<&'static str>>,
+            Some(vec![BACKGROUND_STARTUP_ARG]),
         ))
         .plugin(tauri_plugin_clipboard_next::init())
         .plugin(tauri_plugin_dialog::init())

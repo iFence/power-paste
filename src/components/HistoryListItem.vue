@@ -4,6 +4,7 @@ import { formatRelativeTime } from '../utils/format'
 import { looksLikeCode, previewHtml } from '../utils/codePreview'
 import { resolvePreviewColor } from '../utils/color'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
+import { buildHistoryDragData, hasHistoryDragData, imageDataUrlToDragFile } from '../utils/historyDrag'
 
 const props = defineProps({
   autoMaskSensitiveText: { type: Boolean, required: true },
@@ -30,6 +31,8 @@ const imagePreviewStyle = ref({})
 const showImagePreview = ref(false)
 const showTagPicker = ref(false)
 const revealSensitiveText = ref(false)
+const isDragging = ref(false)
+let dragImageElement = null
 const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
 const tagColors = computed(() => Array.isArray(props.item?.tagColors) ? props.item.tagColors : [])
 const tagColorOptions = HISTORY_TAG_COLORS
@@ -118,6 +121,7 @@ const pasteCountLabel = computed(() => {
 
   return props.t('pasteCountLabel', { count })
 })
+const canDragHistoryItem = computed(() => hasHistoryDragData(props.item))
 
 function formatImageSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -326,6 +330,75 @@ function toggleSensitiveTextPreview() {
   revealSensitiveText.value = !revealSensitiveText.value
 }
 
+function isInteractiveDragSource(target) {
+  return target instanceof Element && Boolean(target.closest('button, input, textarea, select, a, .entry-actions'))
+}
+
+function clearDragImageElement() {
+  dragImageElement?.remove()
+  dragImageElement = null
+}
+
+function createDragImageElement() {
+  clearDragImageElement()
+  const preview = document.createElement('div')
+  preview.className = 'history-drag-preview'
+  preview.textContent = textPreviewValue.value || props.item?.preview || props.t('clipboardFallback')
+  document.body.append(preview)
+  dragImageElement = preview
+  return preview
+}
+
+function addImageDragFile(dataTransfer) {
+  if (!props.item?.imageDataUrl || !dataTransfer.items?.add) {
+    return false
+  }
+
+  try {
+    const file = imageDataUrlToDragFile(props.item.imageDataUrl)
+    if (!file) {
+      return false
+    }
+
+    dataTransfer.items.add(file)
+    return true
+  } catch (error) {
+    console.warn('添加图片拖拽文件失败', error)
+    return false
+  }
+}
+
+function handleDragStart(event) {
+  if (isInteractiveDragSource(event.target) || !event.dataTransfer) {
+    event.preventDefault()
+    return
+  }
+
+  event.dataTransfer.clearData()
+  const dragData = buildHistoryDragData(props.item)
+  const imageFileAdded = addImageDragFile(event.dataTransfer)
+  if (!dragData.length && !imageFileAdded) {
+    event.preventDefault()
+    return
+  }
+
+  emit('select', props.item.id)
+  event.dataTransfer.effectAllowed = 'copy'
+  for (const item of dragData) {
+    event.dataTransfer.setData(item.type, item.value)
+  }
+
+  const dragImage = createDragImageElement()
+  event.dataTransfer.setDragImage(dragImage, 12, 12)
+  isDragging.value = true
+  window.setTimeout(clearDragImageElement, 0)
+}
+
+function handleDragEnd() {
+  isDragging.value = false
+  clearDragImageElement()
+}
+
 onMounted(() => {
   document.addEventListener('pointerdown', handleDocumentPointerDown)
   document.addEventListener('keydown', handleDocumentKeydown)
@@ -338,6 +411,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleDocumentKeydown)
   document.removeEventListener('scroll', handleDocumentScroll, true)
   window.removeEventListener('resize', handleWindowResize)
+  clearDragImageElement()
 })
 </script>
 
@@ -346,8 +420,9 @@ onBeforeUnmount(() => {
     ref="entryRef"
     :data-history-id="item.id"
     :data-preview-url="item.imageDataUrl || ''"
+    :draggable="canDragHistoryItem"
     class="history-entry"
-    :class="{ active: selected, 'is-paste-disabled': !canDirectPaste }"
+    :class="{ active: selected, 'is-dragging': isDragging, 'is-paste-disabled': !canDirectPaste }"
     :title="canDirectPaste ? undefined : unsupportedDirectPasteMessage"
     :aria-label="canDirectPaste ? undefined : unsupportedDirectPasteMessage"
     @click.left="emit('select', item.id)"
@@ -355,6 +430,8 @@ onBeforeUnmount(() => {
       emit('select', item.id);
       if (canDirectPaste) emit('paste', item.id);
     "
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
   >
     <div class="entry-heading">
       <div class="entry-badges">
@@ -430,6 +507,7 @@ onBeforeUnmount(() => {
         :src="item.imageDataUrl"
         alt=""
         class="entry-thumb"
+        draggable="false"
         :data-image-width="item.imageWidth || ''"
         :data-image-height="item.imageHeight || ''"
         @mouseenter="handlePreviewMouseEnter"

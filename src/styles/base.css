@@ -1157,10 +1157,12 @@ select {
     padding: 9px 11px 0;
     border-radius: 16px;
     box-shadow: none;
+    cursor: grab;
     transition:
         transform 120ms ease,
         border-color 120ms ease,
         background-color 120ms ease,
+        opacity 120ms ease,
         box-shadow 120ms ease;
 }
 
@@ -1180,8 +1182,33 @@ select {
         color-mix(in srgb, var(--accent-primary) 42%, transparent);
 }
 
+.history-entry.is-dragging {
+    cursor: grabbing;
+    opacity: 0.72;
+}
+
 .history-entry.is-paste-disabled {
-    cursor: default;
+    cursor: grab;
+}
+
+.history-drag-preview {
+    position: fixed;
+    top: -1000px;
+    left: -1000px;
+    max-width: 220px;
+    padding: 7px 9px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 8px;
+    background: var(--app-panel-bg);
+    color: var(--app-text);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 9999;
 }
 
 .entry-heading,
@@ -2490,7 +2517,7 @@ select {
 
 .confirm-modal-footer {
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
     flex-wrap: nowrap;
     gap: 12px;
 }
