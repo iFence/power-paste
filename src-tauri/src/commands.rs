@@ -4,7 +4,7 @@ mod lan_transfer;
 mod settings;
 mod sync;
 
-pub(crate) use clipboard::{copy_item, open_external_url, paste_item};
+pub(crate) use clipboard::{copy_item, open_external_url, paste_item, prepare_image_drag_file};
 pub(crate) use history::{
     clear_history, delete_item, get_history, load_item_by_id, toggle_favorite, toggle_pin,
     update_item_tags, update_text_item,

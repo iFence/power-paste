@@ -11,6 +11,7 @@
     "tauri": "node scripts/tauri-cli.mjs"
   },
   "dependencies": {
+    "@crabnebula/tauri-plugin-drag": "^2.1.0",
     "@tauri-apps/api": "2.6.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "dompurify": "^3.4.1",

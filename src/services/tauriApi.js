@@ -1,6 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { startDrag } from "@crabnebula/tauri-plugin-drag";
 
 export function getAppVersion() {
   return getVersion();
@@ -120,6 +121,18 @@ export function copyItem(id) {
 
 export function pasteItem(id) {
   return invoke("paste_item", { id });
+}
+
+export function prepareImageDragFile(id) {
+  return invoke("prepare_image_drag_file", { id });
+}
+
+export function startNativeFileDrag(paths, iconPath) {
+  return startDrag({
+    item: paths,
+    icon: iconPath || paths[0],
+    mode: "copy",
+  });
 }
 
 export function openExternalUrl(url) {

@@ -4,7 +4,8 @@ import { formatRelativeTime } from '../utils/format'
 import { looksLikeCode, previewHtml } from '../utils/codePreview'
 import { resolvePreviewColor } from '../utils/color'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
-import { buildHistoryDragData, hasHistoryDragData, imageDataUrlToDragFile } from '../utils/historyDrag'
+import { prepareImageDragFile, startNativeFileDrag } from '../services/tauriApi'
+import { buildHistoryDragData, filePathToUri, hasHistoryDragData } from '../utils/historyDrag'
 
 const props = defineProps({
   autoMaskSensitiveText: { type: Boolean, required: true },
@@ -32,7 +33,10 @@ const showImagePreview = ref(false)
 const showTagPicker = ref(false)
 const revealSensitiveText = ref(false)
 const isDragging = ref(false)
+const preparedImageDragPath = ref('')
+const preparedImageDragUri = ref('')
 let dragImageElement = null
+let preparingImageDragFile = null
 const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
 const tagColors = computed(() => Array.isArray(props.item?.tagColors) ? props.item.tagColors : [])
 const tagColorOptions = HISTORY_TAG_COLORS
@@ -349,23 +353,64 @@ function createDragImageElement() {
   return preview
 }
 
-function addImageDragFile(dataTransfer) {
-  if (!props.item?.imageDataUrl || !dataTransfer.items?.add) {
+function canUsePreparedImageDragFile() {
+  return Boolean(props.item?.imageDataUrl && preparedImageDragPath.value)
+}
+
+async function prepareImageDragUri() {
+  if (!props.item?.imageDataUrl || preparingImageDragFile) {
+    return
+  }
+
+  preparingImageDragFile = prepareImageDragFile(props.item.id)
+    .then((path) => {
+      preparedImageDragPath.value = path
+      preparedImageDragUri.value = filePathToUri(path)
+    })
+    .catch((error) => {
+      console.warn('准备图片拖拽文件失败', error)
+      preparedImageDragPath.value = ''
+      preparedImageDragUri.value = ''
+    })
+    .finally(() => {
+      preparingImageDragFile = null
+    })
+
+  await preparingImageDragFile
+}
+
+function handlePointerDown(event) {
+  if (isInteractiveDragSource(event.target)) {
+    return
+  }
+
+  void prepareImageDragUri()
+}
+
+function addImageDragUri(dataTransfer) {
+  if (!canUsePreparedImageDragFile() || !preparedImageDragUri.value) {
     return false
   }
 
-  try {
-    const file = imageDataUrlToDragFile(props.item.imageDataUrl)
-    if (!file) {
-      return false
-    }
+  dataTransfer.setData('text/uri-list', `${preparedImageDragUri.value}\r\n`)
+  return true
+}
 
-    dataTransfer.items.add(file)
-    return true
-  } catch (error) {
-    console.warn('添加图片拖拽文件失败', error)
+function startPreparedImageDrag() {
+  if (!canUsePreparedImageDragFile()) {
     return false
   }
+
+  isDragging.value = true
+  emit('select', props.item.id)
+  startNativeFileDrag([preparedImageDragPath.value], preparedImageDragPath.value)
+    .catch((error) => {
+      console.warn('启动原生图片拖拽失败', error)
+    })
+    .finally(() => {
+      isDragging.value = false
+    })
+  return true
 }
 
 function handleDragStart(event) {
@@ -374,11 +419,17 @@ function handleDragStart(event) {
     return
   }
 
+  if (startPreparedImageDrag()) {
+    event.preventDefault()
+    return
+  }
+
   event.dataTransfer.clearData()
   const dragData = buildHistoryDragData(props.item)
-  const imageFileAdded = addImageDragFile(event.dataTransfer)
-  if (!dragData.length && !imageFileAdded) {
+  const imageUriAdded = addImageDragUri(event.dataTransfer)
+  if (!dragData.length && !imageUriAdded) {
     event.preventDefault()
+    void prepareImageDragUri()
     return
   }
 
@@ -404,6 +455,7 @@ onMounted(() => {
   document.addEventListener('keydown', handleDocumentKeydown)
   document.addEventListener('scroll', handleDocumentScroll, true)
   window.addEventListener('resize', handleWindowResize)
+  void prepareImageDragUri()
 })
 
 onBeforeUnmount(() => {
@@ -430,6 +482,7 @@ onBeforeUnmount(() => {
       emit('select', item.id);
       if (canDirectPaste) emit('paste', item.id);
     "
+    @pointerdown="handlePointerDown"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
   >

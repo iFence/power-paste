@@ -43,21 +43,23 @@ export function hasHistoryDragData(item) {
   return buildHistoryDragData(item).length > 0
 }
 
-export function imageDataUrlToDragFile(dataUrl, fileName = 'power-paste-image.png') {
-  const value = nonEmptyString(dataUrl)
-  const match = value.match(/^data:([^;,]+)?(;base64)?,(.*)$/)
-  if (!match) {
-    return null
+function encodePathPart(value) {
+  return encodeURIComponent(value).replaceAll('%2F', '/')
+}
+
+export function filePathToUri(path) {
+  const value = nonEmptyString(path)
+  if (!value) {
+    return ''
   }
 
-  const mimeType = match[1] || 'image/png'
-  const isBase64 = Boolean(match[2])
-  const body = match[3] || ''
-  const binary = isBase64 ? atob(body) : decodeURIComponent(body)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
+  if (/^[A-Za-z]:[\\/]/.test(value)) {
+    return `file:///${encodePathPart(value.replaceAll('\\', '/'))}`
   }
 
-  return new File([bytes], fileName, { type: mimeType })
+  if (value.startsWith('/')) {
+    return `file://${encodePathPart(value)}`
+  }
+
+  return `file://${encodePathPart(value.replaceAll('\\', '/'))}`
 }
