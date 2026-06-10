@@ -548,6 +548,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
 
   watch(selectedId, () => {
     void scrollSelectedIntoView();
+    syncPersistedHistoryState(history.value);
   });
 
   watch([query, activeFilterTab, activeTagFilter], () => {
@@ -569,10 +570,6 @@ export function useHistory({ platformCapabilities, settings, t }) {
       });
     },
   );
-
-  watch(selectedId, () => {
-    syncPersistedHistoryState(history.value);
-  });
 
   watch(filteredHistory, (items) => {
     if (!items.length && hasMoreHistory.value && !loading.value && loadedHistoryOffset.value > 0) {

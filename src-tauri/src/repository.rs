@@ -696,29 +696,35 @@ impl SqliteHistoryStore {
     }
 
     pub(crate) fn increment_copy_count(&self, id: &str) -> Result<ClipboardItemDto> {
-        let affected = self.connection.execute(
-            "UPDATE clipboard_items SET copy_count = copy_count + 1 WHERE id = ?1",
-            params![id],
-        )?;
-        if affected == 0 {
-            anyhow::bail!("Clipboard item not found");
-        }
-
-        self.get_history_item(id)?
-            .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))
+        self.increment_stat_count(id, "copy_count")
     }
 
     pub(crate) fn increment_paste_count(&self, id: &str) -> Result<ClipboardItemDto> {
-        let affected = self.connection.execute(
-            "UPDATE clipboard_items SET paste_count = paste_count + 1 WHERE id = ?1",
-            params![id],
-        )?;
-        if affected == 0 {
-            anyhow::bail!("Clipboard item not found");
-        }
+        self.increment_stat_count(id, "paste_count")
+    }
 
-        self.get_history_item(id)?
-            .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))
+    fn increment_stat_count(&self, id: &str, column: &str) -> Result<ClipboardItemDto> {
+        let sql = format!(
+            r#"
+            UPDATE clipboard_items SET {column} = {column} + 1 WHERE id = ?1
+            RETURNING id, kind, created_at, preview, full_text, html_text,
+                      CASE
+                        WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0
+                          THEN image_preview_png
+                        ELSE image_png
+                      END,
+                      image_width, image_height,
+                      length(COALESCE(image_original_bytes, image_png)),
+                      source_app, source_icon_data_url,
+                      pinned, favorite, tag_colors, copy_count, paste_count
+            "#
+        );
+        let mut statement = self.connection.prepare(&sql)?;
+        let row = statement
+            .query_row(params![id], Self::row_to_history_list_row)
+            .optional()?
+            .ok_or_else(|| anyhow::anyhow!("Clipboard item not found"))?;
+        Ok(history_list_row_to_dto(row))
     }
 
     pub(crate) fn apply_synced_deletion(&self, deletion: &DeletedClipboardItem) -> Result<bool> {
