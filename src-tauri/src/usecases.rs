@@ -70,6 +70,17 @@ impl TargetTrackerPort for DefaultTargetTracker {
 
 struct DefaultSettingsRuntime;
 
+fn parse_optional_shortcut(value: &str, label: &str) -> Result<Option<Shortcut>> {
+    if value.trim().is_empty() {
+        return Ok(None);
+    }
+
+    value
+        .parse::<Shortcut>()
+        .map(Some)
+        .map_err(|error| anyhow::anyhow!("invalid_{label}: {error}"))
+}
+
 impl SettingsRuntimePort for DefaultSettingsRuntime {
     fn apply(
         &self,
@@ -79,17 +90,43 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
     ) -> Result<()> {
         let settings = settings.clone().normalized();
         let capabilities = platform_capabilities();
-        let previous_shortcut = state.settings.lock().unwrap().global_shortcut.clone();
+        let previous_settings = state.settings.lock().unwrap().clone();
         let manager = app.global_shortcut();
-        if let Ok(shortcut) = previous_shortcut.parse::<Shortcut>() {
+        let global_shortcut =
+            parse_optional_shortcut(&settings.global_shortcut, "global_shortcut")?;
+        let quick_paste_shortcut =
+            parse_optional_shortcut(&settings.quick_paste_shortcut, "quick_paste_shortcut")?;
+
+        if global_shortcut.is_some()
+            && quick_paste_shortcut.is_some()
+            && settings.global_shortcut == settings.quick_paste_shortcut
+        {
+            anyhow::bail!("duplicate_shortcut");
+        }
+
+        if let Ok(shortcut) = previous_settings.global_shortcut.parse::<Shortcut>() {
             let _ = manager.unregister(shortcut);
         }
-        if !settings.global_shortcut.trim().is_empty() {
-            let shortcut = settings
-                .global_shortcut
-                .parse::<Shortcut>()
-                .map_err(|error| anyhow::anyhow!("Invalid shortcut: {error}"))?;
-            manager.register(shortcut)?;
+        if let Ok(shortcut) = previous_settings.quick_paste_shortcut.parse::<Shortcut>() {
+            let _ = manager.unregister(shortcut);
+        }
+        let register_result = (|| -> Result<()> {
+            if let Some(shortcut) = global_shortcut {
+                manager.register(shortcut)?;
+            }
+            if let Some(shortcut) = quick_paste_shortcut {
+                manager.register(shortcut)?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = register_result {
+            if let Ok(shortcut) = previous_settings.global_shortcut.parse::<Shortcut>() {
+                let _ = manager.register(shortcut);
+            }
+            if let Ok(shortcut) = previous_settings.quick_paste_shortcut.parse::<Shortcut>() {
+                let _ = manager.register(shortcut);
+            }
+            return Err(error);
         }
 
         if settings.launch_on_startup && !capabilities.supports_launch_on_startup {

@@ -67,6 +67,13 @@ const props = defineProps({
 const activeCategory = ref(window.localStorage.getItem(SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY) || 'general')
 const showUpdateConfirm = ref(false)
 const showUpdateFeedback = ref(false)
+const tooltipState = ref({
+  visible: false,
+  text: '',
+  top: 0,
+  left: 0,
+  placement: 'top',
+})
 const updateDebugVersionDraft = ref('')
 const updateDebugBodyDraft = ref('')
 const maxHistoryItemsDraft = ref(200)
@@ -89,7 +96,6 @@ const languageToggleIndex = computed(() =>
 const debugToggleIndex = computed(() => (props.settings.debugEnabled ? 0 : 1))
 const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
-const autoMaskSensitiveTextToggleIndex = computed(() => (props.settings.autoMaskSensitiveText ? 0 : 1))
 const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0 : 1))
 const pasteStatsToggleIndex = computed(() => (props.settings.pasteStatsEnabled ? 0 : 1))
 const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
@@ -177,6 +183,10 @@ const updateBadgeLabel = computed(() => {
 
   return props.showUpdateAction ? props.updateLabel : props.t('checkForUpdates')
 })
+const tooltipStyle = computed(() => ({
+  top: `${tooltipState.value.top}px`,
+  left: `${tooltipState.value.left}px`,
+}))
 
 function isPending(key) {
   return props.savingSettings && (!key || props.pendingSettingKey === key)
@@ -258,10 +268,6 @@ async function commitMaxImageBytes() {
 }
 
 async function updateTagLabel(color, value) {
-  if (color === 'red') {
-    return
-  }
-
   await props.applySettingPatch(
     {
       tagLabels: {
@@ -274,13 +280,6 @@ async function updateTagLabel(color, value) {
 }
 
 async function handleTagLabelChange(color, event) {
-  if (color === 'red') {
-    if (event?.target && typeof event.target.value === 'string') {
-      event.target.value = resolvedTagLabel(color)
-    }
-    return
-  }
-
   const value =
     typeof event?.target?.value === 'string' ? event.target.value.slice(0, 5) : ''
   if (event?.target && typeof event.target.value === 'string') {
@@ -297,12 +296,45 @@ function tagToneClass(color) {
   return `history-tag-${color}`
 }
 
-async function clearGlobalShortcut() {
-  props.endShortcutRecording()
-  await updateSetting('globalShortcut', '', 'globalShortcut')
+function findTooltipTarget(target) {
+  return target instanceof Element ? target.closest('.setting-help-icon') : null
 }
 
-async function handleShortcutKeydown(event) {
+function showSettingTooltip(target) {
+  const tooltipTarget = findTooltipTarget(target)
+  const text = tooltipTarget?.getAttribute('data-tooltip')?.trim()
+  if (!tooltipTarget || !text) {
+    return
+  }
+
+  const rect = tooltipTarget.getBoundingClientRect()
+  const tooltipWidth = Math.min(280, Math.max(160, window.innerWidth - 20))
+  const left = Math.min(
+    window.innerWidth - tooltipWidth / 2 - 10,
+    Math.max(tooltipWidth / 2 + 10, rect.left + rect.width / 2),
+  )
+  const placeBelow = rect.top < 64
+  tooltipState.value = {
+    visible: true,
+    text,
+    top: placeBelow ? rect.bottom + 10 : rect.top - 10,
+    left,
+    placement: placeBelow ? 'bottom' : 'top',
+  }
+}
+
+function hideSettingTooltip(target) {
+  if (findTooltipTarget(target)) {
+    tooltipState.value.visible = false
+  }
+}
+
+async function clearShortcut(field) {
+  props.endShortcutRecording()
+  await updateSetting(field, '', field)
+}
+
+async function handleShortcutKeydown(event, field) {
   event.preventDefault()
   event.stopPropagation()
 
@@ -312,7 +344,7 @@ async function handleShortcutKeydown(event) {
   }
 
   if (event.key === 'Backspace' || event.key === 'Delete') {
-    await clearGlobalShortcut()
+    await clearShortcut(field)
     return
   }
 
@@ -330,13 +362,16 @@ async function handleShortcutKeydown(event) {
     parts.push(props.platformCapabilities.platform === 'macos' ? 'Command' : 'Super')
   }
 
-  const mainKey = normalizeShortcutKey(event.key, props.platformCapabilities.platform)
+  const mainKey =
+    event.code === 'Backquote'
+      ? '`'
+      : normalizeShortcutKey(event.key, props.platformCapabilities.platform)
   if (!mainKey || ['Ctrl', 'Alt', 'Shift', 'Command', 'Super'].includes(mainKey)) {
     return
   }
 
   props.endShortcutRecording()
-  await updateSetting('globalShortcut', [...parts, mainKey].join('+'), 'globalShortcut')
+  await updateSetting(field, [...parts, mainKey].join('+'), field)
 }
 
 async function resetSettings() {
@@ -478,7 +513,13 @@ watch(
 </script>
 
 <template>
-  <section class="settings-page">
+  <section
+    class="settings-page"
+    @mouseover="showSettingTooltip($event.target)"
+    @focusin="showSettingTooltip($event.target)"
+    @mouseout="hideSettingTooltip($event.target)"
+    @focusout="hideSettingTooltip($event.target)"
+  >
     <header class="settings-page-topbar">
       <button
         class="toolbar-icon-button settings-page-back"
@@ -717,40 +758,6 @@ watch(
           <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">
-                <span class="meta-label">{{ t('autoMaskSensitiveText') }}</span>
-                <span class="setting-help-icon" :title="t('autoMaskSensitiveTextTip')" tabindex="0">?</span>
-              </span>
-            </div>
-            <div
-              class="setting-toggle"
-              role="group"
-              :aria-label="t('autoMaskSensitiveText')"
-              :style="segmentedToggleStyle(autoMaskSensitiveTextToggleIndex, 2)"
-            >
-              <button
-                type="button"
-                class="setting-toggle-option"
-                :class="{ active: settings.autoMaskSensitiveText }"
-                :disabled="isPending('autoMaskSensitiveText')"
-                @click="updateSetting('autoMaskSensitiveText', true, 'autoMaskSensitiveText')"
-              >
-                {{ t('toggleOn') }}
-              </button>
-              <button
-                type="button"
-                class="setting-toggle-option"
-                :class="{ active: !settings.autoMaskSensitiveText }"
-                :disabled="isPending('autoMaskSensitiveText')"
-                @click="updateSetting('autoMaskSensitiveText', false, 'autoMaskSensitiveText')"
-              >
-                {{ t('toggleOff') }}
-              </button>
-            </div>
-          </section>
-
-          <section class="setting-card wide">
-            <div class="setting-head">
-              <span class="setting-label-row">
                 <span class="meta-label">{{ t('resetSettings') }}</span>
               </span>
             </div>
@@ -781,12 +788,12 @@ watch(
                   <span>{{ t(`tagDefaultName${color[0].toUpperCase()}${color.slice(1)}`) }}</span>
                 </span>
                 <input
-                  :value="color === 'red' ? resolvedTagLabel(color) : props.settings.tagLabels?.[color] ?? ''"
+                  :value="props.settings.tagLabels?.[color] ?? ''"
                   type="text"
                   class="tag-settings-input"
                   maxlength="5"
                   :placeholder="resolvedTagLabel(color)"
-                  :disabled="color === 'red' || isPending(`tagLabels.${color}`)"
+                  :disabled="isPending(`tagLabels.${color}`)"
                   @change="handleTagLabelChange(color, $event)"
                   @keydown.enter.prevent="handleTagLabelChange(color, $event)"
                 />
@@ -800,7 +807,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('copyStatsEnabled') }}</span>
-                <span class="setting-help-icon" :title="t('copyStatsEnabledTip')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('copyStatsEnabledTip')" :aria-label="t('copyStatsEnabledTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
             </div>
             <div
@@ -834,7 +845,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('pasteStatsEnabled') }}</span>
-                <span class="setting-help-icon" :title="t('pasteStatsEnabledTip')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('pasteStatsEnabledTip')" :aria-label="t('pasteStatsEnabledTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
             </div>
             <div
@@ -904,7 +919,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('maxImageBytes') }} ({{ t('megabytesShort') }})</span>
-                <span class="setting-help-icon" :title="t('maxImageBytesTip')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('maxImageBytesTip')" :aria-label="t('maxImageBytesTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
               <span v-if="!hasClipboardWriteSupport" class="setting-note">
                 {{ t('unsupportedClipboardWrite') }}
@@ -990,7 +1009,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('webdavServerUrl') }}</span>
-                <span class="setting-help-icon" :title="t('webdavServerUrlTip')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('webdavServerUrlTip')" :aria-label="t('webdavServerUrlTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
             </div>
             <input
@@ -1097,7 +1120,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('lanTransferDownloadDir') }}</span>
-                <span class="setting-help-icon" :title="t('lanTransferDownloadDirTip')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanTransferDownloadDirTip')" :aria-label="t('lanTransferDownloadDirTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
             </div>
             <div class="path-picker-wrap">
@@ -1142,7 +1169,7 @@ watch(
                 :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
                 @focus="beginShortcutRecording"
                 @blur="endShortcutRecording"
-                @keydown="handleShortcutKeydown"
+                @keydown="handleShortcutKeydown($event, 'globalShortcut')"
               />
               <button
                 v-if="settings.globalShortcut"
@@ -1151,7 +1178,43 @@ watch(
                 :aria-label="t('clear')"
                 :disabled="isPending('globalShortcut')"
                 @mousedown.prevent
-                @click="clearGlobalShortcut"
+                @click="clearShortcut('globalShortcut')"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('quickPasteShortcut') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('quickPasteShortcutTip')" :aria-label="t('quickPasteShortcutTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <div class="shortcut-input-wrap">
+              <input
+                :value="settings.quickPasteShortcut"
+                type="text"
+                readonly
+                :disabled="isPending('quickPasteShortcut')"
+                :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
+                @focus="beginShortcutRecording"
+                @blur="endShortcutRecording"
+                @keydown="handleShortcutKeydown($event, 'quickPasteShortcut')"
+              />
+              <button
+                v-if="settings.quickPasteShortcut"
+                type="button"
+                class="shortcut-clear-button"
+                :aria-label="t('clear')"
+                :disabled="isPending('quickPasteShortcut')"
+                @mousedown.prevent
+                @click="clearShortcut('quickPasteShortcut')"
               >
                 <span aria-hidden="true">×</span>
               </button>
@@ -1164,7 +1227,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('debugMode') }}</span>
-                <span class="setting-help-icon" :title="t('debugModeTip')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('debugModeTip')" :aria-label="t('debugModeTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
             </div>
             <div
@@ -1198,7 +1265,11 @@ watch(
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('updateDebugTitle') }}</span>
-                <span class="setting-help-icon" :title="t('updateDebugHint')" tabindex="0">?</span>
+                <span class="setting-help-icon" :data-tooltip="t('updateDebugHint')" :aria-label="t('updateDebugHint')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
               </span>
             </div>
             <div class="settings-wide-control">
@@ -1322,6 +1393,16 @@ watch(
           </button>
         </footer>
       </section>
+    </div>
+
+    <div
+      v-if="tooltipState.visible"
+      class="setting-help-tooltip"
+      :class="`placement-${tooltipState.placement}`"
+      :style="tooltipStyle"
+      role="tooltip"
+    >
+      {{ tooltipState.text }}
     </div>
   </section>
 </template>

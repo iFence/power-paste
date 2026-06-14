@@ -27,6 +27,10 @@ export function onWebdavSyncStatus(handler) {
   return listen("webdav-sync-status", handler);
 }
 
+export function onQuickPasteStarted(handler) {
+  return listen("quick-paste-started", handler);
+}
+
 export function getHistory(payload) {
   return invoke("get_history", { payload });
 }

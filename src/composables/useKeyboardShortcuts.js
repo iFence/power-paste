@@ -12,8 +12,12 @@ export function useKeyboardShortcuts({
   settings,
   showEditModal,
   isSettingsRoute,
+  isHomeRoute,
   leaveSettings,
   clearEditing,
+  quickPasteActive,
+  commitQuickPaste,
+  cancelQuickPaste,
 }) {
   function isEditableTarget(target) {
     return (
@@ -48,6 +52,17 @@ export function useKeyboardShortcuts({
   function handleKeydown(event) {
     const key = event.key.toLowerCase();
     const withPrimary = event.ctrlKey || event.metaKey;
+
+    if (quickPasteActive?.value) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelQuickPaste?.();
+        return;
+      }
+
+    }
+
     const inspectOrReloadShortcut =
       event.key === "F5" ||
       event.key === "F12" ||
@@ -64,6 +79,25 @@ export function useKeyboardShortcuts({
     if (withPrimary && key === "f") {
       event.preventDefault();
       document.getElementById("history-search")?.focus();
+    }
+
+    if (withPrimary && /^\d$/.test(event.key) && isHomeRoute?.value && !showEditModal.value) {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const items = filteredHistory.value.slice(0, 10);
+      const shortcutIndex = event.key === "0" ? 9 : Number(event.key) - 1;
+      const item = items[shortcutIndex];
+      if (!item) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedId(item.id);
+      void pasteItem(item.id);
+      return;
     }
 
     if (withPrimary && key === "c" && selectedId.value && !showEditModal.value) {
@@ -117,6 +151,18 @@ export function useKeyboardShortcuts({
     }
   }
 
+  function handleKeyup(event) {
+    if (!quickPasteActive?.value) {
+      return;
+    }
+
+    if (!event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      void commitQuickPaste?.();
+    }
+  }
+
   function handlePointerDown(event) {
     const target = event.target;
     if (!(target instanceof Element)) {
@@ -130,11 +176,13 @@ export function useKeyboardShortcuts({
 
   onMounted(() => {
     window.addEventListener("keydown", handleKeydown);
+    window.addEventListener("keyup", handleKeyup);
     window.addEventListener("pointerdown", handlePointerDown);
   });
 
   onUnmounted(() => {
     window.removeEventListener("keydown", handleKeydown);
+    window.removeEventListener("keyup", handleKeyup);
     window.removeEventListener("pointerdown", handlePointerDown);
   });
 

@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow,
-    WindowEvent,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Position, Size,
+    WebviewWindow, WindowEvent,
 };
 
 #[cfg(windows)]
@@ -18,7 +18,7 @@ use webview2_com::{
 use windows_core::Interface;
 
 use crate::{
-    models::{SharedState, PANEL_LABEL},
+    models::{SharedState, PANEL_LABEL, QUICK_PASTE_STARTED_EVENT},
     paste_target::remember_last_target_window,
     save_settings,
     update::spawn_manual_check,
@@ -75,6 +75,66 @@ fn ensure_panel_min_size(window: &WebviewWindow, scale_factor: f64) -> Result<()
     Ok(())
 }
 
+fn show_panel_near_cursor(app: &AppHandle, window: &WebviewWindow) -> Result<()> {
+    remember_last_target_window(app);
+    let cursor = app.cursor_position()?;
+    let monitor = app.monitor_from_point(cursor.x, cursor.y)?;
+
+    if let Some(monitor) = monitor {
+        let current_scale_factor = window.scale_factor()?;
+        let target_scale_factor = monitor.scale_factor();
+        let should_reapply_size = (current_scale_factor - target_scale_factor).abs() > 0.01;
+
+        if let Some(shared) = app.try_state::<Arc<SharedState>>() {
+            let settings = shared.settings.lock().unwrap().clone();
+            if let (Some(width), Some(height)) =
+                (settings.main_panel_width, settings.main_panel_height)
+            {
+                if should_reapply_size {
+                    // 仅兼容旧版保存的物理尺寸，新的逻辑尺寸不在跨屏打开时重复 set_size，
+                    // 避免系统 DPI 适配产生的 resize 再次被当成用户调整后写回。
+                    if let Some(saved_scale_factor) = settings.main_panel_scale_factor {
+                        let size = panel_physical_size_from_saved_physical(
+                            width,
+                            height,
+                            saved_scale_factor,
+                            target_scale_factor,
+                        );
+                        window.set_size(Size::Physical(size))?;
+                    }
+                }
+            } else {
+                ensure_panel_min_size(window, target_scale_factor)?;
+            }
+        } else {
+            ensure_panel_min_size(window, target_scale_factor)?;
+        }
+        let size = window.outer_size()?;
+        let screen_origin = monitor.position();
+        let screen_size = monitor.size();
+        let margin = 16i32;
+
+        let mut target_x = cursor.x.round() as i32 - 32;
+        let mut target_y = cursor.y.round() as i32 + 18;
+        let min_x = screen_origin.x + margin;
+        let min_y = screen_origin.y + margin;
+        let max_x = screen_origin.x + screen_size.width as i32 - size.width as i32 - margin;
+        let max_y = screen_origin.y + screen_size.height as i32 - size.height as i32 - margin;
+
+        target_x = target_x.clamp(min_x, max_x.max(min_x));
+        target_y = target_y.clamp(min_y, max_y.max(min_y));
+
+        window.set_position(Position::Physical(PhysicalPosition::new(
+            target_x, target_y,
+        )))?;
+    }
+
+    window.show()?;
+    window.unminimize()?;
+    window.set_focus()?;
+    Ok(())
+}
+
 // Toggles the panel near the cursor and remembers the previous app for later paste-back.
 pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
     let window = app
@@ -91,63 +151,28 @@ pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
             window.set_focus()?;
         }
     } else {
-        remember_last_target_window(app);
-        let cursor = app.cursor_position()?;
-        let monitor = app.monitor_from_point(cursor.x, cursor.y)?;
-
-        if let Some(monitor) = monitor {
-            let current_scale_factor = window.scale_factor()?;
-            let target_scale_factor = monitor.scale_factor();
-            let should_reapply_size = (current_scale_factor - target_scale_factor).abs() > 0.01;
-
-            if let Some(shared) = app.try_state::<Arc<SharedState>>() {
-                let settings = shared.settings.lock().unwrap().clone();
-                if let (Some(width), Some(height)) =
-                    (settings.main_panel_width, settings.main_panel_height)
-                {
-                    if should_reapply_size {
-                        // 仅兼容旧版保存的物理尺寸，新的逻辑尺寸不在跨屏打开时重复 set_size，
-                        // 避免系统 DPI 适配产生的 resize 再次被当成用户调整后写回。
-                        if let Some(saved_scale_factor) = settings.main_panel_scale_factor {
-                            let size = panel_physical_size_from_saved_physical(
-                                width,
-                                height,
-                                saved_scale_factor,
-                                target_scale_factor,
-                            );
-                            window.set_size(Size::Physical(size))?;
-                        }
-                    }
-                } else {
-                    ensure_panel_min_size(&window, target_scale_factor)?;
-                }
-            } else {
-                ensure_panel_min_size(&window, target_scale_factor)?;
-            }
-            let size = window.outer_size()?;
-            let screen_origin = monitor.position();
-            let screen_size = monitor.size();
-            let margin = 16i32;
-
-            let mut target_x = cursor.x.round() as i32 - 32;
-            let mut target_y = cursor.y.round() as i32 + 18;
-            let min_x = screen_origin.x + margin;
-            let min_y = screen_origin.y + margin;
-            let max_x = screen_origin.x + screen_size.width as i32 - size.width as i32 - margin;
-            let max_y = screen_origin.y + screen_size.height as i32 - size.height as i32 - margin;
-
-            target_x = target_x.clamp(min_x, max_x.max(min_x));
-            target_y = target_y.clamp(min_y, max_y.max(min_y));
-
-            window.set_position(Position::Physical(PhysicalPosition::new(
-                target_x, target_y,
-            )))?;
-        }
-
-        window.show()?;
-        window.set_focus()?;
+        show_panel_near_cursor(app, &window)?;
     }
 
+    Ok(())
+}
+
+// 显示主面板并通知前端进入快速粘贴模式。
+pub(crate) fn show_quick_paste_panel(app: &AppHandle) -> Result<()> {
+    let window = app
+        .get_webview_window(PANEL_LABEL)
+        .context("main window not found")?;
+
+    if window.is_visible()? {
+        remember_last_target_window(app);
+        window.show()?;
+        window.unminimize()?;
+        window.set_focus()?;
+    } else {
+        show_panel_near_cursor(app, &window)?;
+    }
+
+    app.emit(QUICK_PASTE_STARTED_EVENT, ())?;
     Ok(())
 }
 

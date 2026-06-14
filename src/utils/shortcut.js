@@ -23,6 +23,9 @@ export function normalizeShortcutKey(key, platform = 'unknown') {
   }
 
   const lower = key.toLowerCase();
+  if (lower === 'backquote' || lower === '`') {
+    return '`';
+  }
   if (lower === ' ') {
     return 'Space';
   }

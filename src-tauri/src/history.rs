@@ -15,7 +15,6 @@ use crate::{
     },
     repository::SqliteHistoryStore,
     rich_text::{first_html_image_src, html_contains_image_content, normalize_rich_text_payload},
-    sensitive_text::build_sensitive_text_mask,
     storage::{image_hash_from_png_bytes, mixed_hash, text_hash},
 };
 
@@ -697,8 +696,6 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
             .filter(|_| item.kind == "mixed")
             .and_then(html_image_preview_data_url)
     });
-    let sensitive_mask =
-        build_sensitive_text_mask(&item.kind, &item.preview, item.full_text.as_deref());
 
     ClipboardItemDto {
         id: item.id.clone(),
@@ -706,9 +703,6 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
         created_at: item.created_at.clone(),
         preview: item.preview.clone(),
         full_text: item.full_text.clone(),
-        is_sensitive: sensitive_mask.is_sensitive,
-        masked_preview: sensitive_mask.masked_preview,
-        masked_full_text: sensitive_mask.masked_full_text,
         image_data_url,
         image_byte_size: item.image_display_byte_size(),
         image_width: item.image_width,

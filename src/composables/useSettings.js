@@ -106,7 +106,6 @@ export function useSettings() {
   const settings = reactive({
     debugEnabled: false,
     soundEnabled: true,
-    autoMaskSensitiveText: true,
     launchOnStartup: false,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
@@ -116,6 +115,7 @@ export function useSettings() {
     pasteStatsEnabled: false,
     lanTransferDownloadDir: "",
     globalShortcut: "Ctrl+Shift+V",
+    quickPasteShortcut: "Ctrl+`",
     ignoredApps: [],
     locale: "zh-CN",
     density: "compact",
@@ -209,6 +209,9 @@ export function useSettings() {
     }
     if (code === "unsupported_direct_paste") {
       return t("unsupportedDirectPaste");
+    }
+    if (code === "duplicate_shortcut") {
+      return t("duplicateShortcut");
     }
     if (code === "webdav_settings_incomplete") {
       return t("webdavSettingsIncomplete");
@@ -327,9 +330,9 @@ export function useSettings() {
     const defaultDownloadDir = await getDefaultDownloadDir();
     Object.assign(settings, {
       ...next,
-      autoMaskSensitiveText: next.autoMaskSensitiveText !== false,
       lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
+      quickPasteShortcut: normalizeShortcutValue(next.quickPasteShortcut, detectedPlatform),
       tagLabels: normalizeTagLabels(next.tagLabels),
       webdavSync: {
         enabled: Boolean(next.webdavSync?.enabled),
@@ -350,6 +353,10 @@ export function useSettings() {
     return {
       ...sourceSettings,
       globalShortcut: normalizeShortcutValue(sourceSettings.globalShortcut, detectedPlatform),
+      quickPasteShortcut: normalizeShortcutValue(
+        sourceSettings.quickPasteShortcut,
+        detectedPlatform,
+      ),
       tagLabels: normalizeTagLabels(sourceSettings.tagLabels),
       launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
         ? sourceSettings.launchOnStartup

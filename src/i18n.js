@@ -76,8 +76,6 @@ export const messages = {
     maxHistoryItems: "最大历史数量",
     maxHistoryDays: "最大保留天数",
     maxImageBytes: "图片大小",
-    autoMaskSensitiveText: "敏感信息脱敏",
-    autoMaskSensitiveTextTip: "检测到疑似密码、令牌或密钥时，历史列表默认脱敏展示；复制和粘贴仍使用原文。",
     copyStatsEnabled: "复制次数统计",
     copyStatsEnabledTip: "开启后，重新复制历史记录会累计次数，并优先显示复制次数更多的内容。",
     copyCountLabel: "复制 {count} 次",
@@ -89,6 +87,7 @@ export const messages = {
     lanTransferDownloadDirPlaceholder: "请选择文件保存位置",
     chooseFolder: "选择文件夹",
     globalShortcut: "全局快捷键",
+    quickPasteShortcut: "快速粘贴快捷键",
     ignoredApps: "忽略的应用",
     language: "界面语言",
     density: "列表密度",
@@ -104,6 +103,7 @@ export const messages = {
     maxImageBytesTip: "超过该大小的图片不会写入历史记录。",
     lanTransferDownloadDirTip: "手机电脑互传接收到的文件会保存到这个目录。",
     globalShortcutTip: "按下这个全局快捷键可唤起或隐藏主窗口。",
+    quickPasteShortcutTip: "按住快捷键唤起主窗口；不松开 Ctrl 时重复按 ` 向下选择，松开 Ctrl 后粘贴当前条目。",
     debugModeTip: "开启后允许开发者工具和调试快捷键。",
     loadingHistory: "正在加载历史...",
     historyEmpty: "当前没有剪贴板历史。",
@@ -128,7 +128,7 @@ export const messages = {
     removeTag: "移除标签",
     tagNames: "标签名称",
     tagNamesTip: "颜色固定不变，可为每种标签颜色设置自己的显示名称。",
-    tagDefaultNameRed: "敏感信息",
+    tagDefaultNameRed: "红色",
     tagDefaultNameOrange: "橙色",
     tagDefaultNameYellow: "黄色",
     tagDefaultNameGreen: "绿色",
@@ -146,8 +146,6 @@ export const messages = {
     statusCopied: "已重新复制到剪贴板",
     statusSaved: "设置已保存",
     statusUpdated: "历史记录已更新",
-    showSensitiveText: "查看敏感信息",
-    hideSensitiveText: "隐藏敏感信息",
   },
   "en-US": {
     appName: "Power Paste",
@@ -189,9 +187,6 @@ export const messages = {
     maxHistoryItems: "Max history items",
     maxHistoryDays: "Max retention days",
     maxImageBytes: "Image size",
-    autoMaskSensitiveText: "Sensitive info masking",
-    autoMaskSensitiveTextTip:
-      "Mask likely passwords, tokens, or keys in history previews. Copy and paste still use the original text.",
     copyStatsEnabled: "Copy count stats",
     copyStatsEnabledTip:
       "When enabled, copying history items again counts usage and moves frequently copied items higher.",
@@ -206,6 +201,7 @@ export const messages = {
     chooseFolder: "Choose folder",
     megabytesShort: "MB",
     globalShortcut: "Shortcut",
+    quickPasteShortcut: "Quick paste shortcut",
     shortcutPlaceholder: "Focus and press keys",
     shortcutRecording: "Press the shortcut keys",
     ignoredApps: "Ignored apps",
@@ -223,6 +219,8 @@ export const messages = {
     maxImageBytesTip: "Images larger than this limit are not stored in history.",
     lanTransferDownloadDirTip: "Files received from phone and PC transfer are saved here.",
     globalShortcutTip: "Use this global shortcut to show or hide the main window.",
+    quickPasteShortcutTip:
+      "Hold the shortcut to open the main window. While Ctrl stays pressed, press ` again to move down, then release Ctrl to paste the selected item.",
     debugModeTip: "Allows developer tools and debugging keyboard shortcuts.",
     loadingHistory: "Loading history...",
     historyEmpty: "Clipboard history is empty.",
@@ -251,7 +249,7 @@ export const messages = {
     removeTag: "Remove tag",
     tagNames: "Tag Names",
     tagNamesTip: "Colors stay fixed. You can customize the display name for each color.",
-    tagDefaultNameRed: "Sensitive info",
+    tagDefaultNameRed: "Red",
     tagDefaultNameOrange: "Orange",
     tagDefaultNameYellow: "Yellow",
     tagDefaultNameGreen: "Green",
@@ -269,8 +267,6 @@ export const messages = {
     statusCopied: "Copied back to clipboard",
     statusSaved: "Settings saved",
     statusUpdated: "History updated",
-    showSensitiveText: "Show sensitive info",
-    hideSensitiveText: "Hide sensitive info",
   },
 };
 
@@ -340,6 +336,7 @@ Object.assign(messages["zh-CN"], {
     "\u7cfb\u7edf\u672a\u6388\u4e88 Power Paste \u8f85\u52a9\u529f\u80fd\u6216\u81ea\u52a8\u5316\u6743\u9650\uff0c\u8bf7\u5728\u201c\u7cfb\u7edf\u8bbe\u7f6e > \u9690\u79c1\u4e0e\u5b89\u5168\u6027 > \u8f85\u52a9\u529f\u80fd / \u81ea\u52a8\u5316\u201d\u4e2d\u5141\u8bb8\u540e\u91cd\u8bd5",
   unsupportedLaunchOnStartup:
     "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u5f00\u673a\u542f\u52a8",
+  duplicateShortcut: "\u5feb\u6377\u952e\u4e0d\u80fd\u91cd\u590d",
   checkForUpdates: "\u68c0\u67e5\u66f4\u65b0",
   downloadAndInstall: "\u4e0b\u8f7d\u5e76\u5b89\u88c5",
   updateIdle: "\u5c1a\u672a\u6267\u884c\u66f4\u65b0\u68c0\u67e5",
@@ -487,6 +484,7 @@ Object.assign(messages["en-US"], {
     "Power Paste does not have the required Accessibility or Automation permission. Allow it in System Settings > Privacy & Security > Accessibility / Automation and try again.",
   unsupportedLaunchOnStartup:
     "Launch on startup is not available on this platform.",
+  duplicateShortcut: "Shortcuts must be unique.",
   checkForUpdates: "Check for Updates",
   downloadAndInstall: "Download and Install",
   updateIdle: "No update check has been run yet.",

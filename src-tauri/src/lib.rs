@@ -21,7 +21,6 @@ mod ports;
 mod repository;
 mod rich_text;
 mod runtime;
-mod sensitive_text;
 mod startup;
 mod storage;
 mod sync;
@@ -41,7 +40,7 @@ use commands::{
 };
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto};
 use repository::SqliteHistoryStore;
-use runtime::{configure_window, toggle_panel};
+use runtime::{configure_window, show_quick_paste_panel, toggle_panel};
 use startup::{set_launch_on_startup, BACKGROUND_STARTUP_ARG};
 use storage::{load_settings, save_settings};
 
@@ -126,14 +125,34 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _, event| {
-                    if event.state == ShortcutState::Released {
+                .with_handler(|app, shortcut, event| {
+                    let Some(shared) = app.try_state::<Arc<SharedState>>() else {
+                        return;
+                    };
+                    let settings = shared.settings.lock().unwrap().clone();
+                    let global_shortcut = settings.global_shortcut.parse::<Shortcut>().ok();
+                    let quick_paste_shortcut =
+                        settings.quick_paste_shortcut.parse::<Shortcut>().ok();
+
+                    if quick_paste_shortcut.as_ref() == Some(shortcut) {
+                        if event.state == ShortcutState::Pressed {
+                            let _ = show_quick_paste_panel(app);
+                        }
+                        return;
+                    }
+
+                    if global_shortcut.as_ref() == Some(shortcut)
+                        && event.state == ShortcutState::Released
+                    {
                         let _ = toggle_panel(app);
                     }
                 })
                 .build(),
         )
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let root = app.path().app_local_data_dir()?;
             let paths = StoragePaths::new(root)?;
             let settings = Arc::new(Mutex::new(
@@ -175,9 +194,16 @@ pub fn run() {
 
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-                let shortcut = shared.settings.lock().unwrap().global_shortcut.clone();
-                if let Ok(shortcut) = shortcut.parse::<Shortcut>() {
-                    app.global_shortcut().register(shortcut)?;
+                let settings = shared.settings.lock().unwrap().clone();
+                let shortcuts = if settings.global_shortcut == settings.quick_paste_shortcut {
+                    vec![settings.global_shortcut]
+                } else {
+                    vec![settings.global_shortcut, settings.quick_paste_shortcut]
+                };
+                for shortcut in shortcuts {
+                    if let Ok(shortcut) = shortcut.parse::<Shortcut>() {
+                        app.global_shortcut().register(shortcut)?;
+                    }
                 }
             }
 

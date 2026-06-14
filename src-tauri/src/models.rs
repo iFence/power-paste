@@ -19,6 +19,7 @@ pub(crate) const COPY_SOUND_EVENT: &str = "copy-sound";
 pub(crate) const LAN_RECEIVER_STATUS_EVENT: &str = "lan-receiver-status";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
+pub(crate) const QUICK_PASTE_STARTED_EVENT: &str = "quick-paste-started";
 pub(crate) const PANEL_LABEL: &str = "main";
 
 #[cfg(windows)]
@@ -78,7 +79,6 @@ impl serde::Serialize for AppError {
 pub(crate) struct AppSettings {
     pub(crate) debug_enabled: bool,
     pub(crate) sound_enabled: bool,
-    pub(crate) auto_mask_sensitive_text: bool,
     pub(crate) launch_on_startup: bool,
     pub(crate) polling_interval_ms: u64,
     pub(crate) max_history_items: usize,
@@ -88,6 +88,7 @@ pub(crate) struct AppSettings {
     pub(crate) paste_stats_enabled: bool,
     pub(crate) lan_transfer_download_dir: Option<String>,
     pub(crate) global_shortcut: String,
+    pub(crate) quick_paste_shortcut: String,
     pub(crate) ignored_apps: Vec<String>,
     pub(crate) locale: String,
     pub(crate) density: String,
@@ -109,7 +110,6 @@ impl Default for AppSettings {
         Self {
             debug_enabled: false,
             sound_enabled: true,
-            auto_mask_sensitive_text: true,
             launch_on_startup: false,
             polling_interval_ms: 500,
             max_history_items: 200,
@@ -119,6 +119,7 @@ impl Default for AppSettings {
             paste_stats_enabled: false,
             lan_transfer_download_dir: None,
             global_shortcut: "Ctrl+Shift+V".into(),
+            quick_paste_shortcut: "Ctrl+Backquote".into(),
             ignored_apps: vec!["1Password".into(), "Bitwarden".into(), "KeePassXC".into()],
             locale: "zh-CN".into(),
             density: "compact".into(),
@@ -140,6 +141,7 @@ impl Default for AppSettings {
 impl AppSettings {
     pub(crate) fn normalized(mut self) -> Self {
         self.global_shortcut = normalize_shortcut(&self.global_shortcut);
+        self.quick_paste_shortcut = normalize_shortcut(&self.quick_paste_shortcut);
         if self.max_history_items == 0 {
             self.max_history_items = Self::default().max_history_items;
         }
@@ -162,7 +164,7 @@ impl AppSettings {
                 let normalized_key = key.trim().to_ascii_lowercase();
                 if !matches!(
                     normalized_key.as_str(),
-                    "orange" | "yellow" | "green" | "blue" | "purple" | "gray"
+                    "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "gray"
                 ) {
                     return None;
                 }
@@ -218,6 +220,7 @@ fn normalize_shortcut(shortcut: &str) -> String {
         .split('+')
         .map(|token| match token.trim().to_ascii_lowercase().as_str() {
             "meta" => "Command".to_string(),
+            "`" | "grave" | "backquote" => "Backquote".to_string(),
             other => {
                 if other.is_empty() {
                     String::new()
@@ -287,9 +290,6 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) created_at: String,
     pub(crate) preview: String,
     pub(crate) full_text: Option<String>,
-    pub(crate) is_sensitive: bool,
-    pub(crate) masked_preview: Option<String>,
-    pub(crate) masked_full_text: Option<String>,
     pub(crate) image_data_url: Option<String>,
     pub(crate) image_byte_size: Option<usize>,
     pub(crate) image_width: Option<u32>,
@@ -596,5 +596,22 @@ mod tests {
 
         assert!(!normalized.copy_stats_enabled);
         assert!(normalized.paste_stats_enabled);
+    }
+
+    #[test]
+    fn default_quick_paste_shortcut_uses_backquote_code() {
+        let settings = AppSettings::default().normalized();
+
+        assert_eq!(settings.quick_paste_shortcut, "Ctrl+Backquote");
+    }
+
+    #[test]
+    fn quick_paste_shortcut_normalizes_grave_symbol() {
+        let mut settings = AppSettings::default();
+        settings.quick_paste_shortcut = "Ctrl+`".into();
+
+        let normalized = settings.normalized();
+
+        assert_eq!(normalized.quick_paste_shortcut, "Ctrl+Backquote");
     }
 }

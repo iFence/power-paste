@@ -4,7 +4,6 @@ import HistoryListItem from "./HistoryListItem.vue";
 defineProps({
   canClipboardWrite: { type: Boolean, required: true },
   canDirectPaste: { type: Boolean, required: true },
-  autoMaskSensitiveText: { type: Boolean, required: true },
   copyStatsEnabled: { type: Boolean, required: true },
   pasteStatsEnabled: { type: Boolean, required: true },
   historyPanelRef: { type: Object, required: true },
@@ -55,14 +54,14 @@ function handleScroll(event) {
 
       <div v-else class="history-list">
         <HistoryListItem
-          v-for="item in items"
+          v-for="(item, index) in items"
           :key="item.id"
           :item="item"
+          :shortcut-label="index < 10 ? (index === 9 ? '0' : String(index + 1)) : ''"
           :locale="locale"
           :relative-time-version="relativeTimeVersion"
           :can-clipboard-write="canClipboardWrite"
           :can-direct-paste="canDirectPaste"
-          :auto-mask-sensitive-text="autoMaskSensitiveText"
           :copy-stats-enabled="copyStatsEnabled"
           :paste-stats-enabled="pasteStatsEnabled"
           :selected="item.id === selectedId"

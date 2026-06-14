@@ -20,7 +20,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 
 ## Why Power Paste
 
-- Fast: open the panel with a global shortcut and bring previous clipboard content back in seconds
+- Fast: open the panel with a global shortcut, quick-paste shortcut, or number shortcuts and bring previous clipboard content back in seconds
 - Native-feeling: designed around desktop workflows instead of browser-like interaction patterns
 - Good-looking: translucent surfaces, theme switching, and accent colors are part of the product value
 - Meant to stay around: tray support, single-instance behavior, and update checks make it practical as an always-available companion
@@ -28,20 +28,22 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 ## Highlights
 
 - Global shortcut to toggle the main history panel
+- Quick paste shortcut: hold the shortcut to open the panel, cycle through items, then release to paste
 - Capture `text`, `link`, `image`, and `mixed` clipboard content
 - Search and filter by `All`, `Pinned`, `Text`, `Image`, and `Mixed`
 - Pin important items and keep them out of bulk clear / retention cleanup
 - Favorite items for an extra visual priority marker
-- Finder-style color tags: up to 3 tags per item, with 7 fixed colors and 6 customizable labels (red is reserved for sensitive content)
+- Finder-style color tags: up to 3 tags per item, with 7 fixed colors and customizable labels
 - Edit plain-text history items in place
 - Copy history items back to the system clipboard, or paste directly to the previous target app when supported
+- Paste the first 10 visible items with `Ctrl/Cmd + 1` through `Ctrl/Cmd + 0`
+- Drag history items into other apps; images are dragged as native files when possible
 - Hover image thumbnails to preview larger images
-- Auto-masking of sensitive text (passwords, tokens, keys) in history previews while keeping copy/paste original
 - Optional copy count and paste count statistics with smart sorting
 - Local-network phone transfer for text, images, and files through a browser page opened by scanning a QR code
 - WebDAV history sync with system credential storage for the remote password
-- Settings for language, theme, accent color, launch on startup, sound, sensitive info masking, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, and global shortcut
-- Tray integration, single-instance behavior, automatic update checks, and manual update checks
+- Settings for language, theme, accent color, launch on startup, sound, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, and quick paste shortcut
+- Tray integration, single-instance behavior, background startup, automatic update checks, and manual update checks
 - Custom in-app confirmation dialogs instead of system confirm prompts for destructive actions
 
 ## Current Feature Set
@@ -52,7 +54,10 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Accurate item count for the current query and filter state
 - `Enter` pastes the selected item on supported platforms
 - `Ctrl/Cmd + C` copies the selected item back to the clipboard
+- `Ctrl/Cmd + 1` to `Ctrl/Cmd + 0` paste the first 10 visible items directly
+- The first 10 visible items show keycap-style number markers next to their timestamps
 - Double-click can trigger direct paste when the current platform supports it
+- Items can be dragged from the history list into other apps
 - Links can be opened in the system default browser
 - `Clear History` removes only unpinned items
 
@@ -60,7 +65,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 
 - `Text`: searchable, editable, copyable, directly pasteable on supported platforms
 - `Link`: detected from copied URLs and openable in the default browser
-- `Image`: thumbnail preview, hover preview, clipboard replay on supported platforms
+- `Image`: thumbnail preview, hover preview, drag as a native file when possible, and clipboard replay on supported platforms
 - `Mixed`: combined text + image payloads where the backend can preserve or replay them
 
 ### Tags and Organization
@@ -68,7 +73,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Each history item can carry up to `3` tags
 - Built-in tag colors match the Finder-style palette: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `gray`
 - Tag color and display name are separate
-- Tag names are editable from settings, except `red` which is reserved for "Sensitive info" detection
+- Tag names are editable from settings
 - Tag filters are available directly in the main panel
 
 ### Phone and PC Transfer
@@ -108,17 +113,17 @@ Current configurable options include:
 - Theme mode: Light / Dark / System
 - Accent color: Ocean / Amber / Jade / Rose
 - Launch on startup
+- Background startup when launched automatically
 - Copy sound on capture / replay
-- Sensitive info masking (auto-masks passwords, tokens, keys in previews)
 - Maximum history item count
 - Maximum retention days for unpinned history
 - Maximum stored image size
 - Copy count statistics toggle (tracks repeat-copy usage and affects sort order)
 - Paste count statistics toggle (tracks direct-paste usage and affects sort order)
-- Tag display names (6 customizable, red reserved for sensitive info)
+- Tag display names
 - LAN transfer download directory
 - WebDAV sync endpoint, username, remote directory, auto sync, and credential management
-- Global shortcut recording / clearing
+- Global shortcut and quick paste shortcut recording / clearing
 - Debug mode
 
 Update checks are not configured as a regular setting. The app checks for updates on startup, shows an update badge in the UI when a new version is available, and also exposes a manual tray action.

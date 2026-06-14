@@ -1,10 +1,11 @@
 <script setup>
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
     onCopySound,
     onHistoryUpdated,
+    onQuickPasteStarted,
     onUpdateStatus,
     onWebdavSyncStatus,
 } from "./services/tauriApi";
@@ -39,6 +40,7 @@ const historyState = useHistory({
     settings: settingsState.settings,
     t: settingsState.t,
 });
+const quickPasteActive = ref(false);
 
 useTheme({
     currentThemeMode: settingsState.currentThemeMode,
@@ -59,11 +61,15 @@ const { handleWindowAction } = useKeyboardShortcuts({
     settings: settingsState.settings,
     showEditModal: historyState.showEditModal,
     isSettingsRoute: computed(() => route.name === "settings"),
+    isHomeRoute: computed(() => route.name === "home"),
     leaveSettings: () => router.push({ name: "home" }),
     clearEditing: () => {
         historyState.showEditModal.value = false;
         historyState.editingItemId.value = null;
     },
+    quickPasteActive,
+    commitQuickPaste,
+    cancelQuickPaste,
 });
 
 watch(settingsState.currentLocale, (locale) => {
@@ -75,6 +81,7 @@ let unlistenCopySound = null;
 let unlistenUpdate = null;
 let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
+let unlistenQuickPaste = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
@@ -99,11 +106,13 @@ function cleanupListeners() {
     unlistenUpdate?.();
     unlistenWebdavSync?.();
     unlistenWindowFocus?.();
+    unlistenQuickPaste?.();
     unlistenHistory = null;
     unlistenCopySound = null;
     unlistenUpdate = null;
     unlistenWebdavSync = null;
     unlistenWindowFocus = null;
+    unlistenQuickPaste = null;
 }
 
 function playCapturedCopySound() {
@@ -130,6 +139,54 @@ function handleDocumentVisibilityChange() {
 
 function handleUserInteractionForSound() {
     flushCopySoundIfEnabled();
+}
+
+function advanceQuickPasteSelection() {
+    const items = historyState.filteredHistory.value;
+    if (!items.length) {
+        historyState.setSelectedId(null);
+        return;
+    }
+
+    const currentIndex = items.findIndex(
+        (item) => item.id === historyState.selectedId.value,
+    );
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % items.length;
+    historyState.setSelectedId(items[nextIndex].id);
+}
+
+function cancelQuickPaste() {
+    quickPasteActive.value = false;
+}
+
+async function commitQuickPaste() {
+    if (!quickPasteActive.value) {
+        return;
+    }
+
+    quickPasteActive.value = false;
+    if (historyState.selectedId.value) {
+        await historyState.pasteItem(historyState.selectedId.value);
+    }
+}
+
+async function startQuickPasteMode() {
+    if (quickPasteActive.value) {
+        return;
+    }
+
+    quickPasteActive.value = true;
+    if (route.name !== "home") {
+        await router.push({ name: "home" });
+    }
+    historyState.showEditModal.value = false;
+    historyState.editingItemId.value = null;
+    await nextTick();
+
+    const items = historyState.filteredHistory.value;
+    if (items.length && !items.some((item) => item.id === historyState.selectedId.value)) {
+        historyState.setSelectedId(items[0].id);
+    }
 }
 
 async function initializeApp() {
@@ -164,6 +221,13 @@ async function initializeApp() {
             if (event?.payload) {
                 settingsState.applyWebdavSyncStatus(event.payload);
             }
+        });
+        unlistenQuickPaste = await onQuickPasteStarted(() => {
+            if (quickPasteActive.value) {
+                advanceQuickPasteSelection();
+                return;
+            }
+            void startQuickPasteMode();
         });
         unlistenWindowFocus = await getCurrentWindow().onFocusChanged(
             ({ payload }) => {
@@ -516,9 +580,6 @@ function openResetSettingsConfirm() {
                         :can-direct-paste="
                             settingsState.platformCapabilities.value
                                 .supportsDirectPaste
-                        "
-                        :auto-mask-sensitive-text="
-                            settingsState.settings.autoMaskSensitiveText
                         "
                         :copy-stats-enabled="settingsState.settings.copyStatsEnabled"
                         :paste-stats-enabled="settingsState.settings.pasteStatsEnabled"
