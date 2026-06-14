@@ -6,6 +6,8 @@ import {
   getWebdavSyncState,
   getPlatformCapabilities as fetchPlatformCapabilities,
   getSettings as fetchSettings,
+  getShortcutStatus,
+  retryShortcutRegistration as retryPersistedShortcutRegistration,
   resetSettings as resetPersistedSettings,
   clearWebdavCredential as removeWebdavCredential,
   syncWebdavNow,
@@ -137,6 +139,12 @@ export function useSettings() {
   const settingsSaveError = ref("");
   const startupError = ref("");
   const appVersion = ref("");
+  const shortcutRetrying = ref(false);
+  const shortcutStatus = ref({
+    globalShortcutRegistered: false,
+    quickPasteShortcutRegistered: false,
+    issues: [],
+  });
   const platformCapabilities = ref(initialPlatformCapabilities(detectedPlatform));
   const webdavSyncStatus = ref({
     status: "idle",
@@ -160,6 +168,21 @@ export function useSettings() {
   const canToggleLaunchOnStartup = computed(
     () => platformCapabilities.value.supportsLaunchOnStartup,
   );
+  const shortcutIssues = computed(() => shortcutStatus.value?.issues || []);
+  const hasShortcutIssues = computed(() => shortcutIssues.value.length > 0);
+  const shortcutWarningMessage = computed(() => {
+    const issue = shortcutIssues.value[0];
+    if (!issue) {
+      return "";
+    }
+
+    const label =
+      issue.key === "quickPasteShortcut" ? t("quickPasteShortcut") : t("globalShortcut");
+    return t("shortcutConflictMessage", {
+      name: label,
+      shortcut: issue.shortcut || label,
+    });
+  });
 
   function t(key, params) {
     return translate(currentLocale.value, key, params);
@@ -212,6 +235,15 @@ export function useSettings() {
     }
     if (code === "duplicate_shortcut") {
       return t("duplicateShortcut");
+    }
+    if (
+      code.startsWith("invalid_global_shortcut") ||
+      code.startsWith("invalid_quick_paste_shortcut")
+    ) {
+      return t("invalidShortcut");
+    }
+    if (code.startsWith("shortcut_registration_failed")) {
+      return t("shortcutRegistrationFailed");
     }
     if (code === "webdav_settings_incomplete") {
       return t("webdavSettingsIncomplete");
@@ -320,6 +352,10 @@ export function useSettings() {
   async function refreshSettings() {
     const next = await fetchSettings();
     await syncSettings(next);
+  }
+
+  async function loadShortcutStatus() {
+    shortcutStatus.value = await getShortcutStatus();
   }
 
   async function refreshWebdavSyncState() {
@@ -464,6 +500,29 @@ export function useSettings() {
     }
   }
 
+  function applyShortcutStatus(status) {
+    if (status) {
+      shortcutStatus.value = status;
+    }
+  }
+
+  async function retryShortcutRegistration() {
+    if (shortcutRetrying.value) {
+      return;
+    }
+
+    shortcutRetrying.value = true;
+    settingsSaveError.value = "";
+    try {
+      shortcutStatus.value = await retryPersistedShortcutRegistration();
+    } catch (error) {
+      settingsSaveError.value = formatErrorMessage(error);
+      console.error("Failed to retry shortcut registration", error);
+    } finally {
+      shortcutRetrying.value = false;
+    }
+  }
+
   async function resetVisibleSettings() {
     if (savingSettings.value) {
       return;
@@ -488,6 +547,7 @@ export function useSettings() {
 
   return {
     applySettingPatch,
+    applyShortcutStatus,
     applyWebdavSyncPatch,
     applyWebdavSyncStatus,
     appVersion,
@@ -505,6 +565,7 @@ export function useSettings() {
     endShortcutRecording,
     loadAppVersion,
     loadPlatformCapabilities,
+    loadShortcutStatus,
     localeOptions,
     openSelectKey,
     pendingSettingKey,
@@ -513,6 +574,7 @@ export function useSettings() {
     refreshSettings,
     refreshWebdavSyncState,
     resetVisibleSettings,
+    retryShortcutRegistration,
     runWebdavSyncNow,
     runWebdavTest,
     saveWebdavPassword,
@@ -523,6 +585,10 @@ export function useSettings() {
     setStartupError,
     settings,
     settingsSaveError,
+    shortcutRetrying,
+    shortcutStatus,
+    shortcutWarningMessage,
+    hasShortcutIssues,
     startupError,
     t,
     toggleSelect,

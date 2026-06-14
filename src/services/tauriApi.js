@@ -31,12 +31,20 @@ export function onQuickPasteStarted(handler) {
   return listen("quick-paste-started", handler);
 }
 
+export function onShortcutStatusUpdated(handler) {
+  return listen("shortcut-status-updated", handler);
+}
+
 export function getHistory(payload) {
   return invoke("get_history", { payload });
 }
 
 export function getSettings() {
   return invoke("get_settings");
+}
+
+export function getShortcutStatus() {
+  return invoke("get_shortcut_status");
 }
 
 export function getDefaultDownloadDir() {
@@ -65,6 +73,10 @@ export function setUpdateDebugState(payload) {
 
 export function updateSettings(payload) {
   return invoke("update_settings", { payload });
+}
+
+export function retryShortcutRegistration() {
+  return invoke("retry_shortcut_registration");
 }
 
 export function saveMainPanelSize(payload) {

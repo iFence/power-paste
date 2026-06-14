@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::{
     apply_debug_mode,
@@ -18,6 +17,10 @@ use crate::{
     },
     ports::{ClipboardWriterPort, PasteDispatcherPort, SettingsRuntimePort, TargetTrackerPort},
     save_settings,
+    shortcuts::{
+        register_shortcuts_nonfatal, register_shortcuts_strict, store_and_emit_shortcut_status,
+        unregister_configured_shortcuts,
+    },
     startup::set_launch_on_startup,
 };
 
@@ -70,17 +73,6 @@ impl TargetTrackerPort for DefaultTargetTracker {
 
 struct DefaultSettingsRuntime;
 
-fn parse_optional_shortcut(value: &str, label: &str) -> Result<Option<Shortcut>> {
-    if value.trim().is_empty() {
-        return Ok(None);
-    }
-
-    value
-        .parse::<Shortcut>()
-        .map(Some)
-        .map_err(|error| anyhow::anyhow!("invalid_{label}: {error}"))
-}
-
 impl SettingsRuntimePort for DefaultSettingsRuntime {
     fn apply(
         &self,
@@ -91,43 +83,23 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         let settings = settings.clone().normalized();
         let capabilities = platform_capabilities();
         let previous_settings = state.settings.lock().unwrap().clone();
-        let manager = app.global_shortcut();
-        let global_shortcut =
-            parse_optional_shortcut(&settings.global_shortcut, "global_shortcut")?;
-        let quick_paste_shortcut =
-            parse_optional_shortcut(&settings.quick_paste_shortcut, "quick_paste_shortcut")?;
+        let shortcuts_changed = settings.global_shortcut != previous_settings.global_shortcut
+            || settings.quick_paste_shortcut != previous_settings.quick_paste_shortcut;
 
-        if global_shortcut.is_some()
-            && quick_paste_shortcut.is_some()
-            && settings.global_shortcut == settings.quick_paste_shortcut
-        {
-            anyhow::bail!("duplicate_shortcut");
-        }
-
-        if let Ok(shortcut) = previous_settings.global_shortcut.parse::<Shortcut>() {
-            let _ = manager.unregister(shortcut);
-        }
-        if let Ok(shortcut) = previous_settings.quick_paste_shortcut.parse::<Shortcut>() {
-            let _ = manager.unregister(shortcut);
-        }
-        let register_result = (|| -> Result<()> {
-            if let Some(shortcut) = global_shortcut {
-                manager.register(shortcut)?;
+        let next_shortcut_status = if shortcuts_changed {
+            unregister_configured_shortcuts(app, &previous_settings);
+            match register_shortcuts_strict(app, &settings) {
+                Ok(status) => Some(status),
+                Err(error) => {
+                    unregister_configured_shortcuts(app, &settings);
+                    let restored_status = register_shortcuts_nonfatal(app, &previous_settings);
+                    store_and_emit_shortcut_status(app, state, restored_status);
+                    return Err(error);
+                }
             }
-            if let Some(shortcut) = quick_paste_shortcut {
-                manager.register(shortcut)?;
-            }
-            Ok(())
-        })();
-        if let Err(error) = register_result {
-            if let Ok(shortcut) = previous_settings.global_shortcut.parse::<Shortcut>() {
-                let _ = manager.register(shortcut);
-            }
-            if let Ok(shortcut) = previous_settings.quick_paste_shortcut.parse::<Shortcut>() {
-                let _ = manager.register(shortcut);
-            }
-            return Err(error);
-        }
+        } else {
+            None
+        };
 
         if settings.launch_on_startup && !capabilities.supports_launch_on_startup {
             anyhow::bail!("unsupported_launch_on_startup");
@@ -157,8 +129,22 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
             )?;
         }
         *state.settings.lock().unwrap() = settings.clone();
+        if let Some(status) = next_shortcut_status {
+            store_and_emit_shortcut_status(app, state, status);
+        }
         Ok(())
     }
+}
+
+pub(crate) fn execute_retry_shortcut_registration(
+    app: AppHandle,
+    state: Arc<SharedState>,
+) -> Result<crate::models::ShortcutStatusDto, AppError> {
+    let settings = state.settings.lock().unwrap().clone();
+    unregister_configured_shortcuts(&app, &settings);
+    let status = register_shortcuts_nonfatal(&app, &settings);
+    store_and_emit_shortcut_status(&app, &state, status.clone());
+    Ok(status)
 }
 
 pub(crate) fn execute_update_settings(

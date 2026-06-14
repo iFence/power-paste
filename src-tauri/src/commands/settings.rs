@@ -4,14 +4,28 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::{
     clipboard::platform_capabilities,
-    models::{AppError, AppSettings, PlatformCapabilities, SharedState, WindowSizePayload},
-    usecases::{execute_reset_settings, execute_save_main_panel_size, execute_update_settings},
+    models::{
+        AppError, AppSettings, PlatformCapabilities, SharedState, ShortcutStatusDto,
+        WindowSizePayload,
+    },
+    usecases::{
+        execute_reset_settings, execute_retry_shortcut_registration, execute_save_main_panel_size,
+        execute_update_settings,
+    },
 };
 
 // 获取当前应用设置。
 #[tauri::command]
 pub(crate) fn get_settings(state: State<'_, Arc<SharedState>>) -> Result<AppSettings, AppError> {
     Ok(state.settings.lock().unwrap().clone())
+}
+
+// 获取全局快捷键当前注册状态，用于提示快捷键冲突。
+#[tauri::command]
+pub(crate) fn get_shortcut_status(
+    state: State<'_, Arc<SharedState>>,
+) -> Result<ShortcutStatusDto, AppError> {
+    Ok(state.shortcut_status.lock().unwrap().clone())
 }
 
 // 获取当前平台支持能力，供前端控制功能入口。
@@ -28,6 +42,15 @@ pub(crate) fn update_settings(
     payload: AppSettings,
 ) -> Result<(), AppError> {
     execute_update_settings(app, state.inner().clone(), payload)
+}
+
+// 重新尝试注册当前设置中的全局快捷键。
+#[tauri::command]
+pub(crate) fn retry_shortcut_registration(
+    app: AppHandle,
+    state: State<'_, Arc<SharedState>>,
+) -> Result<ShortcutStatusDto, AppError> {
+    execute_retry_shortcut_registration(app, state.inner().clone())
 }
 
 // 重置设置页可见配置，并保留窗口位置与尺寸。

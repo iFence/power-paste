@@ -21,6 +21,7 @@ mod ports;
 mod repository;
 mod rich_text;
 mod runtime;
+mod shortcuts;
 mod startup;
 mod storage;
 mod sync;
@@ -32,11 +33,11 @@ mod usecases;
 use commands::{
     clear_history, clear_webdav_credential, copy_item, delete_item, get_default_download_dir,
     get_history, get_lan_receiver_state, get_platform_capabilities, get_settings,
-    get_webdav_sync_state, open_external_url, open_lan_transfer_file, paste_item,
-    prepare_image_drag_file, reset_settings, reveal_lan_transfer_file, save_main_panel_size,
-    send_lan_transfer_file, send_lan_transfer_text, start_lan_receiver, stop_lan_receiver,
-    sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin, update_item_tags,
-    update_settings, update_text_item, update_webdav_credential,
+    get_shortcut_status, get_webdav_sync_state, open_external_url, open_lan_transfer_file,
+    paste_item, prepare_image_drag_file, reset_settings, retry_shortcut_registration,
+    reveal_lan_transfer_file, save_main_panel_size, send_lan_transfer_file, send_lan_transfer_text,
+    start_lan_receiver, stop_lan_receiver, sync_webdav_now, test_webdav_sync, toggle_favorite,
+    toggle_pin, update_item_tags, update_settings, update_text_item, update_webdav_credential,
 };
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto};
 use repository::SqliteHistoryStore;
@@ -179,6 +180,7 @@ pub fn run() {
                 update_debug_override: Arc::new(Mutex::new(None)),
                 lan_receiver: Arc::new(Mutex::new(None)),
                 webdav_sync_status: Arc::new(Mutex::new(webdav_sync_status)),
+                shortcut_status: Arc::new(Mutex::new(Default::default())),
                 webdav_sync_running: Arc::new(AtomicBool::new(false)),
                 webdav_sync_pending: Arc::new(AtomicBool::new(false)),
             });
@@ -192,20 +194,9 @@ pub fn run() {
             let locale = settings.lock().unwrap().locale.clone();
             runtime::build_tray(app.handle(), &locale)?;
 
-            {
-                use tauri_plugin_global_shortcut::GlobalShortcutExt;
-                let settings = shared.settings.lock().unwrap().clone();
-                let shortcuts = if settings.global_shortcut == settings.quick_paste_shortcut {
-                    vec![settings.global_shortcut]
-                } else {
-                    vec![settings.global_shortcut, settings.quick_paste_shortcut]
-                };
-                for shortcut in shortcuts {
-                    if let Ok(shortcut) = shortcut.parse::<Shortcut>() {
-                        app.global_shortcut().register(shortcut)?;
-                    }
-                }
-            }
+            let shortcut_status =
+                shortcuts::register_shortcuts_nonfatal(app.handle(), &settings.lock().unwrap());
+            *shared.shortcut_status.lock().unwrap() = shortcut_status;
 
             capture::start_clipboard_monitor(app.handle().clone(), shared.clone());
             app.manage(shared);
@@ -223,9 +214,11 @@ pub fn run() {
             get_history,
             get_platform_capabilities,
             get_settings,
+            get_shortcut_status,
             get_default_download_dir,
             update_settings,
             reset_settings,
+            retry_shortcut_registration,
             save_main_panel_size,
             toggle_pin,
             toggle_favorite,

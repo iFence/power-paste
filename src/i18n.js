@@ -337,6 +337,11 @@ Object.assign(messages["zh-CN"], {
   unsupportedLaunchOnStartup:
     "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u5f00\u673a\u542f\u52a8",
   duplicateShortcut: "\u5feb\u6377\u952e\u4e0d\u80fd\u91cd\u590d",
+  invalidShortcut: "\u5feb\u6377\u952e\u683c\u5f0f\u4e0d\u6b63\u786e",
+  shortcutRegistrationFailed:
+    "\u5feb\u6377\u952e\u672a\u751f\u6548\uff0c\u53ef\u80fd\u5df2\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528",
+  shortcutConflictMessage:
+    "{name}\uff08{shortcut}\uff09\u672a\u751f\u6548\uff0c\u53ef\u80fd\u5df2\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528\u3002\u8bf7\u5173\u95ed\u5360\u7528\u7a0b\u5e8f\u540e\u91cd\u8bd5\uff0c\u6216\u5728\u8bbe\u7f6e\u4e2d\u66f4\u6362\u5feb\u6377\u952e\u3002",
   checkForUpdates: "\u68c0\u67e5\u66f4\u65b0",
   downloadAndInstall: "\u4e0b\u8f7d\u5e76\u5b89\u88c5",
   updateIdle: "\u5c1a\u672a\u6267\u884c\u66f4\u65b0\u68c0\u67e5",
@@ -485,6 +490,11 @@ Object.assign(messages["en-US"], {
   unsupportedLaunchOnStartup:
     "Launch on startup is not available on this platform.",
   duplicateShortcut: "Shortcuts must be unique.",
+  invalidShortcut: "The shortcut format is invalid.",
+  shortcutRegistrationFailed:
+    "The shortcut is not active. It may already be used by another app.",
+  shortcutConflictMessage:
+    "{name} ({shortcut}) is not active. It may already be used by another app. Close the conflicting app and retry, or choose a different shortcut in Settings.",
   checkForUpdates: "Check for Updates",
   downloadAndInstall: "Download and Install",
   updateIdle: "No update check has been run yet.",

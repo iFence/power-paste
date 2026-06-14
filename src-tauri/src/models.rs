@@ -20,6 +20,7 @@ pub(crate) const LAN_RECEIVER_STATUS_EVENT: &str = "lan-receiver-status";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
 pub(crate) const QUICK_PASTE_STARTED_EVENT: &str = "quick-paste-started";
+pub(crate) const SHORTCUT_STATUS_UPDATED_EVENT: &str = "shortcut-status-updated";
 pub(crate) const PANEL_LABEL: &str = "main";
 
 #[cfg(windows)]
@@ -56,6 +57,22 @@ pub(crate) struct PlatformCapabilities {
     pub(crate) clipboard_write_strategy: &'static str,
     pub(crate) direct_paste_strategy: &'static str,
     pub(crate) mixed_replay_strategy: &'static str,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ShortcutStatusDto {
+    pub(crate) global_shortcut_registered: bool,
+    pub(crate) quick_paste_shortcut_registered: bool,
+    pub(crate) issues: Vec<ShortcutIssueDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ShortcutIssueDto {
+    pub(crate) key: String,
+    pub(crate) shortcut: String,
+    pub(crate) error: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -412,6 +429,7 @@ pub(crate) struct SharedState {
     pub(crate) update_debug_override: Arc<Mutex<Option<UpdateStatus>>>,
     pub(crate) lan_receiver: Arc<Mutex<Option<LanReceiverSession>>>,
     pub(crate) webdav_sync_status: Arc<Mutex<WebdavSyncStatusDto>>,
+    pub(crate) shortcut_status: Arc<Mutex<ShortcutStatusDto>>,
     pub(crate) webdav_sync_running: Arc<AtomicBool>,
     pub(crate) webdav_sync_pending: Arc<AtomicBool>,
 }

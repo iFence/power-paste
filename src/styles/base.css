@@ -1642,7 +1642,6 @@ select {
     width: 20px;
     height: 18px;
     place-items: center;
-    margin-left: auto;
     border: 1px solid color-mix(in srgb, var(--app-panel-border) 70%, white 10%);
     border-radius: 5px;
     background:
@@ -2289,6 +2288,48 @@ select {
     overflow-wrap: anywhere;
 }
 
+.shortcut-warning-banner,
+.shortcut-settings-warning {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: min(100%, 720px);
+    margin: 6px auto 0;
+    padding: 8px 10px;
+    border: 1px solid
+        color-mix(in srgb, var(--accent-primary) 34%, var(--app-panel-border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent-primary-soft) 54%, transparent);
+    color: var(--app-text);
+}
+
+.shortcut-warning-banner p,
+.shortcut-settings-warning p {
+    margin: 0;
+    min-width: 0;
+    color: var(--app-muted);
+    font-size: 0.76rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.shortcut-warning-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.shortcut-settings-warning {
+    width: 100%;
+    margin: 0 0 4px;
+}
+
+.shortcut-warning-note {
+    color: color-mix(in srgb, var(--accent-primary) 76%, var(--app-text) 24%);
+}
+
 .search::placeholder {
     font-size: 0.72rem;
     line-height: 34px;
@@ -2356,6 +2397,15 @@ select {
         0 12px 24px
             color-mix(in srgb, var(--accent-primary-glow) 50%, transparent),
         var(--app-shadow);
+}
+
+.ghost.compact,
+.primary.compact {
+    min-height: 28px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    white-space: nowrap;
 }
 
 .empty-state {

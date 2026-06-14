@@ -6,6 +6,7 @@ import {
     onCopySound,
     onHistoryUpdated,
     onQuickPasteStarted,
+    onShortcutStatusUpdated,
     onUpdateStatus,
     onWebdavSyncStatus,
 } from "./services/tauriApi";
@@ -82,6 +83,7 @@ let unlistenUpdate = null;
 let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
 let unlistenQuickPaste = null;
+let unlistenShortcutStatus = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
@@ -107,12 +109,14 @@ function cleanupListeners() {
     unlistenWebdavSync?.();
     unlistenWindowFocus?.();
     unlistenQuickPaste?.();
+    unlistenShortcutStatus?.();
     unlistenHistory = null;
     unlistenCopySound = null;
     unlistenUpdate = null;
     unlistenWebdavSync = null;
     unlistenWindowFocus = null;
     unlistenQuickPaste = null;
+    unlistenShortcutStatus = null;
 }
 
 function playCapturedCopySound() {
@@ -198,6 +202,7 @@ async function initializeApp() {
         await settingsState.loadAppVersion();
         await settingsState.loadPlatformCapabilities();
         await settingsState.refreshSettings();
+        await settingsState.loadShortcutStatus();
         await updaterState.refreshUpdateState();
         await settingsState.refreshWebdavSyncState();
         await historyState.refreshHistory();
@@ -228,6 +233,11 @@ async function initializeApp() {
                 return;
             }
             void startQuickPasteMode();
+        });
+        unlistenShortcutStatus = await onShortcutStatusUpdated((event) => {
+            if (event?.payload) {
+                settingsState.applyShortcutStatus(event.payload);
+            }
         });
         unlistenWindowFocus = await getCurrentWindow().onFocusChanged(
             ({ payload }) => {
@@ -502,6 +512,7 @@ function openResetSettingsConfirm() {
                     :pending-setting-key="settingsState.pendingSettingKey.value"
                     :recording-shortcut="settingsState.recordingShortcut.value"
                     :reset-settings="openResetSettingsConfirm"
+                    :retry-shortcut-registration="settingsState.retryShortcutRegistration"
                     :run-webdav-sync-now="settingsState.runWebdavSyncNow"
                     :run-webdav-test="settingsState.runWebdavTest"
                     :save-webdav-password="settingsState.saveWebdavPassword"
@@ -510,6 +521,8 @@ function openResetSettingsConfirm() {
                     :selected-option-label="settingsState.selectedOptionLabel"
                     :settings="settingsState.settings"
                     :settings-save-error="settingsState.settingsSaveError.value"
+                    :shortcut-retrying="settingsState.shortcutRetrying.value"
+                    :shortcut-status="settingsState.shortcutStatus.value"
                     :show-update-action="updaterState.canInstallUpdate.value"
                     :platform-capabilities="settingsState.platformCapabilities.value"
                     :t="settingsState.t"
@@ -552,6 +565,30 @@ function openResetSettingsConfirm() {
                         historyState.query.value = $event;
                     "
                 />
+
+                <section
+                    v-if="settingsState.hasShortcutIssues.value"
+                    class="shortcut-warning-banner"
+                >
+                    <p>{{ settingsState.shortcutWarningMessage.value }}</p>
+                    <div class="shortcut-warning-actions">
+                        <button
+                            class="ghost compact"
+                            type="button"
+                            :disabled="settingsState.shortcutRetrying.value"
+                            @click="settingsState.retryShortcutRegistration"
+                        >
+                            {{ settingsState.t("retryAction") }}
+                        </button>
+                        <button
+                            class="primary compact"
+                            type="button"
+                            @click="openSettingsRoute"
+                        >
+                            {{ settingsState.t("settingsTitle") }}
+                        </button>
+                    </div>
+                </section>
 
                 <FilterTabs
                     :active-filter-tab="historyState.activeFilterTab.value"

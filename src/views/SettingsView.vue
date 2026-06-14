@@ -42,12 +42,15 @@ const props = defineProps({
   platformCapabilities: { type: Object, required: true },
   recordingShortcut: { type: Boolean, required: true },
   resetSettings: { type: Function, required: true },
+  retryShortcutRegistration: { type: Function, required: true },
   runWebdavSyncNow: { type: Function, required: true },
   runWebdavTest: { type: Function, required: true },
   saveWebdavPassword: { type: Function, required: true },
   savingSettings: { type: Boolean, required: true },
   settings: { type: Object, required: true },
   settingsSaveError: { type: String, required: true },
+  shortcutRetrying: { type: Boolean, required: true },
+  shortcutStatus: { type: Object, required: true },
   showUpdateAction: { type: Boolean, required: true },
   segmentedToggleStyle: { type: Function, required: true },
   selectedOptionLabel: { type: Function, required: true },
@@ -106,6 +109,13 @@ const hasClipboardWriteSupport = computed(
     props.platformCapabilities.supportsHtmlWrite ||
     props.platformCapabilities.supportsImageWrite,
 )
+const shortcutIssuesByKey = computed(() => {
+  const issues = props.shortcutStatus?.issues || []
+  return issues.reduce((acc, issue) => {
+    acc[issue.key] = issue
+    return acc
+  }, {})
+})
 
 const updateNotes = computed(() => {
   const body = props.updateState?.body
@@ -190,6 +200,18 @@ const tooltipStyle = computed(() => ({
 
 function isPending(key) {
   return props.savingSettings && (!key || props.pendingSettingKey === key)
+}
+
+function shortcutIssueText(key) {
+  const issue = shortcutIssuesByKey.value[key]
+  if (!issue) {
+    return ''
+  }
+
+  return props.t('shortcutConflictMessage', {
+    name: key === 'quickPasteShortcut' ? props.t('quickPasteShortcut') : props.t('globalShortcut'),
+    shortcut: issue.shortcut || props.settings[key],
+  })
 }
 
 async function updateSetting(field, value, key = field) {
@@ -1154,10 +1176,24 @@ watch(
         </div>
 
         <div v-if="activeCategory === 'shortcuts'" class="settings-grid settings-section-grid">
+          <section v-if="shortcutStatus?.issues?.length" class="shortcut-settings-warning">
+            <p>{{ t('shortcutRegistrationFailed') }}</p>
+            <button
+              class="ghost compact"
+              type="button"
+              :disabled="shortcutRetrying"
+              @click="retryShortcutRegistration"
+            >
+              {{ t('retryAction') }}
+            </button>
+          </section>
           <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">
                 <span class="meta-label">{{ t('globalShortcut') }}</span>
+              </span>
+              <span v-if="shortcutIssueText('globalShortcut')" class="setting-note shortcut-warning-note">
+                {{ shortcutIssueText('globalShortcut') }}
               </span>
             </div>
             <div class="shortcut-input-wrap">
@@ -1194,6 +1230,9 @@ watch(
                     <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
                   </svg>
                 </span>
+              </span>
+              <span v-if="shortcutIssueText('quickPasteShortcut')" class="setting-note shortcut-warning-note">
+                {{ shortcutIssueText('quickPasteShortcut') }}
               </span>
             </div>
             <div class="shortcut-input-wrap">

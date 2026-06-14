@@ -504,6 +504,9 @@ onBeforeUnmount(() => {
             />
           </svg>
         </div>
+        <span v-if="shortcutLabel" class="history-shortcut-key" aria-hidden="true">
+          {{ shortcutLabel }}
+        </span>
         <span v-if="item.favorite" class="pill accent-alt">{{ t("badgeStarred") }}</span>
         <div v-if="tagColors.length" class="history-tag-list" :aria-label="t('historyTags')">
           <span
@@ -526,9 +529,6 @@ onBeforeUnmount(() => {
           </span>
         </div>
       </div>
-      <span v-if="shortcutLabel" class="history-shortcut-key" aria-hidden="true">
-        {{ shortcutLabel }}
-      </span>
       <span class="timestamp">{{ relativeTimeLabel }}</span>
     </div>
 
