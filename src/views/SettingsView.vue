@@ -208,8 +208,15 @@ function shortcutIssueText(key) {
     return ''
   }
 
+  const labelMap = {
+    globalShortcut: props.t('globalShortcut'),
+    quickPasteShortcut: props.t('quickPasteShortcut'),
+    searchShortcut: props.t('searchShortcut'),
+    filterShortcut: props.t('filterShortcut'),
+  }
+
   return props.t('shortcutConflictMessage', {
-    name: key === 'quickPasteShortcut' ? props.t('quickPasteShortcut') : props.t('globalShortcut'),
+    name: labelMap[key] || props.t('globalShortcut'),
     shortcut: issue.shortcut || props.settings[key],
   })
 }
@@ -360,7 +367,7 @@ async function handleShortcutKeydown(event, field) {
   event.preventDefault()
   event.stopPropagation()
 
-  if (event.key === 'Tab' || event.key === 'Escape') {
+  if ((event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) || event.key === 'Escape') {
     props.endShortcutRecording()
     return
   }
@@ -1254,6 +1261,78 @@ watch(
                 :disabled="isPending('quickPasteShortcut')"
                 @mousedown.prevent
                 @click="clearShortcut('quickPasteShortcut')"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('searchShortcut') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('searchShortcutTip')" :aria-label="t('searchShortcutTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <div class="shortcut-input-wrap">
+              <input
+                :value="settings.searchShortcut"
+                type="text"
+                readonly
+                :disabled="isPending('searchShortcut')"
+                :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
+                @focus="beginShortcutRecording"
+                @blur="endShortcutRecording"
+                @keydown="handleShortcutKeydown($event, 'searchShortcut')"
+              />
+              <button
+                v-if="settings.searchShortcut"
+                type="button"
+                class="shortcut-clear-button"
+                :aria-label="t('clear')"
+                :disabled="isPending('searchShortcut')"
+                @mousedown.prevent
+                @click="clearShortcut('searchShortcut')"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('filterShortcut') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('filterShortcutTip')" :aria-label="t('filterShortcutTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <div class="shortcut-input-wrap">
+              <input
+                :value="settings.filterShortcut"
+                type="text"
+                readonly
+                :disabled="isPending('filterShortcut')"
+                :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
+                @focus="beginShortcutRecording"
+                @blur="endShortcutRecording"
+                @keydown="handleShortcutKeydown($event, 'filterShortcut')"
+              />
+              <button
+                v-if="settings.filterShortcut"
+                type="button"
+                class="shortcut-clear-button"
+                :aria-label="t('clear')"
+                :disabled="isPending('filterShortcut')"
+                @mousedown.prevent
+                @click="clearShortcut('filterShortcut')"
               >
                 <span aria-hidden="true">×</span>
               </button>

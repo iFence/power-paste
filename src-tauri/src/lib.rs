@@ -42,7 +42,7 @@ use commands::{
 use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto};
 use repository::SqliteHistoryStore;
 use runtime::{configure_window, show_quick_paste_panel, toggle_panel};
-use startup::{set_launch_on_startup, BACKGROUND_STARTUP_ARG};
+use startup::{is_background_startup_args, set_launch_on_startup, BACKGROUND_STARTUP_ARG};
 use storage::{load_settings, save_settings};
 
 // Keeps the frontend debug switches and the native WebView settings in sync.
@@ -92,15 +92,6 @@ fn apply_debug_mode(window: &tauri::WebviewWindow, enabled: bool) -> Result<()> 
 // 调试模式只控制开发者工具和调试快捷键，保留图片与文件的系统右键菜单。
 pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
     debug_enabled
-}
-
-fn is_background_startup_args<I, S>(args: I) -> bool
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<str>,
-{
-    args.into_iter()
-        .any(|arg| arg.as_ref() == BACKGROUND_STARTUP_ARG)
 }
 
 // The crate root only assembles modules, shared state and Tauri plugins.

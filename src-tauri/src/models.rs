@@ -106,6 +106,8 @@ pub(crate) struct AppSettings {
     pub(crate) lan_transfer_download_dir: Option<String>,
     pub(crate) global_shortcut: String,
     pub(crate) quick_paste_shortcut: String,
+    pub(crate) search_shortcut: String,
+    pub(crate) filter_shortcut: String,
     pub(crate) ignored_apps: Vec<String>,
     pub(crate) locale: String,
     pub(crate) density: String,
@@ -137,6 +139,8 @@ impl Default for AppSettings {
             lan_transfer_download_dir: None,
             global_shortcut: "Ctrl+Shift+V".into(),
             quick_paste_shortcut: "Ctrl+Backquote".into(),
+            search_shortcut: "Ctrl+F".into(),
+            filter_shortcut: "Ctrl+Tab".into(),
             ignored_apps: vec!["1Password".into(), "Bitwarden".into(), "KeePassXC".into()],
             locale: "zh-CN".into(),
             density: "compact".into(),
@@ -159,6 +163,8 @@ impl AppSettings {
     pub(crate) fn normalized(mut self) -> Self {
         self.global_shortcut = normalize_shortcut(&self.global_shortcut);
         self.quick_paste_shortcut = normalize_shortcut(&self.quick_paste_shortcut);
+        self.search_shortcut = normalize_shortcut(&self.search_shortcut);
+        self.filter_shortcut = normalize_shortcut(&self.filter_shortcut);
         if self.max_history_items == 0 {
             self.max_history_items = Self::default().max_history_items;
         }
@@ -631,5 +637,19 @@ mod tests {
         let normalized = settings.normalized();
 
         assert_eq!(normalized.quick_paste_shortcut, "Ctrl+Backquote");
+    }
+
+    #[test]
+    fn default_search_shortcut_uses_ctrl_f() {
+        let settings = AppSettings::default().normalized();
+
+        assert_eq!(settings.search_shortcut, "Ctrl+F");
+    }
+
+    #[test]
+    fn default_filter_shortcut_uses_ctrl_tab() {
+        let settings = AppSettings::default().normalized();
+
+        assert_eq!(settings.filter_shortcut, "Ctrl+Tab");
     }
 }

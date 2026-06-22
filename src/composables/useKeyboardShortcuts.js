@@ -1,10 +1,13 @@
 import { onMounted, onUnmounted } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { normalizeShortcutKey, normalizeShortcutValue } from "../utils/shortcut";
 
 export function useKeyboardShortcuts({
   closeSelect,
   copyItem,
+  activeFilterTab,
   filteredHistory,
+  historyTabs,
   openSelectKey,
   pasteItem,
   selectedId,
@@ -25,6 +28,95 @@ export function useKeyboardShortcuts({
       (target.isContentEditable ||
         ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
     );
+  }
+
+  function eventShortcutValue(event, metaLabel = "Command") {
+    const parts = [];
+    if (event.ctrlKey) {
+      parts.push("Ctrl");
+    }
+    if (event.altKey) {
+      parts.push("Alt");
+    }
+    if (event.shiftKey) {
+      parts.push("Shift");
+    }
+    if (event.metaKey) {
+      parts.push(metaLabel);
+    }
+
+    const mainKey =
+      event.code === "Backquote" ? "`" : normalizeShortcutKey(event.key);
+    if (!mainKey || ["Ctrl", "Alt", "Shift", "Command", "Super"].includes(mainKey)) {
+      return "";
+    }
+
+    return normalizeShortcutValue([...parts, mainKey].join("+"));
+  }
+
+  function matchesShortcut(event, shortcut) {
+    return (
+      eventShortcutValue(event, "Command") === shortcut ||
+      eventShortcutValue(event, "Super") === shortcut
+    );
+  }
+
+  function shortcutWithShift(shortcut) {
+    const parts = shortcut.split("+").filter(Boolean);
+    if (parts.length < 2 || parts.includes("Shift")) {
+      return "";
+    }
+
+    const mainKey = parts.at(-1);
+    return normalizeShortcutValue([...parts.slice(0, -1), "Shift", mainKey].join("+"));
+  }
+
+  function isSearchShortcut(event) {
+    const shortcut = normalizeShortcutValue(settings.searchShortcut ?? "Ctrl+F");
+    if (!shortcut) {
+      return false;
+    }
+
+    if (shortcut === "Ctrl+F") {
+      return (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "f"
+      );
+    }
+
+    return matchesShortcut(event, shortcut);
+  }
+
+  function filterShortcutDirection(event) {
+    const shortcut = normalizeShortcutValue(settings.filterShortcut ?? "Ctrl+Tab");
+    if (!shortcut) {
+      return 0;
+    }
+
+    if (matchesShortcut(event, shortcut)) {
+      return 1;
+    }
+
+    const reverseShortcut = shortcutWithShift(shortcut);
+    if (reverseShortcut && matchesShortcut(event, reverseShortcut)) {
+      return -1;
+    }
+
+    return 0;
+  }
+
+  function cycleFilterTab(direction = 1) {
+    const tabs = historyTabs?.value || [];
+    if (!tabs.length || !activeFilterTab) {
+      return;
+    }
+
+    const currentIndex = tabs.findIndex((tab) => tab.key === activeFilterTab.value);
+    const safeIndex = currentIndex === -1 ? 0 : currentIndex;
+    const nextIndex = (safeIndex + direction + tabs.length) % tabs.length;
+    activeFilterTab.value = tabs[nextIndex].key;
   }
 
   async function handleWindowAction(action) {
@@ -76,7 +168,15 @@ export function useKeyboardShortcuts({
       return;
     }
 
-    if (withPrimary && key === "f") {
+    const filterDirection = filterShortcutDirection(event);
+    if (filterDirection && isHomeRoute?.value && !showEditModal.value) {
+      event.preventDefault();
+      event.stopPropagation();
+      cycleFilterTab(filterDirection);
+      return;
+    }
+
+    if (isSearchShortcut(event)) {
       event.preventDefault();
       document.getElementById("history-search")?.focus();
     }

@@ -88,6 +88,8 @@ export const messages = {
     chooseFolder: "选择文件夹",
     globalShortcut: "全局快捷键",
     quickPasteShortcut: "快速粘贴快捷键",
+    searchShortcut: "搜索快捷键",
+    filterShortcut: "筛选切换快捷键",
     ignoredApps: "忽略的应用",
     language: "界面语言",
     density: "列表密度",
@@ -104,6 +106,8 @@ export const messages = {
     lanTransferDownloadDirTip: "手机电脑互传接收到的文件会保存到这个目录。",
     globalShortcutTip: "按下这个全局快捷键可唤起或隐藏主窗口。",
     quickPasteShortcutTip: "按住快捷键唤起主窗口；不松开 Ctrl 时重复按 ` 向下选择，松开 Ctrl 后粘贴当前条目。",
+    searchShortcutTip: "在主面板内按下该快捷键可聚焦搜索框。默认 Ctrl/Cmd+F。",
+    filterShortcutTip: "在主面板内按下该快捷键可切换全部、置顶、文本、图片和图文筛选；加 Shift 反向切换。默认 Ctrl+Tab。",
     debugModeTip: "开启后允许开发者工具和调试快捷键。",
     loadingHistory: "正在加载历史...",
     historyEmpty: "当前没有剪贴板历史。",
@@ -202,6 +206,8 @@ export const messages = {
     megabytesShort: "MB",
     globalShortcut: "Shortcut",
     quickPasteShortcut: "Quick paste shortcut",
+    searchShortcut: "Search shortcut",
+    filterShortcut: "Filter shortcut",
     shortcutPlaceholder: "Focus and press keys",
     shortcutRecording: "Press the shortcut keys",
     ignoredApps: "Ignored apps",
@@ -221,6 +227,10 @@ export const messages = {
     globalShortcutTip: "Use this global shortcut to show or hide the main window.",
     quickPasteShortcutTip:
       "Hold the shortcut to open the main window. While Ctrl stays pressed, press ` again to move down, then release Ctrl to paste the selected item.",
+    searchShortcutTip:
+      "Focuses the search field inside the main panel. Defaults to Ctrl/Cmd+F.",
+    filterShortcutTip:
+      "Cycles All, Pinned, Text, Image, and Image + Text filters inside the main panel. Add Shift to cycle backward. Defaults to Ctrl+Tab.",
     debugModeTip: "Allows developer tools and debugging keyboard shortcuts.",
     loadingHistory: "Loading history...",
     historyEmpty: "Clipboard history is empty.",

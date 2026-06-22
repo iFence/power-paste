@@ -6,6 +6,15 @@ use crate::clipboard::launch_on_startup_supported;
 
 pub(crate) const BACKGROUND_STARTUP_ARG: &str = "--background-startup";
 
+pub(crate) fn is_background_startup_args<I, S>(args: I) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    args.into_iter()
+        .any(|arg| arg.as_ref() == BACKGROUND_STARTUP_ARG)
+}
+
 fn should_apply_launch_on_startup(current_enabled: Option<bool>, target_enabled: bool) -> bool {
     match current_enabled {
         Some(current_enabled) => target_enabled || current_enabled != target_enabled,
@@ -39,7 +48,26 @@ pub(crate) fn set_launch_on_startup(app: &AppHandle, enabled: bool) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::should_apply_launch_on_startup;
+    use super::{is_background_startup_args, should_apply_launch_on_startup};
+
+    #[test]
+    fn detects_background_startup_arg() {
+        assert!(is_background_startup_args(["--background-startup"]));
+    }
+
+    #[test]
+    fn detects_background_startup_arg_among_other_args() {
+        assert!(is_background_startup_args([
+            "--flag",
+            "--background-startup",
+            "--other",
+        ]));
+    }
+
+    #[test]
+    fn ignores_regular_startup_args() {
+        assert!(!is_background_startup_args(["--flag", "--other"]));
+    }
 
     #[test]
     fn enables_when_state_is_unknown_but_target_is_enabled() {

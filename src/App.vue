@@ -54,7 +54,9 @@ useWindowSize(route);
 const { handleWindowAction } = useKeyboardShortcuts({
     closeSelect: settingsState.closeSelect,
     copyItem: historyState.copyItem,
+    activeFilterTab: historyState.activeFilterTab,
     filteredHistory: historyState.filteredHistory,
+    historyTabs: historyState.historyTabs,
     openSelectKey: settingsState.openSelectKey,
     pasteItem: historyState.pasteItem,
     selectedId: historyState.selectedId,
@@ -135,10 +137,20 @@ function flushCopySoundIfEnabled() {
     flushPendingCopySound();
 }
 
+function blurSearchIfFocused() {
+    const searchInput = document.getElementById("history-search");
+    if (document.activeElement === searchInput) {
+        searchInput.blur();
+    }
+}
+
 function handleDocumentVisibilityChange() {
     if (document.visibilityState === "visible") {
         flushCopySoundIfEnabled();
+        return;
     }
+
+    blurSearchIfFocused();
 }
 
 function handleUserInteractionForSound() {
@@ -244,7 +256,10 @@ async function initializeApp() {
                 if (payload) {
                     flushCopySoundIfEnabled();
                     historyState.refreshRelativeTimes();
+                    return;
                 }
+
+                blurSearchIfFocused();
             },
         );
     } catch (error) {

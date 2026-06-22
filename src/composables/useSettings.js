@@ -118,6 +118,8 @@ export function useSettings() {
     lanTransferDownloadDir: "",
     globalShortcut: "Ctrl+Shift+V",
     quickPasteShortcut: "Ctrl+`",
+    searchShortcut: "Ctrl+F",
+    filterShortcut: "Ctrl+Tab",
     ignoredApps: [],
     locale: "zh-CN",
     density: "compact",
@@ -369,6 +371,8 @@ export function useSettings() {
       lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
       quickPasteShortcut: normalizeShortcutValue(next.quickPasteShortcut, detectedPlatform),
+      searchShortcut: normalizeShortcutValue(next.searchShortcut, detectedPlatform),
+      filterShortcut: normalizeShortcutValue(next.filterShortcut, detectedPlatform),
       tagLabels: normalizeTagLabels(next.tagLabels),
       webdavSync: {
         enabled: Boolean(next.webdavSync?.enabled),
@@ -393,6 +397,8 @@ export function useSettings() {
         sourceSettings.quickPasteShortcut,
         detectedPlatform,
       ),
+      searchShortcut: normalizeShortcutValue(sourceSettings.searchShortcut, detectedPlatform),
+      filterShortcut: normalizeShortcutValue(sourceSettings.filterShortcut, detectedPlatform),
       tagLabels: normalizeTagLabels(sourceSettings.tagLabels),
       launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
         ? sourceSettings.launchOnStartup
