@@ -119,6 +119,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
   const loadedHistoryOffset = ref(0);
   const totalHistoryCount = ref(0);
   const skipNextFilterRefresh = ref(false);
+  const deletingHistoryItem = ref(false);
   const {
     activeFilterTab,
     activeTagFilter,
@@ -232,6 +233,12 @@ export function useHistory({ platformCapabilities, settings, t }) {
     hasMoreHistory.value =
       receivedCount === requestedLimit &&
       loadedHistoryOffset.value < effectiveTotal;
+  }
+
+  function recalculateHasMoreHistory() {
+    const maxLimit = configuredHistoryLimit();
+    hasMoreHistory.value =
+      loadedHistoryOffset.value < Math.min(totalHistoryCount.value, maxLimit);
   }
 
   async function refreshHistory(options = {}) {
@@ -423,20 +430,40 @@ export function useHistory({ platformCapabilities, settings, t }) {
       return;
     }
 
+    const previousTotalHistoryCount = totalHistoryCount.value;
+    const previousLoadedHistoryOffset = loadedHistoryOffset.value;
     const [removedItem] = history.value.splice(index, 1);
     totalHistoryCount.value = Math.max(0, totalHistoryCount.value - 1);
+    loadedHistoryOffset.value = Math.max(0, loadedHistoryOffset.value - 1);
+    recalculateHasMoreHistory();
     updateSelectedAfterListChange(filteredHistory.value, id);
     syncPersistedHistoryState(history.value);
 
+    deletingHistoryItem.value = true;
     try {
       await deleteItem(id);
     } catch (error) {
       history.value.splice(index, 0, removedItem);
-      totalHistoryCount.value += 1;
+      totalHistoryCount.value = previousTotalHistoryCount;
+      loadedHistoryOffset.value = previousLoadedHistoryOffset;
+      recalculateHasMoreHistory();
       reorderHistory();
       updateSelectedAfterListChange(filteredHistory.value);
       syncPersistedHistoryState(history.value);
       throw error;
+    } finally {
+      deletingHistoryItem.value = false;
+    }
+
+    if (!history.value.length && totalHistoryCount.value > 0) {
+      await refreshHistory({
+        detectNewHistory: false,
+      });
+      return;
+    }
+
+    if (history.value.length) {
+      await loadMoreIfPanelHasRoom();
     }
   }
 
@@ -572,7 +599,13 @@ export function useHistory({ platformCapabilities, settings, t }) {
   );
 
   watch(filteredHistory, (items) => {
-    if (!items.length && hasMoreHistory.value && !loading.value && loadedHistoryOffset.value > 0) {
+    if (
+      !items.length &&
+      hasMoreHistory.value &&
+      !loading.value &&
+      !loadingMore.value &&
+      !deletingHistoryItem.value
+    ) {
       void loadMoreHistory();
     }
 
