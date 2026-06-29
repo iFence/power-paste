@@ -97,6 +97,9 @@ const languageToggleIndex = computed(() =>
   Math.max(props.localeOptions.findIndex((option) => option.value === props.settings.locale), 0),
 )
 const debugToggleIndex = computed(() => (props.settings.debugEnabled ? 0 : 1))
+const hardwareAccelerationToggleIndex = computed(() =>
+  props.settings.hardwareAccelerationEnabled !== false ? 0 : 1,
+)
 const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
 const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0 : 1))
@@ -1373,6 +1376,45 @@ watch(
                 :class="{ active: !settings.debugEnabled }"
                 :disabled="isPending('debugEnabled')"
                 @click="updateSetting('debugEnabled', false, 'debugEnabled')"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section v-if="platformCapabilities.supportsHardwareAccelerationToggle" class="setting-card">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('hardwareAcceleration') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('hardwareAccelerationTip')" :aria-label="t('hardwareAccelerationTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('hardwareAcceleration')"
+              :style="segmentedToggleStyle(hardwareAccelerationToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.hardwareAccelerationEnabled !== false }"
+                :disabled="isPending('hardwareAccelerationEnabled')"
+                @click="updateSetting('hardwareAccelerationEnabled', true, 'hardwareAccelerationEnabled')"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.hardwareAccelerationEnabled === false }"
+                :disabled="isPending('hardwareAccelerationEnabled')"
+                @click="updateSetting('hardwareAccelerationEnabled', false, 'hardwareAccelerationEnabled')"
               >
                 {{ t('toggleOff') }}
               </button>

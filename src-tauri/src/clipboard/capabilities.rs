@@ -14,6 +14,7 @@ pub(crate) fn platform_capabilities() -> PlatformCapabilities {
         supports_direct_paste,
         supports_mixed_replay,
         supports_launch_on_startup: launch_on_startup_supported(),
+        supports_hardware_acceleration_toggle: hardware_acceleration_toggle_supported(),
         preferred_clipboard_backend: preferred_clipboard_backend(),
         clipboard_write_strategy: clipboard_write_strategy(),
         direct_paste_strategy: direct_paste_strategy(),
@@ -23,6 +24,10 @@ pub(crate) fn platform_capabilities() -> PlatformCapabilities {
 
 pub(crate) fn launch_on_startup_supported() -> bool {
     cfg!(windows) || cfg!(target_os = "macos") || cfg!(target_os = "linux")
+}
+
+pub(crate) fn hardware_acceleration_toggle_supported() -> bool {
+    cfg!(windows)
 }
 
 pub(crate) fn direct_paste_supported() -> bool {
@@ -254,6 +259,16 @@ mod tests {
         assert_eq!(
             capabilities.supports_launch_on_startup,
             launch_on_startup_supported()
+        );
+    }
+
+    #[test]
+    fn hardware_acceleration_toggle_support_is_windows_only() {
+        let capabilities = platform_capabilities();
+
+        assert_eq!(
+            capabilities.supports_hardware_acceleration_toggle,
+            cfg!(windows)
         );
     }
 

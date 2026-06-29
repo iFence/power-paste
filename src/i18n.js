@@ -77,10 +77,12 @@ export const messages = {
     maxHistoryDays: "最大保留天数",
     maxImageBytes: "图片大小",
     copyStatsEnabled: "复制次数统计",
-    copyStatsEnabledTip: "开启后，重新复制历史记录会累计次数，并优先显示复制次数更多的内容。",
+    copyStatsEnabledTip:
+      "开启后，重新复制历史记录会累计次数，并优先显示复制次数更多的内容。",
     copyCountLabel: "复制 {count} 次",
     pasteStatsEnabled: "粘贴次数统计",
-    pasteStatsEnabledTip: "开启后，通过 Power Paste 直接粘贴历史记录会累计次数，并优先显示粘贴次数更多的内容。",
+    pasteStatsEnabledTip:
+      "开启后，通过 Power Paste 直接粘贴历史记录会累计次数，并优先显示粘贴次数更多的内容。",
     pasteCountLabel: "粘贴 {count} 次",
     copySound: "复制音效",
     lanTransferDownloadDir: "互传文件保存位置",
@@ -105,9 +107,14 @@ export const messages = {
     maxImageBytesTip: "超过该大小的图片不会写入历史记录。",
     lanTransferDownloadDirTip: "手机电脑互传接收到的文件会保存到这个目录。",
     globalShortcutTip: "按下这个全局快捷键可唤起或隐藏主窗口。",
-    quickPasteShortcutTip: "按住快捷键唤起主窗口；不松开 Ctrl 时重复按 ` 向下选择，松开 Ctrl 后粘贴当前条目。",
+    quickPasteShortcutTip:
+      "按住快捷键唤起主窗口；不松开 Ctrl 时重复按 ` 向下选择，松开 Ctrl 后粘贴当前条目。",
     searchShortcutTip: "在主面板内按下该快捷键可聚焦搜索框。默认 Ctrl/Cmd+F。",
-    filterShortcutTip: "在主面板内按下该快捷键可切换全部、置顶、文本、图片和图文筛选；加 Shift 反向切换。默认 Ctrl+Tab。",
+    filterShortcutTip:
+      "在主面板内按下该快捷键可切换全部、置顶、文本、图片和图文筛选；加 Shift 反向切换。默认 Ctrl+Tab。",
+    hardwareAcceleration: "硬件加速",
+    hardwareAccelerationTip:
+      "关闭后会让 WebView2 以禁用 GPU 加速参数启动，降低内存占用的同时可能影响渲染性能。重启应用后生效。",
     debugModeTip: "开启后允许开发者工具和调试快捷键。",
     loadingHistory: "正在加载历史...",
     historyEmpty: "当前没有剪贴板历史。",
@@ -172,7 +179,8 @@ export const messages = {
     searchPlaceholder: "Search clipboard history",
     clearSearch: "Clear search",
     clear: "Clear",
-    clearHistoryConfirm: "Clear all unpinned history items? Pinned items will be kept.",
+    clearHistoryConfirm:
+      "Clear all unpinned history items? Pinned items will be kept.",
     copy: "Copy",
     pin: "Pin",
     unpin: "Unpin",
@@ -220,17 +228,25 @@ export const messages = {
     landingPageLabel: "Website",
     ignoredAppsPlaceholder: "e.g. 1Password, Bitwarden, KeePassXC",
     launchOnStartupTip: "Run Power Paste automatically when the system starts.",
-    maxHistoryItemsTip: "When the limit is exceeded, old unpinned items are removed first.",
-    maxHistoryDaysTip: "Unpinned history older than this many days is removed automatically.",
-    maxImageBytesTip: "Images larger than this limit are not stored in history.",
-    lanTransferDownloadDirTip: "Files received from phone and PC transfer are saved here.",
-    globalShortcutTip: "Use this global shortcut to show or hide the main window.",
+    maxHistoryItemsTip:
+      "When the limit is exceeded, old unpinned items are removed first.",
+    maxHistoryDaysTip:
+      "Unpinned history older than this many days is removed automatically.",
+    maxImageBytesTip:
+      "Images larger than this limit are not stored in history.",
+    lanTransferDownloadDirTip:
+      "Files received from phone and PC transfer are saved here.",
+    globalShortcutTip:
+      "Use this global shortcut to show or hide the main window.",
     quickPasteShortcutTip:
       "Hold the shortcut to open the main window. While Ctrl stays pressed, press ` again to move down, then release Ctrl to paste the selected item.",
     searchShortcutTip:
       "Focuses the search field inside the main panel. Defaults to Ctrl/Cmd+F.",
     filterShortcutTip:
       "Cycles All, Pinned, Text, Image, and Image + Text filters inside the main panel. Add Shift to cycle backward. Defaults to Ctrl+Tab.",
+    hardwareAcceleration: "Hardware acceleration",
+    hardwareAccelerationTip:
+      "When off, WebView2 starts with GPU acceleration disabled. This may reduce memory usage, but can affect rendering performance. Takes effect after restarting the app.",
     debugModeTip: "Allows developer tools and debugging keyboard shortcuts.",
     loadingHistory: "Loading history...",
     historyEmpty: "Clipboard history is empty.",
@@ -258,7 +274,8 @@ export const messages = {
     manageTags: "Manage Tags",
     removeTag: "Remove tag",
     tagNames: "Tag Names",
-    tagNamesTip: "Colors stay fixed. You can customize the display name for each color.",
+    tagNamesTip:
+      "Colors stay fixed. You can customize the display name for each color.",
     tagDefaultNameRed: "Red",
     tagDefaultNameOrange: "Orange",
     tagDefaultNameYellow: "Yellow",
@@ -305,6 +322,9 @@ Object.assign(messages["zh-CN"], {
 
 Object.assign(messages["zh-CN"], {
   debugMode: "\u8c03\u8bd5\u6a21\u5f0f",
+  hardwareAcceleration: "\u786c\u4ef6\u52a0\u901f",
+  hardwareAccelerationTip:
+    "\u5173\u95ed\u540e\u4f1a\u8ba9 WebView2 \u4ee5\u7981\u7528 GPU \u52a0\u901f\u53c2\u6570\u542f\u52a8\uff0c\u53ef\u80fd\u964d\u4f4e\u5185\u5b58\u5360\u7528\uff0c\u4e5f\u53ef\u80fd\u5f71\u54cd\u6e32\u67d3\u6027\u80fd\u3002\u91cd\u542f\u5e94\u7528\u540e\u751f\u6548\u3002",
   toggleOn: "\u5f00\u542f",
   toggleOff: "\u5173\u95ed",
 });
@@ -442,7 +462,8 @@ Object.assign(messages["zh-CN"], {
   webdavPassword: "\u5bc6\u7801",
   webdavPasswordPlaceholder: "\u7559\u7a7a\u8868\u793a\u4e0d\u66f4\u6539",
   webdavPasswordSaved: "\u5df2\u4fdd\u5b58\u5230\u7cfb\u7edf\u51ed\u636e",
-  webdavPasswordSavedPlaceholder: "\u5bc6\u7801\u5df2\u4fdd\u5b58\uff0c\u8f93\u5165\u65b0\u5bc6\u7801\u53ef\u8986\u76d6",
+  webdavPasswordSavedPlaceholder:
+    "\u5bc6\u7801\u5df2\u4fdd\u5b58\uff0c\u8f93\u5165\u65b0\u5bc6\u7801\u53ef\u8986\u76d6",
   webdavRemoteDir: "\u8fdc\u7a0b\u76ee\u5f55",
   webdavSyncStatus: "\u540c\u6b65\u72b6\u6001",
   webdavLastSyncAt: "\u4e0a\u6b21\u540c\u6b65\uff1a{time}",
@@ -452,8 +473,10 @@ Object.assign(messages["zh-CN"], {
   webdavSyncing: "\u540c\u6b65\u4e2d",
   webdavClearPassword: "\u6e05\u9664\u5bc6\u7801",
   webdavSyncFailed: "WebDAV \u540c\u6b65\u5931\u8d25",
-  webdavSettingsIncomplete: "\u8bf7\u5148\u586b\u5199 WebDAV \u5730\u5740\u548c\u7528\u6237\u540d",
-  webdavCredentialMissing: "\u8bf7\u5148\u586b\u5199\u5e76\u4fdd\u5b58 WebDAV \u5bc6\u7801",
+  webdavSettingsIncomplete:
+    "\u8bf7\u5148\u586b\u5199 WebDAV \u5730\u5740\u548c\u7528\u6237\u540d",
+  webdavCredentialMissing:
+    "\u8bf7\u5148\u586b\u5199\u5e76\u4fdd\u5b58 WebDAV \u5bc6\u7801",
   webdavConnectionFailed:
     "WebDAV \u8fde\u63a5\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u5730\u5740\u3001\u7528\u6237\u540d\u548c\u5bc6\u7801",
   webdavUnauthorized:
@@ -588,7 +611,8 @@ Object.assign(messages["en-US"], {
   webdavPassword: "Password",
   webdavPasswordPlaceholder: "Leave blank to keep current password",
   webdavPasswordSaved: "Saved to system credentials",
-  webdavPasswordSavedPlaceholder: "Password saved. Enter a new one to replace it",
+  webdavPasswordSavedPlaceholder:
+    "Password saved. Enter a new one to replace it",
   webdavRemoteDir: "Remote folder",
   webdavSyncStatus: "Sync status",
   webdavLastSyncAt: "Last sync: {time}",
@@ -618,8 +642,7 @@ Object.assign(messages["en-US"], {
     "Content was uploaded, but remote deletion cleanup failed. Sync again.",
   webdavManifestSaveFailed:
     "Content was uploaded, but the sync index could not be saved. Sync again.",
-  webdavManifestFetchFailed:
-    "Failed to read the WebDAV sync index. Try again.",
+  webdavManifestFetchFailed: "Failed to read the WebDAV sync index. Try again.",
   webdavItemUploadFailed:
     "Failed to upload a history item. Check WebDAV storage and network.",
   webdavItemDownloadFailed:

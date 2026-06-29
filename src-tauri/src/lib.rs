@@ -1,7 +1,9 @@
+#[cfg(windows)]
+use std::path::PathBuf;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
 use anyhow::{Context, Result};
-use tauri::Manager;
+use tauri::{Manager, WebviewWindowBuilder};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 #[cfg(windows)]
@@ -39,7 +41,10 @@ use commands::{
     start_lan_receiver, stop_lan_receiver, sync_webdav_now, test_webdav_sync, toggle_favorite,
     toggle_pin, update_item_tags, update_settings, update_text_item, update_webdav_credential,
 };
-use models::{MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto};
+use models::{
+    AppSettings, MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto,
+    PANEL_LABEL,
+};
 use repository::SqliteHistoryStore;
 use runtime::{configure_window, show_quick_paste_panel, toggle_panel};
 use startup::{is_background_startup_args, set_launch_on_startup, BACKGROUND_STARTUP_ARG};
@@ -94,12 +99,61 @@ pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
     debug_enabled
 }
 
+#[cfg(windows)]
+const WEBVIEW2_GPU_DISABLED_BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu";
+
+#[cfg(windows)]
+fn disabled_gpu_webview_data_dir(paths: &StoragePaths) -> PathBuf {
+    paths
+        .settings_path
+        .parent()
+        .map(|path| path.join("webview2-gpu-disabled"))
+        .unwrap_or_else(|| PathBuf::from("webview2-gpu-disabled"))
+}
+
+// 根据启动前配置创建主 WebView，WebView2 浏览器参数必须在这里生效。
+fn create_main_window(
+    app: &tauri::App,
+    paths: &StoragePaths,
+    settings: &AppSettings,
+) -> Result<()> {
+    let window_config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == PANEL_LABEL)
+        .context("main window config not found")?;
+    let builder = WebviewWindowBuilder::from_config(app, window_config)?;
+
+    #[cfg(windows)]
+    let builder = {
+        let mut builder = builder;
+        if !settings.hardware_acceleration_enabled {
+            builder = builder
+                .additional_browser_args(WEBVIEW2_GPU_DISABLED_BROWSER_ARGS)
+                .data_directory(disabled_gpu_webview_data_dir(paths));
+        }
+        builder
+    };
+
+    #[cfg(not(windows))]
+    {
+        let _ = paths;
+        let _ = settings;
+    }
+
+    builder.build()?;
+    Ok(())
+}
+
 // The crate root only assembles modules, shared state and Tauri plugins.
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if is_background_startup_args(args.iter().map(String::as_str)) {
-                if let Some(window) = app.get_webview_window(models::PANEL_LABEL) {
+                if let Some(window) = app.get_webview_window(PANEL_LABEL) {
                     let _ = window.hide();
                 }
                 return;
@@ -147,9 +201,9 @@ pub fn run() {
 
             let root = app.path().app_local_data_dir()?;
             let paths = StoragePaths::new(root)?;
-            let settings = Arc::new(Mutex::new(
-                load_settings(&paths).context("failed to load settings")?,
-            ));
+            let loaded_settings = load_settings(&paths).context("failed to load settings")?;
+            create_main_window(app, &paths, &loaded_settings)?;
+            let settings = Arc::new(Mutex::new(loaded_settings));
             let history_store = Arc::new(Mutex::new(SqliteHistoryStore::new(&paths)?));
             let webdav_sync_status =
                 WebdavSyncStatusDto::idle(history_store.lock().unwrap().last_sync_at()?);

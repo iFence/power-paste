@@ -53,6 +53,7 @@ pub(crate) struct PlatformCapabilities {
     pub(crate) supports_direct_paste: bool,
     pub(crate) supports_mixed_replay: bool,
     pub(crate) supports_launch_on_startup: bool,
+    pub(crate) supports_hardware_acceleration_toggle: bool,
     pub(crate) preferred_clipboard_backend: &'static str,
     pub(crate) clipboard_write_strategy: &'static str,
     pub(crate) direct_paste_strategy: &'static str,
@@ -97,6 +98,7 @@ pub(crate) struct AppSettings {
     pub(crate) debug_enabled: bool,
     pub(crate) sound_enabled: bool,
     pub(crate) launch_on_startup: bool,
+    pub(crate) hardware_acceleration_enabled: bool,
     pub(crate) polling_interval_ms: u64,
     pub(crate) max_history_items: usize,
     pub(crate) max_history_days: u64,
@@ -130,6 +132,7 @@ impl Default for AppSettings {
             debug_enabled: false,
             sound_enabled: true,
             launch_on_startup: false,
+            hardware_acceleration_enabled: true,
             polling_interval_ms: 500,
             max_history_items: 200,
             max_history_days: 30,
@@ -651,5 +654,12 @@ mod tests {
         let settings = AppSettings::default().normalized();
 
         assert_eq!(settings.filter_shortcut, "Ctrl+Tab");
+    }
+
+    #[test]
+    fn hardware_acceleration_is_enabled_by_default() {
+        let settings = AppSettings::default().normalized();
+
+        assert!(settings.hardware_acceleration_enabled);
     }
 }

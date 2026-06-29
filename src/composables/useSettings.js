@@ -60,6 +60,7 @@ function initialPlatformCapabilities(platform) {
     supportsImageWrite: true,
     supportsDirectPaste: isWindows || isMacos,
     supportsLaunchOnStartup: isWindows || isMacos || isLinux,
+    supportsHardwareAccelerationToggle: isWindows,
     supportsMixedReplay: isWindows,
     preferredClipboardBackend: isWindows
       ? "plugin+native-fallback"
@@ -109,6 +110,7 @@ export function useSettings() {
     debugEnabled: false,
     soundEnabled: true,
     launchOnStartup: false,
+    hardwareAccelerationEnabled: true,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
     maxHistoryDays: 30,
