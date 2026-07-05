@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc, Mutex},
@@ -111,6 +111,7 @@ pub(crate) struct AppSettings {
     pub(crate) search_shortcut: String,
     pub(crate) filter_shortcut: String,
     pub(crate) ignored_apps: Vec<String>,
+    pub(crate) ignored_app_rules: Vec<IgnoredAppRule>,
     pub(crate) locale: String,
     pub(crate) density: String,
     pub(crate) theme_mode: String,
@@ -145,6 +146,7 @@ impl Default for AppSettings {
             search_shortcut: "Ctrl+F".into(),
             filter_shortcut: "Ctrl+Tab".into(),
             ignored_apps: vec!["1Password".into(), "Bitwarden".into(), "KeePassXC".into()],
+            ignored_app_rules: default_ignored_app_rules(),
             locale: "zh-CN".into(),
             density: "compact".into(),
             theme_mode: "system".into(),
@@ -199,9 +201,172 @@ impl AppSettings {
                 Some((normalized_key, normalized_value))
             })
             .collect();
+        self.ignored_apps = normalize_ignored_apps(self.ignored_apps);
+        self.ignored_app_rules = normalize_ignored_app_rules(self.ignored_app_rules);
+        for app_name in self.ignored_apps.iter().cloned() {
+            let rule = IgnoredAppRule::from_legacy_name(app_name).normalized();
+            if rule.has_matcher() && !ignored_app_rule_exists(&self.ignored_app_rules, &rule) {
+                self.ignored_app_rules.push(rule);
+            }
+        }
+        if self.ignored_app_rules.is_empty() {
+            self.ignored_app_rules = default_ignored_app_rules();
+        }
         self.webdav_sync = self.webdav_sync.normalized();
         self
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IgnoredAppRule {
+    pub(crate) platform: String,
+    pub(crate) display_name: String,
+    pub(crate) process_name: String,
+    pub(crate) app_path: Option<String>,
+    pub(crate) bundle_id: Option<String>,
+    pub(crate) icon_data_url: Option<String>,
+    pub(crate) enabled: bool,
+}
+
+impl Default for IgnoredAppRule {
+    fn default() -> Self {
+        Self {
+            platform: String::new(),
+            display_name: String::new(),
+            process_name: String::new(),
+            app_path: None,
+            bundle_id: None,
+            icon_data_url: None,
+            enabled: true,
+        }
+    }
+}
+
+impl IgnoredAppRule {
+    pub(crate) fn from_legacy_name(name: String) -> Self {
+        let normalized = name.trim().to_string();
+        Self {
+            platform: String::new(),
+            display_name: normalized.clone(),
+            process_name: normalized,
+            app_path: None,
+            bundle_id: None,
+            icon_data_url: None,
+            enabled: true,
+        }
+    }
+
+    pub(crate) fn normalized(mut self) -> Self {
+        self.platform = self.platform.trim().to_ascii_lowercase();
+        self.display_name = self.display_name.trim().to_string();
+        self.process_name = normalize_process_name(&self.process_name);
+        self.app_path = normalize_optional_string(self.app_path);
+        self.bundle_id = normalize_optional_string(self.bundle_id);
+        self.icon_data_url = normalize_optional_string(self.icon_data_url);
+        self
+    }
+
+    pub(crate) fn has_matcher(&self) -> bool {
+        !self.display_name.is_empty()
+            || !self.process_name.is_empty()
+            || self.app_path.as_deref().is_some()
+            || self.bundle_id.as_deref().is_some()
+    }
+
+    fn dedupe_key(&self) -> String {
+        if let Some(app_path) = self.app_path.as_deref() {
+            return format!("path:{}", normalize_path_for_match(app_path));
+        }
+        if let Some(bundle_id) = self.bundle_id.as_deref() {
+            return format!("bundle:{}", bundle_id.to_ascii_lowercase());
+        }
+        if !self.process_name.is_empty() {
+            return format!("process:{}", self.process_name.to_ascii_lowercase());
+        }
+        format!("display:{}", self.display_name.to_ascii_lowercase())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct InstalledAppDto {
+    pub(crate) platform: String,
+    pub(crate) display_name: String,
+    pub(crate) process_name: String,
+    pub(crate) app_path: Option<String>,
+    pub(crate) bundle_id: Option<String>,
+    pub(crate) icon_data_url: Option<String>,
+}
+
+fn default_ignored_app_rules() -> Vec<IgnoredAppRule> {
+    ["1Password", "Bitwarden", "KeePassXC"]
+        .into_iter()
+        .map(|name| IgnoredAppRule::from_legacy_name(name.to_string()).normalized())
+        .collect()
+}
+
+fn normalize_ignored_apps(apps: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    apps.into_iter()
+        .filter_map(|value| {
+            let normalized = value.trim().to_string();
+            if normalized.is_empty() {
+                return None;
+            }
+            let key = normalized.to_ascii_lowercase();
+            if seen.insert(key) {
+                Some(normalized)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn normalize_ignored_app_rules(rules: Vec<IgnoredAppRule>) -> Vec<IgnoredAppRule> {
+    let mut seen = HashSet::new();
+    rules
+        .into_iter()
+        .filter_map(|rule| {
+            let normalized = rule.normalized();
+            if !normalized.has_matcher() {
+                return None;
+            }
+            let key = normalized.dedupe_key();
+            if seen.insert(key) {
+                Some(normalized)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn ignored_app_rule_exists(rules: &[IgnoredAppRule], target: &IgnoredAppRule) -> bool {
+    let key = target.dedupe_key();
+    rules.iter().any(|rule| rule.dedupe_key() == key)
+}
+
+fn normalize_process_name(value: &str) -> String {
+    let trimmed = value.trim();
+    trimmed
+        .strip_suffix(".exe")
+        .or_else(|| trimmed.strip_suffix(".EXE"))
+        .unwrap_or(trimmed)
+        .trim()
+        .to_string()
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn normalize_path_for_match(value: &str) -> String {
+    value.trim().replace('\\', "/").to_ascii_lowercase()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -317,6 +482,8 @@ pub(crate) struct ClipboardItemDto {
     pub(crate) preview: String,
     pub(crate) full_text: Option<String>,
     pub(crate) image_data_url: Option<String>,
+    pub(crate) has_image_preview: bool,
+    pub(crate) image_preview_url: Option<String>,
     pub(crate) image_byte_size: Option<usize>,
     pub(crate) image_width: Option<u32>,
     pub(crate) image_height: Option<u32>,
@@ -607,11 +774,12 @@ pub(crate) struct ForegroundAppResult {
     pub(crate) display_name: String,
     pub(crate) icon_png_base64: Option<String>,
     pub(crate) app_path: Option<String>,
+    pub(crate) bundle_id: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::AppSettings;
+    use super::{AppSettings, IgnoredAppRule};
 
     #[test]
     fn paste_stats_disable_copy_stats_when_normalized() {
@@ -661,5 +829,80 @@ mod tests {
         let settings = AppSettings::default().normalized();
 
         assert!(settings.hardware_acceleration_enabled);
+    }
+    #[test]
+    fn normalized_migrates_legacy_ignored_apps_to_rules() {
+        let mut settings = AppSettings::default();
+        settings.ignored_apps = vec![
+            "  1Password  ".into(),
+            "Bitwarden".into(),
+            "bitwarden".into(),
+        ];
+        settings.ignored_app_rules = Vec::new();
+
+        let normalized = settings.normalized();
+
+        assert_eq!(normalized.ignored_apps, vec!["1Password", "Bitwarden"]);
+        assert!(normalized
+            .ignored_app_rules
+            .iter()
+            .any(|rule| rule.display_name == "1Password"));
+        assert!(normalized
+            .ignored_app_rules
+            .iter()
+            .any(|rule| rule.process_name == "Bitwarden"));
+    }
+
+    #[test]
+    fn normalized_deduplicates_and_cleans_ignored_app_rules() {
+        let mut settings = AppSettings::default();
+        settings.ignored_apps = Vec::new();
+        settings.ignored_app_rules = vec![
+            IgnoredAppRule {
+                display_name: "  VS Code  ".into(),
+                process_name: "Code.exe".into(),
+                app_path: Some(" C:\\Program Files\\Microsoft VS Code\\Code.exe ".into()),
+                enabled: true,
+                ..Default::default()
+            },
+            IgnoredAppRule {
+                display_name: "Code".into(),
+                process_name: "Code".into(),
+                app_path: Some("C:/Program Files/Microsoft VS Code/Code.exe".into()),
+                enabled: false,
+                ..Default::default()
+            },
+            IgnoredAppRule::default(),
+        ];
+
+        let normalized = settings.normalized();
+
+        assert_eq!(normalized.ignored_app_rules.len(), 1);
+        let rule = &normalized.ignored_app_rules[0];
+        assert_eq!(rule.display_name, "VS Code");
+        assert_eq!(rule.process_name, "Code");
+        assert_eq!(
+            rule.app_path.as_deref(),
+            Some("C:\\Program Files\\Microsoft VS Code\\Code.exe")
+        );
+        assert!(rule.enabled);
+    }
+
+    #[test]
+    fn normalized_retains_default_ignored_app_rules_when_empty() {
+        let mut settings = AppSettings::default();
+        settings.ignored_apps = Vec::new();
+        settings.ignored_app_rules = Vec::new();
+
+        let normalized = settings.normalized();
+
+        assert!(normalized
+            .ignored_app_rules
+            .iter()
+            .any(|rule| rule.display_name == "1Password"));
+        assert!(normalized
+            .ignored_app_rules
+            .iter()
+            .any(|rule| rule.display_name == "Bitwarden"));
     }
 }

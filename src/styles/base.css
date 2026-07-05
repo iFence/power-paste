@@ -3352,7 +3352,8 @@ select {
 }
 
 .webdav-password-note,
-.webdav-status-note {
+.webdav-status-note,
+.ignored-app-empty {
     font-size: 0.72rem;
     line-height: 1.35;
     max-width: 260px;
@@ -3801,5 +3802,383 @@ textarea {
     .setting-toggle-option {
         padding: 0 8px;
         font-size: 0.74rem;
+    }
+}
+
+.ignored-apps-card {
+    align-items: center;
+}
+
+.ignored-apps-card > .ignored-apps-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+}
+
+.ignored-apps-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+}
+
+.ignored-app-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 4px 1px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.ignored-app-scroll::-webkit-scrollbar,
+.app-picker-list::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.ignored-app-list {
+    display: flex;
+    width: max-content;
+    align-items: center;
+    gap: 4px;
+}
+
+.ignored-app-icon-wrap {
+    position: relative;
+    display: grid;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+}
+
+.ignored-app-icon-button {
+    position: relative;
+    display: grid;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--accent-primary);
+    cursor: pointer;
+}
+
+.ignored-app-icon-button:disabled {
+    cursor: wait;
+    opacity: 0.72;
+}
+
+.ignored-app-icon-wrap .app-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    transition:
+        filter 0.16s ease,
+        opacity 0.16s ease,
+        transform 0.16s ease,
+        border-color 0.16s ease,
+        background 0.16s ease;
+}
+
+.ignored-app-icon-wrap .app-icon-box img {
+    width: 26px;
+    height: 26px;
+}
+
+.ignored-app-icon-button:hover:not(:disabled) .app-icon-box,
+.ignored-app-icon-button:focus-visible .app-icon-box {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent-primary) 46%, var(--app-panel-border));
+    background: color-mix(in srgb, var(--accent-primary-soft) 44%, var(--app-panel-strong-bg));
+}
+
+.ignored-app-icon-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent-primary) 58%, transparent);
+    outline-offset: 2px;
+}
+
+.ignored-app-icon-wrap.disabled .app-icon-box {
+    opacity: 0.62;
+    filter: grayscale(1) brightness(0.58);
+}
+
+.ignored-app-icon-wrap.disabled .ignored-app-icon-button::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: 1;
+    border-radius: 8px;
+    background: rgba(18, 18, 18, 0.34);
+    pointer-events: none;
+}
+
+.ignored-app-remove {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    z-index: 2;
+    display: grid;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--app-panel-border) 74%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--modal-panel-strong-bg) 92%, transparent);
+    color: var(--app-muted);
+    font-size: 0.84rem;
+    line-height: 1;
+    opacity: 0;
+    transform: scale(0.86);
+    transition:
+        opacity 0.14s ease,
+        transform 0.14s ease,
+        background 0.14s ease,
+        color 0.14s ease,
+        border-color 0.14s ease;
+    cursor: pointer;
+}
+
+.ignored-app-icon-wrap:hover .ignored-app-remove,
+.ignored-app-icon-wrap:focus-within .ignored-app-remove {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.ignored-app-remove:hover:not(:disabled),
+.ignored-app-remove:focus-visible {
+    border-color: #cf5f5f;
+    background: #cf5f5f;
+    color: #ffffff;
+}
+
+.ignored-app-empty {
+    margin: 0;
+}
+
+.ignored-app-actions {
+    display: grid;
+    grid-column: 2;
+    place-items: center;
+    justify-self: end;
+}
+
+.ignored-app-add-button {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 40%, var(--app-panel-border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent-primary-soft) 40%, var(--app-panel-bg));
+    color: var(--accent-primary);
+    font-size: 1.45rem;
+    font-weight: 650;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        transform 0.16s ease,
+        background 0.16s ease,
+        border-color 0.16s ease,
+        opacity 0.16s ease;
+}
+
+.ignored-app-add-button:hover:not(:disabled),
+.ignored-app-add-button:focus-visible {
+    transform: translateY(-1px);
+    border-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary-soft) 64%, var(--app-panel-bg));
+}
+
+.ignored-app-add-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent-primary) 58%, transparent);
+    outline-offset: 2px;
+}
+
+.ignored-app-add-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.app-picker-item {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+}
+
+.app-icon-box {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 70%, transparent);
+    color: var(--accent-primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.app-icon-box img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.app-picker-info {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.app-picker-info strong {
+    overflow: hidden;
+    color: var(--app-text);
+    font-size: 0.82rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-picker-info small {
+    overflow: hidden;
+    color: var(--app-muted);
+    font-size: 0.7rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-picker-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.app-picker-dialog {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 12px;
+    width: min(620px, calc(100vw - 36px));
+    max-height: min(680px, calc(100vh - 36px));
+    min-height: 320px;
+    padding: 14px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 8px;
+    background: var(--modal-panel-strong-bg);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.34);
+}
+
+.app-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.app-picker-header h3 {
+    margin: 0;
+    font-size: 0.96rem;
+    line-height: 1.2;
+}
+
+.app-picker-search {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 28px 0 11px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 8px;
+    background: var(--app-input-bg);
+    color: var(--app-text);
+}
+
+.app-picker-search::-webkit-search-cancel-button {
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.app-picker-list {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-height: 0;
+    overflow: auto;
+    padding-right: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.app-picker-item {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--app-panel-bg) 72%, transparent);
+    color: var(--app-text);
+    text-align: left;
+}
+
+.app-picker-item:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent-primary-soft) 46%, var(--app-panel-bg));
+}
+
+.app-picker-item.selected {
+    border-color: color-mix(in srgb, var(--accent-primary) 44%, var(--app-panel-border));
+}
+
+.app-picker-state {
+    color: var(--accent-primary);
+    font-size: 0.76rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.app-picker-message {
+    display: grid;
+    min-height: 80px;
+    place-items: center;
+    color: var(--app-muted);
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.app-picker-message.error {
+    color: #cf5f5f;
+}
+
+@media (max-width: 860px) {
+    .ignored-apps-card > .ignored-apps-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+}
+
+    .app-picker-item {
+        grid-template-columns: 34px minmax(0, 1fr);
+    }
+
+    .app-picker-state {
+        grid-column: 2;
+        justify-self: start;
     }
 }

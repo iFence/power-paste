@@ -4,9 +4,10 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::{
     clipboard::platform_capabilities,
+    installed_apps,
     models::{
-        AppError, AppSettings, PlatformCapabilities, SharedState, ShortcutStatusDto,
-        WindowSizePayload,
+        AppError, AppSettings, InstalledAppDto, PlatformCapabilities, SharedState,
+        ShortcutStatusDto, WindowSizePayload,
     },
     usecases::{
         execute_reset_settings, execute_retry_shortcut_registration, execute_save_main_panel_size,
@@ -32,6 +33,11 @@ pub(crate) fn get_shortcut_status(
 #[tauri::command]
 pub(crate) fn get_platform_capabilities() -> Result<PlatformCapabilities, AppError> {
     Ok(platform_capabilities())
+}
+// 枚举当前系统已安装应用，供剪贴板忽略应用选择器使用。
+#[tauri::command]
+pub(crate) fn list_installed_apps() -> Result<Vec<InstalledAppDto>, AppError> {
+    Ok(installed_apps::list_installed_apps()?)
 }
 
 // 更新设置，并同步快捷键、开机启动和调试模式等运行时副作用。

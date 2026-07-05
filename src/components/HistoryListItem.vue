@@ -36,7 +36,27 @@ const preparedImageDragPath = ref('')
 const preparedImageDragUri = ref('')
 let dragImageElement = null
 let preparingImageDragFile = null
-const imagePreviewUrl = computed(() => (showImagePreview.value ? entryRef.value?.dataset.previewUrl ?? '' : ''))
+const HISTORY_PREVIEW_SCHEME = 'history-preview://localhost/'
+const HISTORY_PREVIEW_WINDOWS_ORIGIN = 'http://history-preview.localhost/'
+const isWindowsClient = /windows/i.test(window.navigator.userAgent)
+const itemImagePreviewUrl = computed(() => {
+  const inlineUrl = typeof props.item?.imageDataUrl === 'string' ? props.item.imageDataUrl : ''
+  if (inlineUrl) {
+    return inlineUrl
+  }
+
+  const previewUrl = typeof props.item?.imagePreviewUrl === 'string' ? props.item.imagePreviewUrl : ''
+  if (!previewUrl || !props.item?.hasImagePreview) {
+    return ''
+  }
+
+  if (!isWindowsClient || !previewUrl.startsWith(HISTORY_PREVIEW_SCHEME)) {
+    return previewUrl
+  }
+
+  return `${HISTORY_PREVIEW_WINDOWS_ORIGIN}${encodeURIComponent(previewUrl.slice(HISTORY_PREVIEW_SCHEME.length))}`
+})
+const imagePreviewUrl = computed(() => (showImagePreview.value ? itemImagePreviewUrl.value : ''))
 const tagColors = computed(() => Array.isArray(props.item?.tagColors) ? props.item.tagColors : [])
 const tagColorOptions = HISTORY_TAG_COLORS
 const canAddMoreTags = computed(() => tagColors.value.length < 3)
@@ -52,7 +72,7 @@ const visiblePreviewValue = computed(() => {
   return typeof props.item?.preview === 'string' ? props.item.preview : ''
 })
 const hasMixedPreview = computed(
-  () => props.item?.kind === 'mixed' && Boolean(props.item?.imageDataUrl) && hasTextPreview.value,
+  () => props.item?.kind === 'mixed' && Boolean(itemImagePreviewUrl.value) && hasTextPreview.value,
 )
 const textPreviewValue = computed(() => {
   const fullText = typeof props.item?.fullText === 'string' ? props.item.fullText : ''
@@ -335,11 +355,11 @@ function createDragImageElement() {
 }
 
 function canUsePreparedImageDragFile() {
-  return Boolean(props.item?.imageDataUrl && preparedImageDragPath.value)
+  return Boolean(itemImagePreviewUrl.value && preparedImageDragPath.value)
 }
 
 async function prepareImageDragUri() {
-  if (!props.item?.imageDataUrl || preparingImageDragFile) {
+  if (!itemImagePreviewUrl.value || preparingImageDragFile) {
     return
   }
 
@@ -452,7 +472,7 @@ onBeforeUnmount(() => {
   <article
     ref="entryRef"
     :data-history-id="item.id"
-    :data-preview-url="item.imageDataUrl || ''"
+    :data-preview-url="itemImagePreviewUrl"
     :draggable="canDragHistoryItem"
     class="history-entry"
     :class="{ active: selected, 'is-dragging': isDragging, 'is-paste-disabled': !canDirectPaste }"
@@ -535,13 +555,13 @@ onBeforeUnmount(() => {
     <div
       class="entry-content"
       :class="{
-        'entry-content-text-only': !item.imageDataUrl,
+        'entry-content-text-only': !itemImagePreviewUrl,
         'entry-content-mixed': hasMixedPreview,
       }"
     >
       <img
-        v-if="item.imageDataUrl"
-        :src="item.imageDataUrl"
+        v-if="itemImagePreviewUrl"
+        :src="itemImagePreviewUrl"
         alt=""
         class="entry-thumb"
         draggable="false"
@@ -579,7 +599,7 @@ onBeforeUnmount(() => {
       <span v-if="pasteCountLabel" class="entry-meta-note copy-count-note">
         {{ pasteCountLabel }}
       </span>
-      <span v-if="item.imageDataUrl && item.imageByteSize" class="entry-meta-note">
+      <span v-if="itemImagePreviewUrl && item.imageByteSize" class="entry-meta-note">
         {{ formatImageSize(item.imageByteSize) }}
       </span>
       <div class="entry-actions">

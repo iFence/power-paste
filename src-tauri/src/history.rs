@@ -11,7 +11,8 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::{
     models::{
-        AppSettings, CapturedClipboard, ClipboardItemDto, ForegroundAppResult, StoredClipboardItem,
+        AppSettings, CapturedClipboard, ClipboardItemDto, ForegroundAppResult, IgnoredAppRule,
+        StoredClipboardItem,
     },
     repository::SqliteHistoryStore,
     rich_text::{first_html_image_src, html_contains_image_content, normalize_rich_text_payload},
@@ -383,6 +384,7 @@ pub(crate) fn source_app_info(app: ForegroundAppResult) -> Option<(String, Optio
         display_name: app.display_name.clone(),
         icon_png_base64: app.icon_png_base64.clone(),
         app_path: app.app_path.clone(),
+        bundle_id: app.bundle_id.clone(),
     })?;
     let icon = app
         .icon_png_base64
@@ -447,6 +449,7 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
         process_name,
         icon_png_base64: None,
         app_path: path,
+        bundle_id: None,
     }))
 }
 
@@ -458,13 +461,16 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
             return Ok(None);
         };
         let front = front.trim_end_matches(':');
-        let Some(info) =
-            run_macos_command("lsappinfo", &["info", "-only", "bundlepath,name", front])?
+        let Some(info) = run_macos_command(
+            "lsappinfo",
+            &["info", "-only", "bundleid,bundlepath,name", front],
+        )?
         else {
             return Ok(None);
         };
         let display_name = parse_lsappinfo_field(&info, "LSDisplayName").unwrap_or_default();
         let app_path = parse_lsappinfo_field(&info, "LSBundlePath");
+        let bundle_id = parse_lsappinfo_field(&info, "LSBundleIdentifier");
         let process_name = app_path
             .as_deref()
             .and_then(|path| std::path::Path::new(path).file_stem())
@@ -478,6 +484,7 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
                 display_name,
                 icon_png_base64: None,
                 app_path,
+                bundle_id,
             }));
         }
     }
@@ -522,6 +529,7 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
                 display_name,
                 icon_png_base64: None,
                 app_path,
+                bundle_id: None,
             }));
         }
     }
@@ -529,18 +537,71 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
     Ok(None)
 }
 
+fn current_platform_key() -> &'static str {
+    #[cfg(windows)]
+    {
+        "windows"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "macos"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "linux"
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    {
+        "unknown"
+    }
+}
+
+fn normalize_app_match_value(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn normalize_app_path_match(value: &str) -> String {
+    value.trim().replace('\\', "/").to_ascii_lowercase()
+}
+
+fn rule_matches_app(rule: &IgnoredAppRule, app: &ForegroundAppResult) -> bool {
+    if !rule.enabled {
+        return false;
+    }
+    if !rule.platform.is_empty() && rule.platform != current_platform_key() {
+        return false;
+    }
+
+    let app_path = app.app_path.as_deref().map(normalize_app_path_match);
+    if let Some(rule_path) = rule.app_path.as_deref().map(normalize_app_path_match) {
+        return app_path.as_deref() == Some(rule_path.as_str());
+    }
+
+    let bundle_id = app.bundle_id.as_deref().map(normalize_app_match_value);
+    if let Some(rule_bundle_id) = rule.bundle_id.as_deref().map(normalize_app_match_value) {
+        return bundle_id.as_deref() == Some(rule_bundle_id.as_str());
+    }
+
+    let process_name = normalize_app_match_value(&app.process_name);
+    if !rule.process_name.is_empty()
+        && process_name == normalize_app_match_value(&rule.process_name)
+    {
+        return true;
+    }
+
+    let display_name = normalize_app_match_value(&app.display_name);
+    !rule.display_name.is_empty() && display_name == normalize_app_match_value(&rule.display_name)
+}
+
 pub(crate) fn should_ignore_app(settings: &AppSettings, app: Option<&ForegroundAppResult>) -> bool {
     let Some(app) = app else {
         return false;
     };
 
-    let process_name = app.process_name.to_lowercase();
-    let display_name = app.display_name.to_lowercase();
-
-    settings.ignored_apps.iter().any(|ignored| {
-        let ignored = ignored.trim().to_lowercase();
-        !ignored.is_empty() && (process_name.contains(&ignored) || display_name.contains(&ignored))
-    })
+    settings
+        .ignored_app_rules
+        .iter()
+        .any(|rule| rule_matches_app(rule, app))
 }
 
 pub(crate) fn is_image_placeholder_text(text: &str) -> bool {
@@ -690,12 +751,17 @@ pub(crate) fn store_capture_item(
 }
 
 pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDto {
-    let image_data_url = item.image_data_url().or_else(|| {
-        item.html_text
+    let has_image_preview = item
+        .image_preview_png
+        .as_ref()
+        .filter(|bytes| !bytes.is_empty())
+        .or(item.image_png.as_ref().filter(|bytes| !bytes.is_empty()))
+        .is_some()
+        || item
+            .html_text
             .as_deref()
             .filter(|_| item.kind == "mixed")
-            .and_then(html_image_preview_data_url)
-    });
+            .is_some_and(html_has_supported_image_preview_source);
 
     ClipboardItemDto {
         id: item.id.clone(),
@@ -703,7 +769,10 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
         created_at: item.created_at.clone(),
         preview: item.preview.clone(),
         full_text: item.full_text.clone(),
-        image_data_url,
+        image_data_url: None,
+        has_image_preview,
+        image_preview_url: has_image_preview
+            .then(|| format!("history-preview://localhost/{}", item.id)),
         image_byte_size: item.image_display_byte_size(),
         image_width: item.image_width,
         image_height: item.image_height,
@@ -717,14 +786,38 @@ pub(crate) fn history_item_to_dto(item: &StoredClipboardItem) -> ClipboardItemDt
     }
 }
 
-pub(crate) fn html_image_preview_data_url(html: &str) -> Option<String> {
+pub(crate) fn html_has_supported_image_preview_source(html: &str) -> bool {
+    let Some(src) = first_html_image_src(html) else {
+        return false;
+    };
+
+    if src.to_ascii_lowercase().starts_with("data:image/") {
+        let Some((metadata, encoded)) = src.split_once(',') else {
+            return false;
+        };
+        return metadata.to_ascii_lowercase().ends_with(";base64") && !encoded.trim().is_empty();
+    }
+
+    local_image_path_from_src(&src).is_some()
+}
+pub(crate) fn html_image_preview_bytes(html: &str) -> Option<(String, Vec<u8>)> {
     let src = first_html_image_src(html)?;
     if src.to_ascii_lowercase().starts_with("data:image/") {
-        return Some(src);
+        return data_image_src_to_bytes(&src);
     }
 
     let path = local_image_path_from_src(&src)?;
-    local_image_file_to_data_url(&path)
+    local_image_file_to_bytes(&path)
+}
+
+fn data_image_src_to_bytes(src: &str) -> Option<(String, Vec<u8>)> {
+    let (metadata, encoded) = src.split_once(',')?;
+    if !metadata.to_ascii_lowercase().ends_with(";base64") {
+        return None;
+    }
+    let mime = metadata.strip_prefix("data:")?.to_string();
+    let bytes = BASE64.decode(encoded).ok()?;
+    (!bytes.is_empty()).then_some((mime, bytes))
 }
 
 fn local_image_path_from_src(src: &str) -> Option<std::path::PathBuf> {
@@ -756,7 +849,7 @@ fn file_url_to_path(src: &str) -> Option<std::path::PathBuf> {
     }
 }
 
-fn local_image_file_to_data_url(path: &std::path::Path) -> Option<String> {
+fn local_image_file_to_bytes(path: &std::path::Path) -> Option<(String, Vec<u8>)> {
     let mime = match path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -776,16 +869,18 @@ fn local_image_file_to_data_url(path: &std::path::Path) -> Option<String> {
         return None;
     }
 
-    Some(format!("data:{mime};base64,{}", BASE64.encode(bytes)))
+    Some((mime.into(), bytes))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         build_captured_clipboard, friendly_process_name, history_item_to_dto,
-        normalized_app_display_name, source_app_label,
+        normalized_app_display_name, should_ignore_app, source_app_label,
     };
-    use crate::models::{AppSettings, CapturedClipboard, ForegroundAppResult, StoredClipboardItem};
+    use crate::models::{
+        AppSettings, CapturedClipboard, ForegroundAppResult, IgnoredAppRule, StoredClipboardItem,
+    };
     use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
     use std::fs as std_fs;
 
@@ -796,6 +891,7 @@ mod tests {
             display_name: "PixPin".into(),
             icon_png_base64: None,
             app_path: Some("C:\\Program Files\\PixPin\\PixPin.exe".into()),
+            bundle_id: None,
         });
 
         assert_eq!(label.as_deref(), Some("PixPin"));
@@ -808,6 +904,7 @@ mod tests {
             display_name: "Program Manager".into(),
             icon_png_base64: None,
             app_path: None,
+            bundle_id: None,
         });
 
         assert_eq!(label.as_deref(), Some("Dingtalk"));
@@ -824,6 +921,79 @@ mod tests {
         assert_eq!(normalized_app_display_name("   "), None);
     }
 
+    fn test_app() -> ForegroundAppResult {
+        ForegroundAppResult {
+            process_name: "Code".into(),
+            display_name: "VS Code".into(),
+            icon_png_base64: None,
+            app_path: Some("C:\\Program Files\\Microsoft VS Code\\Code.exe".into()),
+            bundle_id: Some("com.microsoft.VSCode".into()),
+        }
+    }
+
+    fn settings_with_rule(rule: IgnoredAppRule) -> AppSettings {
+        let mut settings = AppSettings::default();
+        settings.ignored_apps = Vec::new();
+        settings.ignored_app_rules = vec![rule];
+        settings.normalized()
+    }
+
+    #[test]
+    fn ignores_app_by_exact_app_path() {
+        let settings = settings_with_rule(IgnoredAppRule {
+            app_path: Some("C:/Program Files/Microsoft VS Code/Code.exe".into()),
+            ..Default::default()
+        });
+
+        assert!(should_ignore_app(&settings, Some(&test_app())));
+    }
+
+    #[test]
+    fn ignores_app_by_bundle_id() {
+        let settings = settings_with_rule(IgnoredAppRule {
+            bundle_id: Some("com.microsoft.vscode".into()),
+            ..Default::default()
+        });
+
+        assert!(should_ignore_app(&settings, Some(&test_app())));
+    }
+
+    #[test]
+    fn ignores_app_by_process_name() {
+        let settings = settings_with_rule(IgnoredAppRule {
+            process_name: "code".into(),
+            ..Default::default()
+        });
+
+        assert!(should_ignore_app(&settings, Some(&test_app())));
+    }
+
+    #[test]
+    fn ignores_app_by_display_name() {
+        let settings = settings_with_rule(IgnoredAppRule {
+            display_name: "vs code".into(),
+            ..Default::default()
+        });
+
+        assert!(should_ignore_app(&settings, Some(&test_app())));
+    }
+
+    #[test]
+    fn does_not_ignore_disabled_or_partial_rules() {
+        let disabled = settings_with_rule(IgnoredAppRule {
+            process_name: "Code".into(),
+            enabled: false,
+            ..Default::default()
+        });
+        let partial = settings_with_rule(IgnoredAppRule {
+            process_name: "Cod".into(),
+            ..Default::default()
+        });
+
+        assert!(!should_ignore_app(&disabled, Some(&test_app())));
+        assert!(!should_ignore_app(&partial, Some(&test_app())));
+        assert!(!should_ignore_app(&partial, None));
+    }
     #[test]
     fn classifies_html_plus_image_as_mixed() {
         let settings = AppSettings::default();
@@ -856,7 +1026,7 @@ mod tests {
         let capture = build_captured_clipboard(
             &settings,
             String::new(),
-            Some("<p>hello</p><img src=\"data:image/png;base64,abc\" />".into()),
+            Some("<p>hello</p><img src=\"data:image/png;base64,YWJj\" />".into()),
             None,
             None,
             None,
@@ -898,7 +1068,7 @@ mod tests {
     }
 
     #[test]
-    fn dto_uses_html_image_src_for_mixed_items_without_png() {
+    fn dto_marks_html_image_src_for_mixed_items_without_png() {
         let item = StoredClipboardItem {
             id: "1".into(),
             kind: "mixed".into(),
@@ -906,7 +1076,7 @@ mod tests {
             pinned_at: None,
             preview: "hello".into(),
             full_text: Some("hello".into()),
-            html_text: Some("<p>hello</p><img src=\"data:image/png;base64,abc\" />".into()),
+            html_text: Some("<p>hello</p><img src=\"data:image/png;base64,YWJj\" />".into()),
             rtf_text: None,
             image_png: None,
             image_original_bytes: None,
@@ -929,14 +1099,16 @@ mod tests {
 
         let dto = history_item_to_dto(&item);
 
+        assert!(dto.image_data_url.is_none());
+        assert!(dto.has_image_preview);
         assert_eq!(
-            dto.image_data_url.as_deref(),
-            Some("data:image/png;base64,abc")
+            dto.image_preview_url.as_deref(),
+            Some("history-preview://localhost/1")
         );
     }
 
     #[test]
-    fn dto_reads_local_html_image_file_into_data_url() {
+    fn dto_marks_local_html_image_file_for_preview() {
         let root =
             std::env::temp_dir().join(format!("clipdesk-history-test-{}", uuid::Uuid::new_v4()));
         std_fs::create_dir_all(&root).expect("create temp dir");
@@ -980,11 +1152,12 @@ mod tests {
 
         let dto = history_item_to_dto(&item);
 
-        assert!(dto
-            .image_data_url
-            .as_deref()
-            .unwrap_or_default()
-            .starts_with("data:image/png;base64,"));
+        assert!(dto.image_data_url.is_none());
+        assert!(dto.has_image_preview);
+        assert_eq!(
+            dto.image_preview_url.as_deref(),
+            Some("history-preview://localhost/2")
+        );
 
         let _ = std_fs::remove_file(image_path);
         let _ = std_fs::remove_dir_all(root);

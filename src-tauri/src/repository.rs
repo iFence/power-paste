@@ -1,12 +1,11 @@
 use anyhow::{Context, Result};
-use base64::Engine;
 use chrono::{Duration, Utc};
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Transaction};
 use serde_json::{from_str, to_string};
 use uuid::Uuid;
 
 use crate::{
-    history::html_image_preview_data_url,
+    history::{html_has_supported_image_preview_source, html_image_preview_bytes},
     models::{
         AppSettings, CapturedClipboard, ClipboardItemDto, DeletedClipboardItem,
         HistoryQueryPayload, StoragePaths, StoredClipboardItem,
@@ -30,8 +29,7 @@ struct HistoryListRow {
     created_at: String,
     preview: String,
     full_text: Option<String>,
-    html_text: Option<String>,
-    image_preview_png: Option<Vec<u8>>,
+    has_image_preview: bool,
     image_width: Option<u32>,
     image_height: Option<u32>,
     image_byte_size: Option<usize>,
@@ -235,6 +233,38 @@ impl SqliteHistoryStore {
         statement
             .query_row(params![id], Self::row_to_item)
             .optional()
+            .map_err(Into::into)
+    }
+
+    pub(crate) fn preview_image_bytes(&self, id: &str) -> Result<Option<(String, Vec<u8>)>> {
+        let mut statement = self.connection.prepare(
+            r#"
+            SELECT image_preview_png, image_png, kind, html_text
+            FROM clipboard_items
+            WHERE id = ?1
+            "#,
+        )?;
+        statement
+            .query_row(params![id], |row| {
+                let preview_png = row.get::<_, Option<Vec<u8>>>(0)?;
+                let image_png = row.get::<_, Option<Vec<u8>>>(1)?;
+                let kind = row.get::<_, String>(2)?;
+                let html_text = row.get::<_, Option<String>>(3)?;
+                let bytes = preview_png
+                    .filter(|bytes| !bytes.is_empty())
+                    .or_else(|| image_png.filter(|bytes| !bytes.is_empty()));
+                if let Some(bytes) = bytes {
+                    return Ok(Some(("image/png".into(), bytes)));
+                }
+
+                if kind == "mixed" {
+                    return Ok(html_text.as_deref().and_then(html_image_preview_bytes));
+                }
+
+                Ok(None)
+            })
+            .optional()
+            .map(|value| value.flatten())
             .map_err(Into::into)
     }
 
@@ -708,9 +738,9 @@ impl SqliteHistoryStore {
             UPDATE clipboard_items SET {column} = {column} + 1 WHERE id = ?1
             RETURNING id, kind, created_at, preview, full_text, html_text,
                       CASE
-                        WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0
-                          THEN image_preview_png
-                        ELSE image_png
+                        WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0 THEN 1
+                        WHEN image_png IS NOT NULL AND length(image_png) > 0 THEN 1
+                        ELSE 0
                       END,
                       image_width, image_height,
                       length(COALESCE(image_original_bytes, image_png)),
@@ -849,10 +879,10 @@ impl SqliteHistoryStore {
             r#"
             SELECT id, kind, created_at, preview, full_text, html_text,
                    CASE
-                     WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0
-                       THEN image_preview_png
-                     ELSE image_png
-                   END AS image_list_png,
+                     WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0 THEN 1
+                     WHEN image_png IS NOT NULL AND length(image_png) > 0 THEN 1
+                     ELSE 0
+                   END AS has_image_preview,
                    image_width, image_height,
                    length(COALESCE(image_original_bytes, image_png)),
                    source_app, source_icon_data_url,
@@ -895,14 +925,19 @@ impl SqliteHistoryStore {
             stored_preview
         };
 
+        let has_image_preview = row.get::<_, i64>(6)? != 0
+            || (kind == "mixed"
+                && normalized_html_text
+                    .as_deref()
+                    .is_some_and(html_has_supported_image_preview_source));
+
         Ok(HistoryListRow {
             id: row.get(0)?,
             kind,
             created_at: row.get(2)?,
             preview,
             full_text: normalized_full_text,
-            html_text: normalized_html_text,
-            image_preview_png: row.get(6)?,
+            has_image_preview,
             image_width: row.get(7)?,
             image_height: row.get(8)?,
             image_byte_size: row
@@ -921,40 +956,11 @@ impl SqliteHistoryStore {
                 .map(|value| u64::try_from(value.max(0)).unwrap_or(0))?,
         })
     }
-
-    fn get_history_item(&self, id: &str) -> Result<Option<ClipboardItemDto>> {
-        let mut statement = self.connection.prepare(
-            r#"
-            SELECT id, kind, created_at, preview, full_text, html_text,
-                   CASE
-                     WHEN image_preview_png IS NOT NULL AND length(image_preview_png) > 0
-                       THEN image_preview_png
-                     ELSE image_png
-                   END AS image_list_png,
-                   image_width, image_height,
-                   length(COALESCE(image_original_bytes, image_png)),
-                   source_app, source_icon_data_url,
-                   pinned, favorite, tag_colors, copy_count, paste_count
-            FROM clipboard_items
-            WHERE id = ?1
-            "#,
-        )?;
-        statement
-            .query_row(params![id], Self::row_to_history_list_row)
-            .optional()
-            .map(|item| item.map(history_list_row_to_dto))
-            .map_err(Into::into)
-    }
 }
 
 fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
-    let image_data_url =
-        image_data_url_from_bytes(item.image_preview_png.as_deref()).or_else(|| {
-            item.html_text
-                .as_deref()
-                .filter(|_| item.kind == "mixed")
-                .and_then(html_image_preview_data_url)
-        });
+    let has_image_preview = item.has_image_preview;
+    let image_preview_url = has_image_preview.then(|| history_preview_url(&item.id));
 
     ClipboardItemDto {
         id: item.id,
@@ -962,7 +968,9 @@ fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
         created_at: item.created_at,
         preview: item.preview,
         full_text: item.full_text,
-        image_data_url,
+        image_data_url: None,
+        has_image_preview,
+        image_preview_url,
         image_byte_size: item.image_byte_size,
         image_width: item.image_width,
         image_height: item.image_height,
@@ -976,13 +984,8 @@ fn history_list_row_to_dto(item: HistoryListRow) -> ClipboardItemDto {
     }
 }
 
-fn image_data_url_from_bytes(bytes: Option<&[u8]>) -> Option<String> {
-    bytes.filter(|value| !value.is_empty()).map(|value| {
-        format!(
-            "data:image/png;base64,{}",
-            base64::engine::general_purpose::STANDARD.encode(value)
-        )
-    })
+fn history_preview_url(id: &str) -> String {
+    format!("history-preview://localhost/{id}")
 }
 
 fn build_history_filters(payload: &HistoryQueryPayload) -> (String, Vec<rusqlite::types::Value>) {

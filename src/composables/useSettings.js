@@ -5,6 +5,7 @@ import {
   getDefaultDownloadDir,
   getWebdavSyncState,
   getPlatformCapabilities as fetchPlatformCapabilities,
+  listInstalledApps,
   getSettings as fetchSettings,
   getShortcutStatus,
   retryShortcutRegistration as retryPersistedShortcutRegistration,
@@ -123,6 +124,7 @@ export function useSettings() {
     searchShortcut: "Ctrl+F",
     filterShortcut: "Ctrl+Tab",
     ignoredApps: [],
+    ignoredAppRules: [],
     locale: "zh-CN",
     density: "compact",
     themeMode: "system",
@@ -375,6 +377,8 @@ export function useSettings() {
       quickPasteShortcut: normalizeShortcutValue(next.quickPasteShortcut, detectedPlatform),
       searchShortcut: normalizeShortcutValue(next.searchShortcut, detectedPlatform),
       filterShortcut: normalizeShortcutValue(next.filterShortcut, detectedPlatform),
+      ignoredApps: Array.isArray(next.ignoredApps) ? next.ignoredApps : [],
+      ignoredAppRules: Array.isArray(next.ignoredAppRules) ? next.ignoredAppRules : [],
       tagLabels: normalizeTagLabels(next.tagLabels),
       webdavSync: {
         enabled: Boolean(next.webdavSync?.enabled),
@@ -401,6 +405,8 @@ export function useSettings() {
       ),
       searchShortcut: normalizeShortcutValue(sourceSettings.searchShortcut, detectedPlatform),
       filterShortcut: normalizeShortcutValue(sourceSettings.filterShortcut, detectedPlatform),
+      ignoredApps: Array.isArray(sourceSettings.ignoredApps) ? sourceSettings.ignoredApps : [],
+      ignoredAppRules: Array.isArray(sourceSettings.ignoredAppRules) ? sourceSettings.ignoredAppRules : [],
       tagLabels: normalizeTagLabels(sourceSettings.tagLabels),
       launchOnStartup: platformCapabilities.value.supportsLaunchOnStartup
         ? sourceSettings.launchOnStartup
@@ -572,6 +578,7 @@ export function useSettings() {
     currentThemeModeOptions,
     endShortcutRecording,
     loadAppVersion,
+    listInstalledApps,
     loadPlatformCapabilities,
     loadShortcutStatus,
     localeOptions,

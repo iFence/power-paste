@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <!-- hand-drawn wobble filter -->
+    <filter id="wobble" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="turbulence" baseFrequency="0.015" numOctaves="3" result="noise" seed="2"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="wobbleText" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="2" result="noise" seed="5"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- rough pencil texture -->
+    <filter id="pencil" x="-2%" y="-2%" width="104%" height="104%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="4" result="noise"/>
+      <feComposite in="SourceGraphic" in2="noise" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- warm cream background -->
+  <rect width="1280" height="720" fill="#f7f0df" rx="0"/>
+
+  <!-- subtle paper texture dots -->
+  <g opacity="0.08">
+    <circle cx="120" cy="90" r="1.2" fill="#000"/>
+    <circle cx="340" cy="180" r="1" fill="#000"/>
+    <circle cx="580" cy="60" r="1.3" fill="#000"/>
+    <circle cx="800" cy="140" r="1" fill="#000"/>
+    <circle cx="1050" cy="100" r="1.2" fill="#000"/>
+    <circle cx="200" cy="400" r="1" fill="#000"/>
+    <circle cx="650" cy="500" r="1.1" fill="#000"/>
+    <circle cx="950" cy="380" r="1" fill="#000"/>
+    <circle cx="1100" cy="550" r="1.2" fill="#000"/>
+    <circle cx="400" cy="620" r="1" fill="#000"/>
+  </g>
+
+  <!-- ===== CURVED PIPELINE PATH ===== -->
+  <g filter="url(#wobble)">
+    <!-- main curved path from left to right -->
+    <path d="M 120,380 C 250,380 300,250 430,250 C 560,250 560,450 690,450 C 820,450 820,280 950,280 C 1020,280 1060,340 1160,340"
+          fill="none" stroke="#000" stroke-width="3.5" stroke-linecap="round"
+          stroke-dasharray="14,8" opacity="0.6"/>
+    <!-- arrow tips along path -->
+    <polygon points="255,375 265,380 255,385" fill="#000" opacity="0.5"/>
+    <polygon points="425,245 435,250 425,255" fill="#000" opacity="0.5"/>
+    <polygon points="685,445 695,450 685,455" fill="#000" opacity="0.5"/>
+    <polygon points="945,275 955,280 945,285" fill="#000" opacity="0.5"/>
+  </g>
+
+  <!-- ===== STATION 1: 复制 (Copy) ===== -->
+  <g filter="url(#wobble)">
+    <!-- small clipboard / source doc -->
+    <rect x="75" y="310" width="90" height="70" rx="4" fill="none" stroke="#000" stroke-width="3"/>
+    <!-- clip on top -->
+    <rect x="100" y="300" width="30" height="16" rx="3" fill="none" stroke="#000" stroke-width="2.5"/>
+    <!-- text lines on doc -->
+    <line x1="88" y1="335" x2="148" y2="335" stroke="#000" stroke-width="2" opacity="0.5"/>
+    <line x1="88" y1="348" x2="140" y2="348" stroke="#000" stroke-width="2" opacity="0.5"/>
+    <line x1="88" y1="361" x2="130" y2="361" stroke="#000" stroke-width="2" opacity="0.5"/>
+    <!-- small copy arrow -->
+    <path d="M 140,345 C 155,340 158,330 168,335" fill="none" stroke="#000" stroke-width="2"/>
+    <polygon points="166,330 173,336 164,338" fill="#000"/>
+  </g>
+
+  <!-- ===== STATION 2: 捕获 (Capture) ===== -->
+  <g filter="url(#wobble)" transform="translate(430,180)">
+    <!-- net / hook shape -->
+    <path d="M 0,30 C -20,10 -10,-10 15,-15 C 40,-20 55,5 40,25 C 30,38 10,40 0,30Z"
+          fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+    <!-- inner mesh lines -->
+    <line x1="-5" y1="10" x2="25" y2="-5" stroke="#000" stroke-width="1.5" opacity="0.4"/>
+    <line x1="5" y1="30" x2="30" y2="10" stroke="#000" stroke-width="1.5" opacity="0.4"/>
+    <line x1="0" y1="20" x2="35" y2="0" stroke="#000" stroke-width="1.5" opacity="0.4"/>
+    <!-- small signal waves -->
+    <path d="M 50,5 C 58,0 62,5 65,0" fill="none" stroke="#000" stroke-width="1.5" opacity="0.4"/>
+    <path d="M 55,12 C 60,8 64,12 68,8" fill="none" stroke="#000" stroke-width="1.5" opacity="0.4"/>
+  </g>
+
+  <!-- ===== STATION 3: 存储 (Store) ===== -->
+  <g filter="url(#wobble)" transform="translate(690,380)">
+    <!-- small stack of cards / archive box -->
+    <rect x="0" y="20" width="80" height="55" rx="4" fill="none" stroke="#000" stroke-width="3"/>
+    <!-- lid slightly open -->
+    <path d="M -5,20 L 0,10 L 85,10 L 80,20" fill="none" stroke="#000" stroke-width="2.5"/>
+    <!-- stacked items inside -->
+    <rect x="12" y="32" width="55" height="8" rx="2" fill="none" stroke="#000" stroke-width="1.5" opacity="0.5"/>
+    <rect x="12" y="44" width="55" height="8" rx="2" fill="none" stroke="#000" stroke-width="1.5" opacity="0.5"/>
+    <rect x="12" y="56" width="55" height="8" rx="2" fill="none" stroke="#000" stroke-width="1.5" opacity="0.5"/>
+    <!-- small clock / count badge -->
+    <circle cx="70" cy="15" r="10" fill="none" stroke="#000" stroke-width="2"/>
+    <text x="70" y="19" text-anchor="middle" font-size="11" font-family="'Comic Sans MS','Segoe Print',cursive" fill="#000">N</text>
+  </g>
+
+  <!-- ===== STATION 4: 粘贴 (Paste) ===== -->
+  <g filter="url(#wobble)" transform="translate(1100,275)">
+    <!-- destination doc with paste action -->
+    <rect x="0" y="0" width="85" height="70" rx="4" fill="none" stroke="#000" stroke-width="3"/>
+    <!-- checkmark / success -->
+    <path d="M 15,35 L 30,50 L 55,20" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- paste arrow pointing in -->
+    <path d="M -20,35 C -30,30 -32,40 -20,40" fill="none" stroke="#000" stroke-width="2"/>
+    <polygon points="-22,33 -18,40 -27,39" fill="#000"/>
+  </g>
+
+  <!-- ===== PENCIL MASCOT ===== -->
+  <!-- positioned at center-right, carrying a slip along the path -->
+  <g filter="url(#wobble)" transform="translate(820,230) rotate(-15)">
+    <!-- === LEGS === -->
+    <!-- left leg -->
+    <line x1="-12" y1="130" x2="-18" y2="165" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+    <!-- left foot -->
+    <ellipse cx="-20" cy="170" rx="8" ry="5" fill="none" stroke="#000" stroke-width="2.5"/>
+    <!-- right leg -->
+    <line x1="12" y1="130" x2="20" y2="162" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+    <!-- right foot -->
+    <ellipse cx="22" cy="167" rx="8" ry="5" fill="none" stroke="#000" stroke-width="2.5"/>
+
+    <!-- === PENCIL BODY === -->
+    <rect x="-22" y="-60" width="44" height="190" rx="22" fill="#f5e6b8" stroke="#000" stroke-width="3.5"/>
+    <!-- body wood grain hints -->
+    <line x1="-10" y1="-20" x2="-8" y2="80" stroke="#d4a843" stroke-width="1" opacity="0.2"/>
+    <line x1="5" y1="-30" x2="7" y2="70" stroke="#d4a843" stroke-width="1" opacity="0.2"/>
+
+    <!-- === SHARPENED TIP === -->
+    <polygon points="-22,110 -22,130 0,155 22,130 22,110" fill="#f5e6b8" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+    <!-- wavy shaved wood edge -->
+    <path d="M -20,115 C -15,110 -8,118 0,112 C 8,118 15,110 20,115"
+          fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- graphite tip -->
+    <polygon points="-8,140 0,155 8,140" fill="#000" stroke="#000" stroke-width="1"/>
+    <!-- graphite hatch marks -->
+    <line x1="-3" y1="145" x2="0" y2="152" stroke="#444" stroke-width="1"/>
+    <line x1="3" y1="143" x2="1" y2="150" stroke="#444" stroke-width="1"/>
+
+    <!-- === FERRULE BAND === -->
+    <rect x="-22" y="-80" width="44" height="22" rx="2" fill="#e8e2d6" stroke="#000" stroke-width="3"/>
+    <!-- ferrule tick marks -->
+    <line x1="-12" y1="-78" x2="-12" y2="-60" stroke="#000" stroke-width="1.5"/>
+    <line x1="-4" y1="-78" x2="-4" y2="-60" stroke="#000" stroke-width="1.5"/>
+    <line x1="4" y1="-78" x2="4" y2="-60" stroke="#000" stroke-width="1.5"/>
+    <line x1="12" y1="-78" x2="12" y2="-60" stroke="#000" stroke-width="1.5"/>
+    <!-- ferrule bands -->
+    <line x1="-22" y1="-80" x2="22" y2="-80" stroke="#000" stroke-width="2.5"/>
+    <line x1="-22" y1="-58" x2="22" y2="-58" stroke="#000" stroke-width="2.5"/>
+
+    <!-- === ERASER (pink #fdd4d2) === -->
+    <rect x="-20" y="-105" width="40" height="27" rx="13" fill="#fdd4d2" stroke="#000" stroke-width="3"/>
+
+    <!-- === FACE === -->
+    <!-- eyes -->
+    <circle cx="-8" cy="-25" r="4" fill="#000"/>
+    <circle cx="8" cy="-25" r="4" fill="#000"/>
+    <!-- tiny eye highlights -->
+    <circle cx="-6" cy="-27" r="1.5" fill="#fff" opacity="0.6"/>
+    <circle cx="10" cy="-27" r="1.5" fill="#fff" opacity="0.6"/>
+    <!-- mouth - focused expression -->
+    <path d="M -5,-14 C -3,-10 3,-10 5,-14" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- === ARMS === -->
+    <!-- left arm - reaching back toward station 3 -->
+    <path d="M -22,20 C -45,10 -60,0 -55,-15" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+    <!-- left hand -->
+    <circle cx="-55" cy="-18" r="6" fill="none" stroke="#000" stroke-width="2.5"/>
+
+    <!-- right arm - carrying content slip forward -->
+    <path d="M 22,15 C 50,5 65,-5 60,-20" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+    <!-- right hand -->
+    <circle cx="60" cy="-23" r="6" fill="none" stroke="#000" stroke-width="2.5"/>
+
+    <!-- === CONTENT SLIP being carried === -->
+    <g transform="translate(55,-55)">
+      <rect x="0" y="0" width="45" height="32" rx="3" fill="#fff" stroke="#000" stroke-width="2.5" transform="rotate(5)"/>
+      <line x1="8" y1="10" x2="35" y2="10" stroke="#000" stroke-width="1.5" opacity="0.5" transform="rotate(5)"/>
+      <line x1="8" y1="18" x2="30" y2="18" stroke="#000" stroke-width="1.5" opacity="0.5" transform="rotate(5)"/>
+      <line x1="8" y1="26" x2="25" y2="26" stroke="#000" stroke-width="1.5" opacity="0.5" transform="rotate(5)"/>
+    </g>
+  </g>
+
+  <!-- ===== LABELS ===== -->
+  <g filter="url(#wobbleText)">
+    <!-- Station 1 label -->
+    <text x="120" y="405" text-anchor="middle" font-size="28" font-family="'Comic Sans MS','Segoe Print','STKaiti','KaiTi',cursive" fill="#000" font-weight="bold">复制</text>
+
+    <!-- Station 2 label -->
+    <text x="460" y="290" text-anchor="middle" font-size="28" font-family="'Comic Sans MS','Segoe Print','STKaiti','KaiTi',cursive" fill="#000" font-weight="bold">捕获</text>
+
+    <!-- Station 3 label -->
+    <text x="730" y="475" text-anchor="middle" font-size="28" font-family="'Comic Sans MS','Segoe Print','STKaiti','KaiTi',cursive" fill="#000" font-weight="bold">存储</text>
+
+    <!-- Station 4 label -->
+    <text x="1165" y="370" text-anchor="middle" font-size="28" font-family="'Comic Sans MS','Segoe Print','STKaiti','KaiTi',cursive" fill="#000" font-weight="bold">粘贴</text>
+
+    <!-- Product name -->
+    <text x="640" y="660" text-anchor="middle" font-size="22" font-family="'Comic Sans MS','Segoe Print','STKaiti','KaiTi',cursive" fill="#000" opacity="0.4" letter-spacing="4">Power Paste</text>
+  </g>
+
+  <!-- ===== SMALL MOTION MARKS near mascot ===== -->
+  <g opacity="0.35" filter="url(#wobble)">
+    <line x1="760" y1="220" x2="745" y2="215" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+    <line x1="755" y1="235" x2="740" y2="233" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+    <line x1="758" y1="250" x2="743" y2="250" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===== SMALL DECORATIVE ELEMENTS ===== -->
+  <!-- tiny scattered dots around stations for hand-drawn feel -->
+  <g opacity="0.15" filter="url(#wobble)">
+    <circle cx="180" cy="330" r="2" fill="#000"/>
+    <circle cx="350" cy="310" r="1.5" fill="#000"/>
+    <circle cx="550" cy="350" r="2" fill="#000"/>
+    <circle cx="620" cy="420" r="1.5" fill="#000"/>
+    <circle cx="1050" cy="320" r="2" fill="#000"/>
+  </g>
+</svg>

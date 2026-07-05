@@ -3,7 +3,7 @@ import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { openExternalUrl } from '../services/tauriApi'
+import { listInstalledApps, openExternalUrl } from '../services/tauriApi'
 import { normalizeShortcutKey } from '../utils/shortcut'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 import checkIcon from '../assets/check.svg'
@@ -82,6 +82,11 @@ const updateDebugBodyDraft = ref('')
 const maxHistoryItemsDraft = ref(200)
 const maxHistoryDaysDraft = ref(30)
 const maxImageBytesMbDraft = ref(6)
+const appPickerOpen = ref(false)
+const appPickerLoading = ref(false)
+const appPickerError = ref('')
+const appSearchQuery = ref('')
+const installedApps = ref([])
 let updateFeedbackTimer = null
 
 const categories = computed(() => [
@@ -112,6 +117,26 @@ const hasClipboardWriteSupport = computed(
     props.platformCapabilities.supportsHtmlWrite ||
     props.platformCapabilities.supportsImageWrite,
 )
+const installedAppPickerSupported = computed(() =>
+  ['windows', 'macos'].includes(props.platformCapabilities.platform),
+)
+const ignoredAppRules = computed(() =>
+  Array.isArray(props.settings.ignoredAppRules) ? props.settings.ignoredAppRules : [],
+)
+const ignoredAppKeys = computed(() => new Set(ignoredAppRules.value.map(appRuleKey)))
+const filteredInstalledApps = computed(() => {
+  const query = appSearchQuery.value.trim().toLowerCase()
+  const apps = Array.isArray(installedApps.value) ? installedApps.value : []
+  if (!query) {
+    return apps
+  }
+
+  return apps.filter((app) =>
+    [app.displayName, app.processName, app.appPath, app.bundleId]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(query)),
+  )
+})
 const shortcutIssuesByKey = computed(() => {
   const issues = props.shortcutStatus?.issues || []
   return issues.reduce((acc, issue) => {
@@ -270,6 +295,98 @@ async function handleWebdavPasswordChange(event) {
   await props.saveWebdavPassword(password)
 }
 
+
+function normalizeAppPathKey(value) {
+  return String(value || '').trim().replace(/\\/g, '/').toLowerCase()
+}
+
+function appRuleKey(app) {
+  if (!app) {
+    return ''
+  }
+  if (app.appPath) {
+    return `path:${normalizeAppPathKey(app.appPath)}`
+  }
+  if (app.bundleId) {
+    return `bundle:${String(app.bundleId).trim().toLowerCase()}`
+  }
+  if (app.processName) {
+    return `process:${String(app.processName).trim().toLowerCase()}`
+  }
+  return `display:${String(app.displayName || '').trim().toLowerCase()}`
+}
+
+function appInitial(name) {
+  return String(name || '?').trim().slice(0, 1).toUpperCase() || '?'
+}
+
+function appSecondaryText(app) {
+  return app?.appPath || app?.bundleId || app?.processName || ''
+}
+
+function installedAppToRule(app) {
+  return {
+    platform: app.platform || props.platformCapabilities.platform || '',
+    displayName: app.displayName || app.processName || '',
+    processName: app.processName || '',
+    appPath: app.appPath || null,
+    bundleId: app.bundleId || null,
+    iconDataUrl: app.iconDataUrl || null,
+    enabled: true,
+  }
+}
+
+async function updateIgnoredAppRules(rules) {
+  await props.applySettingPatch({ ignoredAppRules: rules }, 'ignoredAppRules')
+}
+
+async function openIgnoredAppPicker() {
+  appPickerOpen.value = true
+  appPickerError.value = ''
+  if (!installedAppPickerSupported.value || installedApps.value.length) {
+    return
+  }
+
+  appPickerLoading.value = true
+  try {
+    installedApps.value = await listInstalledApps()
+  } catch (error) {
+    appPickerError.value = props.t('ignoredAppPickerLoadFailed')
+    console.error('Failed to list installed apps', error)
+  } finally {
+    appPickerLoading.value = false
+  }
+}
+
+function closeIgnoredAppPicker() {
+  appPickerOpen.value = false
+  appSearchQuery.value = ''
+  appPickerError.value = ''
+}
+
+async function addIgnoredApp(app) {
+  const rule = installedAppToRule(app)
+  const key = appRuleKey(rule)
+  if (!key || ignoredAppKeys.value.has(key)) {
+    return
+  }
+
+  await updateIgnoredAppRules([...ignoredAppRules.value, rule])
+}
+
+async function removeIgnoredApp(rule) {
+  const key = appRuleKey(rule)
+  await updateIgnoredAppRules(ignoredAppRules.value.filter((item) => appRuleKey(item) !== key))
+}
+
+async function toggleIgnoredApp(rule, enabled) {
+  const key = appRuleKey(rule)
+  await updateIgnoredAppRules(
+    ignoredAppRules.value.map((item) =>
+      appRuleKey(item) === key ? { ...item, enabled } : item,
+    ),
+  )
+}
 async function chooseLanTransferDownloadDir() {
   const selected = await open({
     directory: true,
@@ -787,6 +904,73 @@ watch(
             </div>
           </section>
 
+          <section class="setting-card wide ignored-apps-card">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('ignoredApps') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('ignoredAppsTip')" :aria-label="t('ignoredAppsTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+              <span v-if="!ignoredAppRules.length" class="setting-note ignored-app-empty">
+                {{ t('ignoredAppsEmpty') }}
+              </span>
+              <span v-if="!installedAppPickerSupported" class="setting-note">
+                {{ t('ignoredAppsLinuxUnsupported') }}
+              </span>
+            </div>
+            <div class="ignored-apps-panel">
+              <div v-if="ignoredAppRules.length" class="ignored-app-scroll" aria-live="polite">
+                <div class="ignored-app-list">
+                  <span
+                    v-for="rule in ignoredAppRules"
+                    :key="appRuleKey(rule)"
+                    class="ignored-app-icon-wrap"
+                    :class="{ disabled: !rule.enabled }"
+                  >
+                    <button
+                      class="ignored-app-icon-button"
+                      type="button"
+                      :title="appSecondaryText(rule) || rule.displayName || rule.processName"
+                      :aria-label="`${rule.displayName || rule.processName} ${rule.enabled ? t('toggleOff') : t('toggleOn')}`"
+                      :disabled="isPending('ignoredAppRules')"
+                      @click="toggleIgnoredApp(rule, !rule.enabled)"
+                    >
+                      <span class="app-icon-box" aria-hidden="true">
+                        <img v-if="rule.iconDataUrl" :src="rule.iconDataUrl" alt="" />
+                        <span v-else>{{ appInitial(rule.displayName || rule.processName) }}</span>
+                      </span>
+                    </button>
+                    <button
+                      class="ignored-app-remove"
+                      type="button"
+                      :aria-label="`${t('removeAction')} ${rule.displayName || rule.processName}`"
+                      :disabled="isPending('ignoredAppRules')"
+                      @click="removeIgnoredApp(rule)"
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </span>
+                </div>
+              </div>
+
+              <div class="ignored-app-actions">
+                <button
+                  class="ignored-app-add-button"
+                  type="button"
+                  :aria-label="t('addIgnoredApp')"
+                  :title="t('addIgnoredApp')"
+                  :disabled="isPending('ignoredAppRules') || !installedAppPickerSupported"
+                  @click="openIgnoredAppPicker"
+                >
+                  <span aria-hidden="true">+</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">
@@ -832,6 +1016,7 @@ watch(
               </label>
             </div>
           </section>
+
         </div>
 
         <div v-if="activeCategory === 'history'" class="settings-grid settings-section-grid">
@@ -971,6 +1156,7 @@ watch(
               @keydown.enter.prevent="commitMaxImageBytes"
             />
           </section>
+
 
         </div>
 
@@ -1522,6 +1708,73 @@ watch(
             <span class="settings-value-text">{{ appVersion ? `v${appVersion}` : '--' }}</span>
           </section>
         </div>
+      </section>
+    </div>
+
+
+    <div v-if="appPickerOpen" class="app-picker-backdrop" @click="closeIgnoredAppPicker">
+      <section class="app-picker-dialog" @click.stop>
+        <header class="app-picker-header">
+          <h3>{{ t('addIgnoredApp') }}</h3>
+          <button class="toolbar-icon-button" type="button" :aria-label="t('closeAction')" @click="closeIgnoredAppPicker">
+            <span aria-hidden="true">×</span>
+          </button>
+        </header>
+        <div v-if="!installedAppPickerSupported" class="app-picker-message">
+          {{ t('ignoredAppsLinuxUnsupported') }}
+        </div>
+        <template v-else>
+          <div class="search-input-wrap app-picker-search-wrap">
+            <input
+              v-model="appSearchQuery"
+              class="app-picker-search"
+              type="search"
+              :placeholder="t('searchAppsPlaceholder')"
+            />
+            <button
+              v-if="appSearchQuery"
+              class="shortcut-clear-button"
+              type="button"
+              :title="t('clearSearch')"
+              :aria-label="t('clearSearch')"
+              @click="appSearchQuery = ''"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+          <div v-if="appPickerLoading" class="app-picker-message">
+            {{ t('loadingApps') }}
+          </div>
+          <div v-else-if="appPickerError" class="app-picker-message error">
+            {{ appPickerError }}
+          </div>
+          <div v-else class="app-picker-list">
+            <button
+              v-for="app in filteredInstalledApps"
+              :key="appRuleKey(app)"
+              class="app-picker-item"
+              type="button"
+              :class="{ selected: ignoredAppKeys.has(appRuleKey(app)) }"
+              :disabled="ignoredAppKeys.has(appRuleKey(app)) || isPending('ignoredAppRules')"
+              @click="addIgnoredApp(app)"
+            >
+              <span class="app-icon-box">
+                <img v-if="app.iconDataUrl" :src="app.iconDataUrl" alt="" />
+                <span v-else>{{ appInitial(app.displayName || app.processName) }}</span>
+              </span>
+              <span class="app-picker-info">
+                <strong>{{ app.displayName || app.processName }}</strong>
+                <small>{{ appSecondaryText(app) }}</small>
+              </span>
+              <span class="app-picker-state">
+                {{ ignoredAppKeys.has(appRuleKey(app)) ? t('ignoredAppAdded') : t('addAction') }}
+              </span>
+            </button>
+            <div v-if="!filteredInstalledApps.length" class="app-picker-message">
+              {{ t('noAppsFound') }}
+            </div>
+          </div>
+        </template>
       </section>
     </div>
 

@@ -54,6 +54,9 @@ export function getDefaultDownloadDir() {
 export function getPlatformCapabilities() {
   return invoke("get_platform_capabilities");
 }
+export function listInstalledApps() {
+  return invoke("list_installed_apps");
+}
 
 export function getUpdateState() {
   return invoke("get_update_state");

@@ -651,6 +651,36 @@ Object.assign(messages["en-US"], {
     "Failed to create the WebDAV sync folder. Check remote folder permissions.",
 });
 
+
+Object.assign(messages["zh-CN"], {
+  addAction: "添加",
+  addIgnoredApp: "添加应用",
+  ignoredAppAdded: "已添加",
+  ignoredAppsEmpty: "尚未忽略任何应用",
+  ignoredAppsTip: "从这些应用复制内容时不会写入历史记录，不影响系统剪贴板本身。",
+  ignoredAppsLinuxUnsupported: "当前版本暂不支持枚举 Linux 已安装应用，后续版本补充。",
+  ignoredAppPickerLoadFailed: "加载已安装应用失败",
+  loadingApps: "正在加载应用...",
+  noAppsFound: "未找到应用",
+  removeAction: "移除",
+  searchAppsPlaceholder: "搜索应用",
+});
+
+Object.assign(messages["en-US"], {
+  addAction: "Add",
+  addIgnoredApp: "Add app",
+  ignoredAppAdded: "Added",
+  ignoredAppsEmpty: "No ignored apps yet",
+  ignoredAppsTip:
+    "Copies from these apps are not saved to history. The system clipboard itself is unchanged.",
+  ignoredAppsLinuxUnsupported:
+    "This version cannot enumerate installed Linux apps yet. Support will be added later.",
+  ignoredAppPickerLoadFailed: "Failed to load installed apps",
+  loadingApps: "Loading apps...",
+  noAppsFound: "No apps found",
+  removeAction: "Remove",
+  searchAppsPlaceholder: "Search apps",
+});
 export function translate(locale, key, params = {}) {
   const pack = messages[locale] || messages[defaultLocale];
   const fallback = messages["en-US"];

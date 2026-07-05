@@ -236,13 +236,16 @@ pub(crate) fn capture_clipboard(
         .and_then(|path| image_from_file_path(&path));
     let image = snapshot.image.or(file_image);
 
-    let image_bytes = image.as_ref().map(|image| image.png_bytes.clone());
-    let original_bytes = image
-        .as_ref()
-        .and_then(|image| image.original_bytes.clone());
-    let original_mime = image.as_ref().and_then(|image| image.original_mime.clone());
-    let width = image.as_ref().map(|image| image.width);
-    let height = image.as_ref().map(|image| image.height);
+    let (image_bytes, original_bytes, original_mime, width, height) = match image {
+        Some(image) => (
+            Some(image.png_bytes),
+            image.original_bytes,
+            image.original_mime,
+            Some(image.width),
+            Some(image.height),
+        ),
+        None => (None, None, None, None, None),
+    };
 
     build_captured_clipboard(
         settings,

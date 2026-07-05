@@ -36,7 +36,7 @@ export function buildHistoryDragData(item) {
 }
 
 export function hasHistoryDragData(item) {
-  if (nonEmptyString(item?.imageDataUrl)) {
+  if (nonEmptyString(item?.imageDataUrl) || nonEmptyString(item?.imagePreviewUrl) || item?.hasImagePreview) {
     return true
   }
 

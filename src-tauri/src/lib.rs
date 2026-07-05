@@ -16,6 +16,8 @@ mod clipboard;
 mod clipboard_html;
 mod commands;
 mod history;
+mod history_preview;
+mod installed_apps;
 mod lan_receiver;
 mod models;
 mod paste_target;
@@ -35,12 +37,14 @@ mod usecases;
 use commands::{
     clear_history, clear_webdav_credential, copy_item, delete_item, get_default_download_dir,
     get_history, get_lan_receiver_state, get_platform_capabilities, get_settings,
-    get_shortcut_status, get_webdav_sync_state, open_external_url, open_lan_transfer_file,
-    paste_item, prepare_image_drag_file, reset_settings, retry_shortcut_registration,
-    reveal_lan_transfer_file, save_main_panel_size, send_lan_transfer_file, send_lan_transfer_text,
-    start_lan_receiver, stop_lan_receiver, sync_webdav_now, test_webdav_sync, toggle_favorite,
-    toggle_pin, update_item_tags, update_settings, update_text_item, update_webdav_credential,
+    get_shortcut_status, get_webdav_sync_state, list_installed_apps, open_external_url,
+    open_lan_transfer_file, paste_item, prepare_image_drag_file, reset_settings,
+    retry_shortcut_registration, reveal_lan_transfer_file, save_main_panel_size,
+    send_lan_transfer_file, send_lan_transfer_text, start_lan_receiver, stop_lan_receiver,
+    sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin, update_item_tags,
+    update_settings, update_text_item, update_webdav_credential,
 };
+use history_preview::{handle_history_preview_request, HISTORY_PREVIEW_PROTOCOL};
 use models::{
     AppSettings, MonitorState, SharedState, StoragePaths, UpdateStatus, WebdavSyncStatusDto,
     PANEL_LABEL,
@@ -151,6 +155,7 @@ fn create_main_window(
 // The crate root only assembles modules, shared state and Tauri plugins.
 pub fn run() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol(HISTORY_PREVIEW_PROTOCOL, handle_history_preview_request)
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
             if is_background_startup_args(args.iter().map(String::as_str)) {
                 if let Some(window) = app.get_webview_window(PANEL_LABEL) {
@@ -202,7 +207,6 @@ pub fn run() {
             let root = app.path().app_local_data_dir()?;
             let paths = StoragePaths::new(root)?;
             let loaded_settings = load_settings(&paths).context("failed to load settings")?;
-            create_main_window(app, &paths, &loaded_settings)?;
             let settings = Arc::new(Mutex::new(loaded_settings));
             let history_store = Arc::new(Mutex::new(SqliteHistoryStore::new(&paths)?));
             let webdav_sync_status =
@@ -230,6 +234,9 @@ pub fn run() {
                 webdav_sync_pending: Arc::new(AtomicBool::new(false)),
             });
 
+            app.manage(shared.clone());
+            create_main_window(app, &shared.paths, &settings.lock().unwrap())?;
+
             let launch_on_startup = settings.lock().unwrap().launch_on_startup;
             if clipboard::platform_capabilities().supports_launch_on_startup {
                 let _ = set_launch_on_startup(app.handle(), launch_on_startup);
@@ -244,7 +251,6 @@ pub fn run() {
             *shared.shortcut_status.lock().unwrap() = shortcut_status;
 
             capture::start_clipboard_monitor(app.handle().clone(), shared.clone());
-            app.manage(shared);
             update::spawn_startup_check(
                 app.handle().clone(),
                 app.state::<Arc<SharedState>>().inner().clone(),
@@ -261,6 +267,7 @@ pub fn run() {
             get_settings,
             get_shortcut_status,
             get_default_download_dir,
+            list_installed_apps,
             update_settings,
             reset_settings,
             retry_shortcut_registration,

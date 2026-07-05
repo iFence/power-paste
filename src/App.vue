@@ -1,6 +1,6 @@
 <script setup>
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
     onCopySound,
@@ -15,8 +15,6 @@ import FilterTabs from "./components/FilterTabs.vue";
 import HistoryList from "./components/HistoryList.vue";
 import EditModal from "./components/EditModal.vue";
 import ConfirmModal from "./components/ConfirmModal.vue";
-import LanTransferView from "./views/LanTransferView.vue";
-import SettingsView from "./views/SettingsView.vue";
 import { useSettings } from "./composables/useSettings";
 import { useUpdater } from "./composables/useUpdater";
 import {
@@ -41,6 +39,8 @@ const historyState = useHistory({
     settings: settingsState.settings,
     t: settingsState.t,
 });
+const LanTransferView = defineAsyncComponent(() => import("./views/LanTransferView.vue"));
+const SettingsView = defineAsyncComponent(() => import("./views/SettingsView.vue"));
 const quickPasteActive = ref(false);
 
 useTheme({
