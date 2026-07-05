@@ -42,18 +42,17 @@ pub(crate) fn list_installed_apps() -> Result<Vec<InstalledAppDto>, AppError> {
 
 // 获取已安装应用图标，用于添加忽略应用规则时按需补充图标。
 #[tauri::command]
-pub(crate) fn get_installed_app_icon(
+pub(crate) async fn get_installed_app_icon(
     display_name: String,
     process_name: String,
     app_path: Option<String>,
     bundle_id: Option<String>,
 ) -> Result<Option<String>, AppError> {
-    Ok(installed_apps::installed_app_icon_data_url(
-        display_name,
-        process_name,
-        app_path,
-        bundle_id,
-    ))
+    tauri::async_runtime::spawn_blocking(move || {
+        installed_apps::installed_app_icon_data_url(display_name, process_name, app_path, bundle_id)
+    })
+    .await
+    .map_err(|error| AppError::Message(error.to_string()))
 }
 
 // 更新设置，并同步快捷键、开机启动和调试模式等运行时副作用。

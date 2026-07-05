@@ -91,7 +91,8 @@ let updateFeedbackTimer = null
 let appIconHydrationRun = 0
 const appIconLoadingKeys = new Set()
 const appIconResolvedKeys = new Set()
-const APP_ICON_HYDRATION_BATCH_SIZE = 40
+const APP_ICON_HYDRATION_BATCH_SIZE = 16
+const APP_ICON_HYDRATION_CONCURRENCY = 3
 
 const categories = computed(() => [
   { key: 'general', label: props.t('settingsCategoryGeneral') },
@@ -354,45 +355,86 @@ function updateInstalledAppIcon(key, iconDataUrl) {
     return
   }
 
-  installedApps.value = installedApps.value.map((app) =>
-    appRuleKey(app) === key ? { ...app, iconDataUrl } : app,
-  )
+  updateInstalledAppIcons(new Map([[key, iconDataUrl]]))
+}
+
+function updateInstalledAppIcons(iconMap) {
+  if (!iconMap?.size) {
+    return
+  }
+
+  installedApps.value = installedApps.value.map((app) => {
+    const iconDataUrl = iconMap.get(appRuleKey(app))
+    return iconDataUrl ? { ...app, iconDataUrl } : app
+  })
 }
 
 async function hydrateInstalledAppIcons(runId) {
   const apps = filteredInstalledApps.value
     .filter((app) => {
       const key = appRuleKey(app)
-      return key && !app.iconDataUrl && !appIconResolvedKeys.has(key)
+      return (
+        key &&
+        !app.iconDataUrl &&
+        !appIconResolvedKeys.has(key) &&
+        !appIconLoadingKeys.has(key)
+      )
     })
     .slice(0, APP_ICON_HYDRATION_BATCH_SIZE)
 
+  if (!apps.length || runId !== appIconHydrationRun || !appPickerOpen.value) {
+    return
+  }
+
   for (const app of apps) {
-    if (runId !== appIconHydrationRun || !appPickerOpen.value) {
-      return
-    }
-
     const key = appRuleKey(app)
-    if (!key || appIconLoadingKeys.has(key)) {
-      continue
+    if (key) {
+      appIconLoadingKeys.add(key)
     }
+  }
 
-    appIconLoadingKeys.add(key)
-    try {
-      const iconDataUrl = await loadInstalledAppIcon(app)
-      if (runId === appIconHydrationRun && appPickerOpen.value) {
-        updateInstalledAppIcon(key, iconDataUrl)
-        appIconResolvedKeys.add(key)
+  const iconEntries = []
+  let cursor = 0
+  async function hydrateNextIcon() {
+    while (cursor < apps.length && runId === appIconHydrationRun && appPickerOpen.value) {
+      const app = apps[cursor]
+      cursor += 1
+      const key = appRuleKey(app)
+      if (!key) {
+        continue
       }
-    } catch (error) {
-      console.error('Failed to load installed app icon', error)
-    } finally {
-      if (runId === appIconHydrationRun && appPickerOpen.value) {
+
+      try {
+        const iconDataUrl = await loadInstalledAppIcon(app)
+        if (iconDataUrl) {
+          iconEntries.push([key, iconDataUrl])
+        }
+      } catch (error) {
+        console.error('Failed to load installed app icon', error)
+      } finally {
         appIconResolvedKeys.add(key)
+        appIconLoadingKeys.delete(key)
       }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(APP_ICON_HYDRATION_CONCURRENCY, apps.length) }, () =>
+      hydrateNextIcon(),
+    ),
+  )
+  for (const app of apps) {
+    const key = appRuleKey(app)
+    if (key) {
       appIconLoadingKeys.delete(key)
     }
   }
+
+  if (runId !== appIconHydrationRun || !appPickerOpen.value) {
+    return
+  }
+
+  updateInstalledAppIcons(new Map(iconEntries))
 
   const hasMoreIcons = filteredInstalledApps.value.some((app) => {
     const key = appRuleKey(app)
@@ -401,7 +443,7 @@ async function hydrateInstalledAppIcons(runId) {
   if (runId === appIconHydrationRun && appPickerOpen.value && hasMoreIcons) {
     setTimeout(() => {
       hydrateInstalledAppIcons(runId)
-    }, 50)
+    }, 80)
   }
 }
 
@@ -1036,7 +1078,13 @@ watch(
                       @click="toggleIgnoredApp(rule, !rule.enabled)"
                     >
                       <span class="app-icon-box" aria-hidden="true">
-                        <img v-if="rule.iconDataUrl" :src="rule.iconDataUrl" alt="" />
+                        <img
+                          v-if="rule.iconDataUrl"
+                          :src="rule.iconDataUrl"
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
                         <span v-else>{{ appInitial(rule.displayName || rule.processName) }}</span>
                       </span>
                     </button>
@@ -1866,7 +1914,13 @@ watch(
               @click="addIgnoredApp(app)"
             >
               <span class="app-icon-box">
-                <img v-if="app.iconDataUrl" :src="app.iconDataUrl" alt="" />
+                <img
+                  v-if="app.iconDataUrl"
+                  :src="app.iconDataUrl"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
                 <span v-else>{{ appInitial(app.displayName || app.processName) }}</span>
               </span>
               <span class="app-picker-info">

@@ -1,12 +1,12 @@
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use std::collections::HashMap;
 #[cfg(windows)]
 use std::ffi::c_void;
 #[cfg(target_os = "linux")]
 use std::fs;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use std::sync::{Mutex, OnceLock};
 
 use crate::{
@@ -67,6 +67,9 @@ fn linux_window_display_name(window_id: &str) -> Option<String> {
 
 #[cfg(target_os = "macos")]
 static MACOS_APP_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+
+#[cfg(windows)]
+static WINDOWS_APP_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 
 #[cfg(target_os = "macos")]
 fn parse_lsappinfo_field(output: &str, key: &str) -> Option<String> {
@@ -130,6 +133,19 @@ function run(argv) {
 
 #[cfg(windows)]
 fn windows_app_icon_base64(app_path: &str) -> Option<String> {
+    let cache_key = app_path.trim().replace('\\', "/").to_ascii_lowercase();
+    let cache = WINDOWS_APP_ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(icon) = cache.lock().unwrap().get(&cache_key).cloned() {
+        return icon;
+    }
+
+    let icon = windows_app_icon_base64_uncached(app_path);
+    cache.lock().unwrap().insert(cache_key, icon.clone());
+    icon
+}
+
+#[cfg(windows)]
+fn windows_app_icon_base64_uncached(app_path: &str) -> Option<String> {
     use image::{DynamicImage, ImageFormat, RgbaImage};
     use windows_sys::Win32::{
         Graphics::Gdi::{

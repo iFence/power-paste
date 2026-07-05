@@ -36,13 +36,14 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Finder-style color tags: up to 3 tags per item, with 7 fixed colors and customizable labels
 - Edit plain-text history items in place
 - Copy history items back to the system clipboard, or paste directly to the previous target app when supported
+- Ignore selected applications so sensitive or noisy clipboard changes are not saved to history
 - Paste the first 10 visible items with `Ctrl/Cmd + 1` through `Ctrl/Cmd + 0`
 - Drag history items into other apps; images are dragged as native files when possible
 - Hover image thumbnails to preview larger images
 - Optional copy count and paste count statistics with smart sorting
 - Local-network phone transfer for text, images, and files through a browser page opened by scanning a QR code
 - WebDAV history sync with system credential storage for the remote password
-- Settings for language, theme, accent color, launch on startup, sound, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, and quick paste shortcut
+- Settings for language, theme, accent color, launch on startup, sound, ignored apps, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, and quick paste shortcut
 - Tray integration, single-instance behavior, background startup, automatic update checks, and manual update checks
 - Custom in-app confirmation dialogs instead of system confirm prompts for destructive actions
 
@@ -75,6 +76,12 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Tag color and display name are separate
 - Tag names are editable from settings
 - Tag filters are available directly in the main panel
+
+### Ignored Applications
+
+- Add ignored applications from a system-installed app picker on Windows and macOS
+- Ignored app rules can match by app path, bundle ID, process name, or display name
+- Clipboard changes copied from ignored applications are skipped without changing the system clipboard itself
 
 ### Phone and PC Transfer
 
@@ -120,6 +127,7 @@ Current configurable options include:
 - Maximum stored image size
 - Copy count statistics toggle (tracks repeat-copy usage and affects sort order)
 - Paste count statistics toggle (tracks direct-paste usage and affects sort order)
+- Ignored applications picker and rule list
 - Tag display names
 - LAN transfer download directory
 - WebDAV sync endpoint, username, remote directory, auto sync, and credential management
