@@ -103,7 +103,7 @@ const languageToggleIndex = computed(() =>
 )
 const debugToggleIndex = computed(() => (props.settings.debugEnabled ? 0 : 1))
 const hardwareAccelerationToggleIndex = computed(() =>
-  props.settings.hardwareAccelerationEnabled !== false ? 0 : 1,
+  props.settings.hardwareAccelerationEnabled === true ? 0 : 1,
 )
 const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
@@ -1589,7 +1589,7 @@ watch(
               <button
                 type="button"
                 class="setting-toggle-option"
-                :class="{ active: settings.hardwareAccelerationEnabled !== false }"
+                :class="{ active: settings.hardwareAccelerationEnabled === true }"
                 :disabled="isPending('hardwareAccelerationEnabled')"
                 @click="updateSetting('hardwareAccelerationEnabled', true, 'hardwareAccelerationEnabled')"
               >
@@ -1598,7 +1598,7 @@ watch(
               <button
                 type="button"
                 class="setting-toggle-option"
-                :class="{ active: settings.hardwareAccelerationEnabled === false }"
+                :class="{ active: settings.hardwareAccelerationEnabled !== true }"
                 :disabled="isPending('hardwareAccelerationEnabled')"
                 @click="updateSetting('hardwareAccelerationEnabled', false, 'hardwareAccelerationEnabled')"
               >

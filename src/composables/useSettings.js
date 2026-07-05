@@ -111,7 +111,7 @@ export function useSettings() {
     debugEnabled: false,
     soundEnabled: true,
     launchOnStartup: false,
-    hardwareAccelerationEnabled: true,
+    hardwareAccelerationEnabled: false,
     pollingIntervalMs: 500,
     maxHistoryItems: 200,
     maxHistoryDays: 30,

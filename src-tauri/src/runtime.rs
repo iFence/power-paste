@@ -189,6 +189,8 @@ pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Res
     if let Some(icon) = app.default_window_icon().cloned() {
         window.set_icon(icon)?;
     }
+    #[cfg(windows)]
+    window.set_skip_taskbar(true)?;
 
     {
         let settings = shared.settings.lock().unwrap().clone();

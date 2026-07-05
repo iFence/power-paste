@@ -79,6 +79,14 @@ watch(settingsState.currentLocale, (locale) => {
     document.documentElement.lang = locale;
 });
 
+watch(
+    () => [route.name, settingsState.platformCapabilities.value.platform],
+    ([routeName, platform]) => {
+        void syncTaskbarVisibilityForRoute(routeName, platform);
+    },
+    { immediate: true },
+);
+
 let unlistenHistory = null;
 let unlistenCopySound = null;
 let unlistenUpdate = null;
@@ -103,6 +111,18 @@ const directPasteUnavailableMessage = computed(() =>
         settingsState.t,
     ),
 );
+
+async function syncTaskbarVisibilityForRoute(routeName, platform) {
+    if (platform !== "windows") {
+        return;
+    }
+
+    try {
+        await getCurrentWindow().setSkipTaskbar(routeName !== "settings");
+    } catch (error) {
+        console.error("Failed to update taskbar visibility", error);
+    }
+}
 
 function cleanupListeners() {
     unlistenHistory?.();

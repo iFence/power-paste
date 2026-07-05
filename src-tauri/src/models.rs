@@ -133,7 +133,7 @@ impl Default for AppSettings {
             debug_enabled: false,
             sound_enabled: true,
             launch_on_startup: false,
-            hardware_acceleration_enabled: true,
+            hardware_acceleration_enabled: false,
             polling_interval_ms: 500,
             max_history_items: 200,
             max_history_days: 30,
@@ -825,10 +825,11 @@ mod tests {
     }
 
     #[test]
-    fn hardware_acceleration_is_enabled_by_default() {
+    fn advanced_toggles_are_disabled_by_default() {
         let settings = AppSettings::default().normalized();
 
-        assert!(settings.hardware_acceleration_enabled);
+        assert!(!settings.debug_enabled);
+        assert!(!settings.hardware_acceleration_enabled);
     }
     #[test]
     fn normalized_migrates_legacy_ignored_apps_to_rules() {
