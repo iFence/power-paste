@@ -61,7 +61,7 @@ function initialPlatformCapabilities(platform) {
     supportsImageWrite: true,
     supportsDirectPaste: isWindows || isMacos,
     supportsLaunchOnStartup: isWindows || isMacos || isLinux,
-    supportsHardwareAccelerationToggle: isWindows,
+    supportsHardwareAccelerationToggle: isWindows || isMacos,
     supportsMixedReplay: isWindows,
     preferredClipboardBackend: isWindows
       ? "plugin+native-fallback"

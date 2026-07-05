@@ -14,9 +14,9 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 
 [Watch the demo video](./docs/demo-video.mp4)
 
-| Main Panel(Light) |Settings(Dark)|
+| Main Panel | Settings |
 |---|---|
-| ![Power Paste light theme](./docs/light.png) | ![Power Paste settings panel](./docs/settings.png)|
+| ![Power Paste light theme](./docs/pp-dark-light.png) | ![Power Paste settings panel](./docs/settings.png)|
 
 ## Why Power Paste
 
@@ -315,9 +315,7 @@ The project no longer relies on a plain `history.json` file as the primary histo
 
 If you find Power Paste helpful, consider supporting the project:
 
-| Alipay | WeChat Pay | Appreciation Code |
-|---|---|---|
-| ![Alipay](./docs/alipay.jpg) | ![WeChat Pay](./docs/wechatpay.jpg) |![Appreciation Code](./docs/appreciation.jpg)|
+![Appreciation Code](./docs/pp-pay.png)
 
 Your support helps maintain and improve Power Paste. Thank you!
 

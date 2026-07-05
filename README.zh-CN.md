@@ -14,9 +14,9 @@ English version: [README.md](./README.md)。
 
 [查看演示视频](./docs/demo-video.mp4)
 
-| 主面板（浅色）| 设置（深色）|
+| 主面板| 设置 |
 |---|---|
-| ![Power Paste light theme](./docs/light.png) | ![Power Paste settings panel](./docs/settings.png)|
+| ![Power Paste light theme](./docs/pp-dark-light.png) | ![Power Paste settings panel](./docs/settings.png)|
 
 ## 为什么选择 Power Paste
 
@@ -314,9 +314,7 @@ pnpm tauri build
 
 如果 Power Paste 对你有帮助，欢迎支持项目开发：
 
-| 支付宝 | 微信支付 | 赞赏码 |
-|---|---|---|
-| ![支付宝](./docs/alipay.jpg) | ![微信支付](./docs/wechatpay.jpg) |![赞赏码](./docs/appreciation.jpg)|
+![赞赏码](./docs/pp-pay.png)
 
 你的支持将帮助维护和改进 Power Paste。感谢！
 

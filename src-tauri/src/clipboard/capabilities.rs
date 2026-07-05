@@ -27,7 +27,7 @@ pub(crate) fn launch_on_startup_supported() -> bool {
 }
 
 pub(crate) fn hardware_acceleration_toggle_supported() -> bool {
-    cfg!(windows)
+    cfg!(windows) || cfg!(target_os = "macos")
 }
 
 pub(crate) fn direct_paste_supported() -> bool {
@@ -263,12 +263,12 @@ mod tests {
     }
 
     #[test]
-    fn hardware_acceleration_toggle_support_is_windows_only() {
+    fn hardware_acceleration_toggle_support_matches_platform_policy() {
         let capabilities = platform_capabilities();
 
         assert_eq!(
             capabilities.supports_hardware_acceleration_toggle,
-            cfg!(windows)
+            super::hardware_acceleration_toggle_supported()
         );
     }
 
