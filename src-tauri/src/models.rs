@@ -145,8 +145,8 @@ impl Default for AppSettings {
             quick_paste_shortcut: "Ctrl+Backquote".into(),
             search_shortcut: "Ctrl+F".into(),
             filter_shortcut: "Ctrl+Tab".into(),
-            ignored_apps: vec!["1Password".into(), "Bitwarden".into(), "KeePassXC".into()],
-            ignored_app_rules: default_ignored_app_rules(),
+            ignored_apps: Vec::new(),
+            ignored_app_rules: Vec::new(),
             locale: "zh-CN".into(),
             density: "compact".into(),
             theme_mode: "system".into(),
@@ -201,17 +201,21 @@ impl AppSettings {
                 Some((normalized_key, normalized_value))
             })
             .collect();
-        self.ignored_apps = normalize_ignored_apps(self.ignored_apps);
-        self.ignored_app_rules = normalize_ignored_app_rules(self.ignored_app_rules);
+        self.ignored_apps = normalize_ignored_apps(self.ignored_apps)
+            .into_iter()
+            .filter(|name| !is_legacy_default_ignored_app_name(name))
+            .collect();
+        self.ignored_app_rules = normalize_ignored_app_rules(self.ignored_app_rules)
+            .into_iter()
+            .filter(|rule| !is_legacy_default_ignored_app_rule(rule))
+            .collect();
         for app_name in self.ignored_apps.iter().cloned() {
             let rule = IgnoredAppRule::from_legacy_name(app_name).normalized();
             if rule.has_matcher() && !ignored_app_rule_exists(&self.ignored_app_rules, &rule) {
                 self.ignored_app_rules.push(rule);
             }
         }
-        if self.ignored_app_rules.is_empty() {
-            self.ignored_app_rules = default_ignored_app_rules();
-        }
+        self.ignored_apps = Vec::new();
         self.webdav_sync = self.webdav_sync.normalized();
         self
     }
@@ -300,13 +304,6 @@ pub(crate) struct InstalledAppDto {
     pub(crate) icon_data_url: Option<String>,
 }
 
-fn default_ignored_app_rules() -> Vec<IgnoredAppRule> {
-    ["1Password", "Bitwarden", "KeePassXC"]
-        .into_iter()
-        .map(|name| IgnoredAppRule::from_legacy_name(name.to_string()).normalized())
-        .collect()
-}
-
 fn normalize_ignored_apps(apps: Vec<String>) -> Vec<String> {
     let mut seen = HashSet::new();
     apps.into_iter()
@@ -323,6 +320,24 @@ fn normalize_ignored_apps(apps: Vec<String>) -> Vec<String> {
             }
         })
         .collect()
+}
+
+fn is_legacy_default_ignored_app_name(name: &str) -> bool {
+    matches!(
+        name.trim().to_ascii_lowercase().as_str(),
+        "1password" | "bitwarden" | "keepassxc"
+    )
+}
+
+fn is_legacy_default_ignored_app_rule(rule: &IgnoredAppRule) -> bool {
+    rule.platform.is_empty()
+        && rule.app_path.is_none()
+        && rule.bundle_id.is_none()
+        && rule.icon_data_url.is_none()
+        && rule.enabled
+        && !rule.display_name.is_empty()
+        && rule.display_name.eq_ignore_ascii_case(&rule.process_name)
+        && is_legacy_default_ignored_app_name(&rule.display_name)
 }
 
 fn normalize_ignored_app_rules(rules: Vec<IgnoredAppRule>) -> Vec<IgnoredAppRule> {
@@ -835,23 +850,39 @@ mod tests {
     fn normalized_migrates_legacy_ignored_apps_to_rules() {
         let mut settings = AppSettings::default();
         settings.ignored_apps = vec![
-            "  1Password  ".into(),
-            "Bitwarden".into(),
-            "bitwarden".into(),
+            "  Slack  ".into(),
+            "Visual Studio Code".into(),
+            "visual studio code".into(),
         ];
         settings.ignored_app_rules = Vec::new();
 
         let normalized = settings.normalized();
 
-        assert_eq!(normalized.ignored_apps, vec!["1Password", "Bitwarden"]);
+        assert!(normalized.ignored_apps.is_empty());
         assert!(normalized
             .ignored_app_rules
             .iter()
-            .any(|rule| rule.display_name == "1Password"));
+            .any(|rule| rule.display_name == "Slack"));
         assert!(normalized
             .ignored_app_rules
             .iter()
-            .any(|rule| rule.process_name == "Bitwarden"));
+            .any(|rule| rule.process_name == "Visual Studio Code"));
+    }
+
+    #[test]
+    fn normalized_removes_legacy_default_ignored_apps() {
+        let mut settings = AppSettings::default();
+        settings.ignored_apps = vec![
+            "1Password".into(),
+            "Bitwarden".into(),
+            "KeePassXC".into(),
+        ];
+        settings.ignored_app_rules = vec![IgnoredAppRule::from_legacy_name("1Password".into())];
+
+        let normalized = settings.normalized();
+
+        assert!(normalized.ignored_apps.is_empty());
+        assert!(normalized.ignored_app_rules.is_empty());
     }
 
     #[test]
@@ -890,20 +921,13 @@ mod tests {
     }
 
     #[test]
-    fn normalized_retains_default_ignored_app_rules_when_empty() {
+    fn normalized_keeps_ignored_app_rules_empty_when_empty() {
         let mut settings = AppSettings::default();
         settings.ignored_apps = Vec::new();
         settings.ignored_app_rules = Vec::new();
 
         let normalized = settings.normalized();
 
-        assert!(normalized
-            .ignored_app_rules
-            .iter()
-            .any(|rule| rule.display_name == "1Password"));
-        assert!(normalized
-            .ignored_app_rules
-            .iter()
-            .any(|rule| rule.display_name == "Bitwarden"));
+        assert!(normalized.ignored_app_rules.is_empty());
     }
 }

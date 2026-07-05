@@ -3981,9 +3981,6 @@ textarea {
     border-radius: 8px;
     background: color-mix(in srgb, var(--accent-primary-soft) 40%, var(--app-panel-bg));
     color: var(--accent-primary);
-    font-size: 1.45rem;
-    font-weight: 650;
-    line-height: 1;
     cursor: pointer;
     transition:
         transform 0.16s ease,
@@ -4007,6 +4004,12 @@ textarea {
 .ignored-app-add-button:disabled {
     cursor: not-allowed;
     opacity: 0.48;
+}
+
+.ignored-app-add-icon {
+    display: block;
+    width: 22px;
+    height: 22px;
 }
 
 .app-picker-item {

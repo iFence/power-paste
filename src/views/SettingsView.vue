@@ -3,7 +3,7 @@ import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { listInstalledApps, openExternalUrl } from '../services/tauriApi'
+import { getInstalledAppIcon, listInstalledApps, openExternalUrl } from '../services/tauriApi'
 import { normalizeShortcutKey } from '../utils/shortcut'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 import checkIcon from '../assets/check.svg'
@@ -88,6 +88,10 @@ const appPickerError = ref('')
 const appSearchQuery = ref('')
 const installedApps = ref([])
 let updateFeedbackTimer = null
+let appIconHydrationRun = 0
+const appIconLoadingKeys = new Set()
+const appIconResolvedKeys = new Set()
+const APP_ICON_HYDRATION_BATCH_SIZE = 40
 
 const categories = computed(() => [
   { key: 'general', label: props.t('settingsCategoryGeneral') },
@@ -336,14 +340,91 @@ function installedAppToRule(app) {
   }
 }
 
+async function loadInstalledAppIcon(app) {
+  return getInstalledAppIcon({
+    displayName: app.displayName || app.processName || '',
+    processName: app.processName || '',
+    appPath: app.appPath || null,
+    bundleId: app.bundleId || null,
+  })
+}
+
+function updateInstalledAppIcon(key, iconDataUrl) {
+  if (!key || !iconDataUrl) {
+    return
+  }
+
+  installedApps.value = installedApps.value.map((app) =>
+    appRuleKey(app) === key ? { ...app, iconDataUrl } : app,
+  )
+}
+
+async function hydrateInstalledAppIcons(runId) {
+  const apps = filteredInstalledApps.value
+    .filter((app) => {
+      const key = appRuleKey(app)
+      return key && !app.iconDataUrl && !appIconResolvedKeys.has(key)
+    })
+    .slice(0, APP_ICON_HYDRATION_BATCH_SIZE)
+
+  for (const app of apps) {
+    if (runId !== appIconHydrationRun || !appPickerOpen.value) {
+      return
+    }
+
+    const key = appRuleKey(app)
+    if (!key || appIconLoadingKeys.has(key)) {
+      continue
+    }
+
+    appIconLoadingKeys.add(key)
+    try {
+      const iconDataUrl = await loadInstalledAppIcon(app)
+      if (runId === appIconHydrationRun && appPickerOpen.value) {
+        updateInstalledAppIcon(key, iconDataUrl)
+        appIconResolvedKeys.add(key)
+      }
+    } catch (error) {
+      console.error('Failed to load installed app icon', error)
+    } finally {
+      if (runId === appIconHydrationRun && appPickerOpen.value) {
+        appIconResolvedKeys.add(key)
+      }
+      appIconLoadingKeys.delete(key)
+    }
+  }
+
+  const hasMoreIcons = filteredInstalledApps.value.some((app) => {
+    const key = appRuleKey(app)
+    return key && !app.iconDataUrl && !appIconResolvedKeys.has(key)
+  })
+  if (runId === appIconHydrationRun && appPickerOpen.value && hasMoreIcons) {
+    setTimeout(() => {
+      hydrateInstalledAppIcons(runId)
+    }, 50)
+  }
+}
+
+function requestInstalledAppIconHydration() {
+  if (!appPickerOpen.value || appPickerLoading.value || !installedApps.value.length) {
+    return
+  }
+
+  const runId = ++appIconHydrationRun
+  setTimeout(() => {
+    hydrateInstalledAppIcons(runId)
+  }, 0)
+}
+
 async function updateIgnoredAppRules(rules) {
-  await props.applySettingPatch({ ignoredAppRules: rules }, 'ignoredAppRules')
+  await props.applySettingPatch({ ignoredApps: [], ignoredAppRules: rules }, 'ignoredAppRules')
 }
 
 async function openIgnoredAppPicker() {
   appPickerOpen.value = true
   appPickerError.value = ''
   if (!installedAppPickerSupported.value || installedApps.value.length) {
+    requestInstalledAppIconHydration()
     return
   }
 
@@ -356,10 +437,12 @@ async function openIgnoredAppPicker() {
   } finally {
     appPickerLoading.value = false
   }
+  requestInstalledAppIconHydration()
 }
 
 function closeIgnoredAppPicker() {
   appPickerOpen.value = false
+  appIconHydrationRun += 1
   appSearchQuery.value = ''
   appPickerError.value = ''
 }
@@ -369,6 +452,15 @@ async function addIgnoredApp(app) {
   const key = appRuleKey(rule)
   if (!key || ignoredAppKeys.value.has(key)) {
     return
+  }
+
+  if (!rule.iconDataUrl) {
+    try {
+      rule.iconDataUrl = await loadInstalledAppIcon(rule)
+      updateInstalledAppIcon(key, rule.iconDataUrl)
+    } catch (error) {
+      console.error('Failed to load installed app icon', error)
+    }
   }
 
   await updateIgnoredAppRules([...ignoredAppRules.value, rule])
@@ -640,7 +732,12 @@ watch(
   { immediate: true },
 )
 
+watch(appSearchQuery, () => {
+  requestInstalledAppIconHydration()
+})
+
 onUnmounted(() => {
+  appIconHydrationRun += 1
   if (updateFeedbackTimer) {
     clearTimeout(updateFeedbackTimer)
   }
@@ -965,7 +1062,17 @@ watch(
                   :disabled="isPending('ignoredAppRules') || !installedAppPickerSupported"
                   @click="openIgnoredAppPicker"
                 >
-                  <span aria-hidden="true">+</span>
+                  <svg
+                    class="ignored-app-add-icon"
+                    viewBox="0 0 1024 1024"
+                    version="1.1"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M480 208h64v608h-64z" fill="currentColor"></path>
+                    <path d="M208 544v-64h608v64z" fill="currentColor"></path>
+                  </svg>
                 </button>
               </div>
             </div>

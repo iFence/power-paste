@@ -33,22 +33,29 @@ fn build_installed_app(
     app_path: Option<String>,
     bundle_id: Option<String>,
 ) -> InstalledAppDto {
-    let icon_data_url = source_app_icon_data_url(&ForegroundAppResult {
-        process_name: process_name.clone(),
-        display_name: display_name.clone(),
-        icon_png_base64: None,
-        app_path: app_path.clone(),
-        bundle_id: bundle_id.clone(),
-    });
-
     InstalledAppDto {
         platform: platform.into(),
         display_name,
         process_name,
         app_path,
         bundle_id,
-        icon_data_url,
+        icon_data_url: None,
     }
+}
+
+pub(crate) fn installed_app_icon_data_url(
+    display_name: String,
+    process_name: String,
+    app_path: Option<String>,
+    bundle_id: Option<String>,
+) -> Option<String> {
+    source_app_icon_data_url(&ForegroundAppResult {
+        process_name: process_name.clone(),
+        display_name: display_name.clone(),
+        icon_png_base64: None,
+        app_path: app_path.clone(),
+        bundle_id: bundle_id.clone(),
+    })
 }
 
 fn sort_and_dedupe_apps(mut apps: Vec<InstalledAppDto>) -> Vec<InstalledAppDto> {
@@ -289,20 +296,8 @@ fn list_windows_installed_apps() -> Result<Vec<InstalledAppDto>> {
 
 #[cfg(target_os = "macos")]
 fn list_macos_installed_apps() -> Result<Vec<InstalledAppDto>> {
-    fn plutil_raw(plist: &std::path::Path, key: &str) -> Option<String> {
-        let output = std::process::Command::new("plutil")
-            .arg("-extract")
-            .arg(key)
-            .arg("raw")
-            .arg("-o")
-            .arg("-")
-            .arg(plist)
-            .output()
-            .ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    fn plist_string(plist: &plist::Dictionary, key: &str) -> Option<String> {
+        let value = plist.get(key)?.as_string()?.trim().to_string();
         (!value.is_empty()).then_some(value)
     }
 
@@ -328,21 +323,27 @@ fn list_macos_installed_apps() -> Result<Vec<InstalledAppDto>> {
             if !plist.is_file() {
                 continue;
             }
+            let Ok(plist) = plist::Value::from_file(&plist) else {
+                continue;
+            };
+            let Some(plist) = plist.into_dictionary() else {
+                continue;
+            };
 
             let fallback_name = path
                 .file_stem()
                 .and_then(|value| value.to_str())
                 .unwrap_or_default()
                 .to_string();
-            let display_name = plutil_raw(&plist, "CFBundleDisplayName")
-                .or_else(|| plutil_raw(&plist, "CFBundleName"))
+            let display_name = plist_string(&plist, "CFBundleDisplayName")
+                .or_else(|| plist_string(&plist, "CFBundleName"))
                 .unwrap_or_else(|| fallback_name.clone());
             if display_name.trim().is_empty() {
                 continue;
             }
             let process_name =
-                plutil_raw(&plist, "CFBundleExecutable").unwrap_or_else(|| fallback_name.clone());
-            let bundle_id = plutil_raw(&plist, "CFBundleIdentifier");
+                plist_string(&plist, "CFBundleExecutable").unwrap_or_else(|| fallback_name.clone());
+            let bundle_id = plist_string(&plist, "CFBundleIdentifier");
 
             apps.push(build_installed_app(
                 "macos",

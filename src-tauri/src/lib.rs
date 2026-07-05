@@ -36,10 +36,10 @@ mod usecases;
 // Tauri command entrypoints stay thin and delegate to feature modules.
 use commands::{
     clear_history, clear_webdav_credential, copy_item, delete_item, get_default_download_dir,
-    get_history, get_lan_receiver_state, get_platform_capabilities, get_settings,
-    get_shortcut_status, get_webdav_sync_state, list_installed_apps, open_external_url,
-    open_lan_transfer_file, paste_item, prepare_image_drag_file, reset_settings,
-    retry_shortcut_registration, reveal_lan_transfer_file, save_main_panel_size,
+    get_history, get_installed_app_icon, get_lan_receiver_state, get_platform_capabilities,
+    get_settings, get_shortcut_status, get_webdav_sync_state, list_installed_apps,
+    open_external_url, open_lan_transfer_file, paste_item, prepare_image_drag_file,
+    reset_settings, retry_shortcut_registration, reveal_lan_transfer_file, save_main_panel_size,
     send_lan_transfer_file, send_lan_transfer_text, start_lan_receiver, stop_lan_receiver,
     sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin, update_item_tags,
     update_settings, update_text_item, update_webdav_credential,
@@ -267,6 +267,7 @@ pub fn run() {
             get_settings,
             get_shortcut_status,
             get_default_download_dir,
+            get_installed_app_icon,
             list_installed_apps,
             update_settings,
             reset_settings,

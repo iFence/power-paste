@@ -58,6 +58,10 @@ export function listInstalledApps() {
   return invoke("list_installed_apps");
 }
 
+export function getInstalledAppIcon(payload) {
+  return invoke("get_installed_app_icon", payload);
+}
+
 export function getUpdateState() {
   return invoke("get_update_state");
 }
