@@ -178,11 +178,37 @@
 }
 
 .lan-transfer-messages {
+    position: relative;
     min-height: 0;
     overflow: auto;
     padding: 6px 10px 12px;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+.lan-transfer-drop-overlay {
+    position: absolute;
+    inset: 8px 10px;
+    z-index: 4;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 8px;
+    border: 1px dashed var(--accent-primary);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 82%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+    color: var(--accent-primary);
+    pointer-events: none;
+}
+
+.lan-transfer-drop-overlay svg {
+    width: 28px;
+    height: 28px;
+}
+
+.lan-transfer-drop-overlay strong {
+    font-size: 0.86rem;
 }
 
 .lan-transfer-messages::-webkit-scrollbar {
@@ -843,7 +869,8 @@ select {
 .window-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    align-self: stretch;
+    gap: 0;
     flex: 0 0 auto;
     -webkit-app-region: no-drag;
     app-region: no-drag;
@@ -852,15 +879,14 @@ select {
 .titlebar-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-height: 36px;
-    padding: 6px 10px 0;
+    min-height: 32px;
+    padding: 0;
 }
 
 .titlebar-dragger {
     flex: 1 1 auto;
     min-width: 0;
-    min-height: 30px;
+    min-height: 32px;
     -webkit-app-region: drag;
     app-region: drag;
 }
@@ -920,7 +946,7 @@ select {
 
 .titlebar-actions,
 .window-controls,
-.traffic-light,
+.window-control,
 .toolbar-icon-button,
 .toolbar-button,
 .ghost,
@@ -934,45 +960,53 @@ select {
     -webkit-user-select: none;
 }
 
-.traffic-light,
 .toolbar-icon-button {
     border: 1px solid var(--app-panel-border);
     box-shadow: var(--app-shadow);
 }
 
-.traffic-light {
-    width: 14px;
-    height: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
+.window-control {
+    display: inline-grid;
+    width: 46px;
+    height: 32px;
     padding: 0;
+    place-items: center;
     border: 0;
     background: transparent;
-    box-shadow: none;
+    color: var(--app-text);
+    cursor: pointer;
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
 }
 
-.traffic-light-icon {
-    position: relative;
-    display: block;
+.window-control:hover {
+    background: color-mix(in srgb, var(--app-text) 10%, transparent);
+}
+
+.window-control:active {
+    background: color-mix(in srgb, var(--app-text) 16%, transparent);
+}
+
+.window-control.close:hover,
+.window-control.close:active {
+    background: #c42b1c;
+    color: #ffffff;
+}
+
+.window-control:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -3px;
+}
+
+.window-control-icon {
     width: 12px;
     height: 12px;
-}
-
-.traffic-light-svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-}
-
-.traffic-light-svg-active {
-    opacity: 0;
-    transition:
-        opacity 120ms ease,
-        transform 120ms ease;
-    transform: scale(0.84);
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    stroke-width: 1;
 }
 
 .toolbar-icon-button {
@@ -2262,12 +2296,6 @@ select {
             color-mix(in srgb, var(--accent-primary-soft) 80%, transparent);
 }
 
-.traffic-light:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px
-        color-mix(in srgb, var(--accent-primary-soft) 88%, transparent);
-}
-
 .search {
     min-width: 0;
     padding-right: 22px;
@@ -3550,13 +3578,6 @@ textarea {
     background: var(--action-button-hover-bg);
 }
 
-.window-controls:hover .traffic-light-svg-active,
-.traffic-light:hover .traffic-light-svg-active,
-.traffic-light:focus-visible .traffic-light-svg-active {
-    opacity: 1;
-    transform: scale(1);
-}
-
 .primary:hover {
     transform: translateY(-1px);
 }
@@ -3566,7 +3587,6 @@ textarea {
     color: #c43f33;
 }
 
-:root[data-theme="light"] .traffic-light,
 :root[data-theme="light"] .toolbar-icon-button,
 :root[data-theme="light"] .toolbar-button,
 :root[data-theme="light"] .ghost {

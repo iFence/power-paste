@@ -31,7 +31,7 @@
         "decorations": false,
         "transparent": true,
         "devtools": false,
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "resizable": true,
         "visible": false,
         "center": true

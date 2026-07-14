@@ -1,9 +1,11 @@
 <script setup>
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
     computed,
     nextTick,
     onMounted,
+    onUnmounted,
     ref,
     watch,
 } from "vue";
@@ -26,6 +28,7 @@ const draft = ref("");
 const messagesRef = ref(null);
 const localError = ref("");
 const pendingMessages = ref([]);
+const isFileDragOver = ref(false);
 const contextMenu = ref({
     show: false,
     x: 0,
@@ -49,6 +52,8 @@ const connectionLabel = computed(() =>
 const canSendText = computed(
     () => draft.value.trim().length > 0 && props.state.running && !props.busy,
 );
+const canSendFiles = computed(() => props.state.running && !props.busy);
+let unlistenFileDrop = null;
 
 function formatBytes(size) {
     const value = Number(size || 0);
@@ -149,25 +154,17 @@ function fileKindFromName(name) {
         : "file";
 }
 
-async function chooseFile() {
-    if (props.busy || !props.state.running) {
+async function sendFiles(paths) {
+    if (!canSendFiles.value) {
         return;
     }
 
-    localError.value = "";
-    const selected = await open({
-        multiple: true,
-        directory: false,
-    });
-    const selectedFiles = Array.isArray(selected)
-        ? selected
-        : selected
-          ? [selected]
-          : [];
+    const selectedFiles = paths.filter(Boolean);
     if (!selectedFiles.length) {
         return;
     }
 
+    localError.value = "";
     const files = selectedFiles.slice(0, 9);
     localError.value =
         selectedFiles.length > 9
@@ -212,6 +209,56 @@ async function chooseFile() {
             });
             localError.value = error?.message || String(error);
         }
+    }
+}
+
+async function chooseFile() {
+    if (!canSendFiles.value) {
+        return;
+    }
+
+    const selected = await open({
+        multiple: true,
+        directory: false,
+    });
+    const selectedFiles = Array.isArray(selected)
+        ? selected
+        : selected
+          ? [selected]
+          : [];
+    await sendFiles(selectedFiles);
+}
+
+async function isOverMessages(position) {
+    const messagesElement = messagesRef.value;
+    if (!messagesElement) {
+        return false;
+    }
+
+    const logicalPosition = position.toLogical(
+        await getCurrentWindow().scaleFactor(),
+    );
+    const bounds = messagesElement.getBoundingClientRect();
+    return (
+        logicalPosition.x >= bounds.left &&
+        logicalPosition.x <= bounds.right &&
+        logicalPosition.y >= bounds.top &&
+        logicalPosition.y <= bounds.bottom
+    );
+}
+
+async function handleFileDrop(event) {
+    const { payload } = event;
+    if (payload.type === "leave") {
+        isFileDragOver.value = false;
+        return;
+    }
+
+    const isOverDropzone = await isOverMessages(payload.position);
+    isFileDragOver.value = payload.type === "over" && isOverDropzone;
+
+    if (payload.type === "drop" && isOverDropzone) {
+        await sendFiles(payload.paths);
     }
 }
 
@@ -273,11 +320,20 @@ async function goBack() {
 onMounted(async () => {
     localError.value = "";
     try {
+        unlistenFileDrop = await getCurrentWindow().onDragDropEvent(
+            (event) => {
+                void handleFileDrop(event);
+            },
+        );
         await props.onStart();
         await scrollToBottom();
     } catch (error) {
         localError.value = error?.message || String(error);
     }
+});
+
+onUnmounted(() => {
+    unlistenFileDrop?.();
 });
 
 watch(messages, scrollToBottom, { deep: true });
@@ -464,6 +520,20 @@ watch(messages, scrollToBottom, { deep: true });
                     </div>
                 </div>
             </article>
+
+            <div v-if="isFileDragOver" class="lan-transfer-drop-overlay">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                        d="M12 15V4m0 0L8 8m4-4 4 4M5 15v4h14v-4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+                <strong>{{ t("lanTransferDropFiles") }}</strong>
+            </div>
         </section>
 
         <form class="lan-transfer-composer" @submit.prevent="sendText">

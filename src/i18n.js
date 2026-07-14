@@ -436,6 +436,7 @@ Object.assign(messages["zh-CN"], {
     "\u626b\u7801\u540e\u5f00\u59cb\u5bf9\u8bdd\uff0c\u6587\u5b57\u4f1a\u8fdb\u5165\u526a\u8d34\u677f\uff0c\u6587\u4ef6\u4f1a\u4fdd\u5b58\u5230\u4e0b\u8f7d\u76ee\u5f55\u3002",
   lanTransferFile: "\u6587\u4ef6",
   lanTransferChooseFile: "\u9009\u62e9\u56fe\u7247\u6216\u6587\u4ef6",
+  lanTransferDropFiles: "\u677e\u5f00\u4ee5\u53d1\u9001\u6587\u4ef6",
   lanTransferInputPlaceholder:
     "\u8f93\u5165\u8981\u53d1\u9001\u5230\u624b\u673a\u7684\u6587\u5b57",
   lanTransferSend: "\u53d1\u9001",
@@ -588,6 +589,7 @@ Object.assign(messages["en-US"], {
     "Scan the QR code and start chatting. Text goes to the clipboard; files are saved to the download folder.",
   lanTransferFile: "File",
   lanTransferChooseFile: "Choose image or file",
+  lanTransferDropFiles: "Drop files to send",
   lanTransferInputPlaceholder: "Type text to send to the phone",
   lanTransferSend: "Send",
   lanTransferTooManyFiles:
