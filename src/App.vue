@@ -42,6 +42,7 @@ const historyState = useHistory({
 const LanTransferView = defineAsyncComponent(() => import("./views/LanTransferView.vue"));
 const SettingsView = defineAsyncComponent(() => import("./views/SettingsView.vue"));
 const quickPasteActive = ref(false);
+const isWindowMaximized = ref(false);
 
 useTheme({
     currentThemeMode: settingsState.currentThemeMode,
@@ -92,11 +93,17 @@ let unlistenCopySound = null;
 let unlistenUpdate = null;
 let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
+let unlistenWindowResize = null;
 let unlistenQuickPaste = null;
 let unlistenShortcutStatus = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
+const useWindowsWindowControls = computed(
+    () =>
+        settingsState.platformCapabilities.value.platform === "windows" &&
+        settingsState.settings.windowControlStyle === "windows",
+);
 const confirmDialogState = ref({
     cancelLabel: "",
     confirmLabel: "",
@@ -130,6 +137,7 @@ function cleanupListeners() {
     unlistenUpdate?.();
     unlistenWebdavSync?.();
     unlistenWindowFocus?.();
+    unlistenWindowResize?.();
     unlistenQuickPaste?.();
     unlistenShortcutStatus?.();
     unlistenHistory = null;
@@ -137,6 +145,7 @@ function cleanupListeners() {
     unlistenUpdate = null;
     unlistenWebdavSync = null;
     unlistenWindowFocus = null;
+    unlistenWindowResize = null;
     unlistenQuickPaste = null;
     unlistenShortcutStatus = null;
 }
@@ -162,6 +171,15 @@ function blurSearchIfFocused() {
     if (document.activeElement === searchInput) {
         searchInput.blur();
     }
+}
+
+async function syncWindowMaximized() {
+    isWindowMaximized.value = await getCurrentWindow().isMaximized();
+}
+
+async function toggleWindowMaximized() {
+    await handleWindowAction("maximize");
+    await syncWindowMaximized();
 }
 
 function handleDocumentVisibilityChange() {
@@ -282,6 +300,10 @@ async function initializeApp() {
                 blurSearchIfFocused();
             },
         );
+        unlistenWindowResize = await getCurrentWindow().onResized(() => {
+            void syncWindowMaximized();
+        });
+        await syncWindowMaximized();
     } catch (error) {
         settingsState.setStartupError(error);
     } finally {
@@ -383,7 +405,11 @@ function openResetSettingsConfirm() {
         :data-platform="settingsState.platformCapabilities.value.platform"
     >
         <section class="titlebar-row">
-            <div class="window-controls">
+            <div
+                class="window-controls"
+                :class="{ windows: useWindowsWindowControls }"
+            >
+                <template v-if="!useWindowsWindowControls">
                 <button
                     class="traffic-light close"
                     type="button"
@@ -477,8 +503,56 @@ function openResetSettingsConfirm() {
                         </svg>
                     </span>
                 </button>
+                </template>
+                <template v-else>
+                    <button
+                        class="window-control minimize"
+                        type="button"
+                        :aria-label="settingsState.t('minimizeAction')"
+                        :title="settingsState.t('minimizeAction')"
+                        @click="handleWindowAction('minimize')"
+                    >
+                        <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M2 9.25h8" />
+                        </svg>
+                    </button>
+                    <button
+                        class="window-control maximize"
+                        type="button"
+                        :aria-label="settingsState.t(isWindowMaximized ? 'restoreAction' : 'maximizeAction')"
+                        :title="settingsState.t(isWindowMaximized ? 'restoreAction' : 'maximizeAction')"
+                        @click="toggleWindowMaximized"
+                    >
+                        <svg
+                            v-if="isWindowMaximized"
+                            class="window-control-icon"
+                            viewBox="0 0 12 12"
+                            aria-hidden="true"
+                        >
+                            <path d="M3.5 4.5h5v5h-5z M5 3h4v4" />
+                        </svg>
+                        <svg v-else class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M3 3h6v6H3z" />
+                        </svg>
+                    </button>
+                    <button
+                        class="window-control close"
+                        type="button"
+                        :aria-label="settingsState.t('closeAction')"
+                        :title="settingsState.t('closeAction')"
+                        @click="handleWindowAction('close')"
+                    >
+                        <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="m3 3 6 6m0-6-6 6" />
+                        </svg>
+                    </button>
+                </template>
             </div>
-            <div class="titlebar-dragger" data-tauri-drag-region></div>
+            <div
+                class="titlebar-dragger"
+                data-tauri-drag-region
+                @dblclick="toggleWindowMaximized"
+            ></div>
         </section>
 
         <div class="window-shell">

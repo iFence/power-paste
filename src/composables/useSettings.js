@@ -129,6 +129,7 @@ export function useSettings() {
     density: "compact",
     themeMode: "system",
     accentColor: "amber",
+    windowControlStyle: "traffic-lights",
     tagLabels: createEmptyTagLabels(),
     webdavSync: {
       enabled: false,
@@ -373,6 +374,8 @@ export function useSettings() {
     Object.assign(settings, {
       ...next,
       lanTransferDownloadDir: next.lanTransferDownloadDir || defaultDownloadDir,
+      windowControlStyle:
+        next.windowControlStyle === "windows" ? "windows" : "traffic-lights",
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
       quickPasteShortcut: normalizeShortcutValue(next.quickPasteShortcut, detectedPlatform),
       searchShortcut: normalizeShortcutValue(next.searchShortcut, detectedPlatform),
