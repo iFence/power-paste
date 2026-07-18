@@ -178,11 +178,37 @@
 }
 
 .lan-transfer-messages {
+    position: relative;
     min-height: 0;
     overflow: auto;
     padding: 6px 10px 12px;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+.lan-transfer-drop-overlay {
+    position: absolute;
+    inset: 8px 10px;
+    z-index: 4;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 8px;
+    border: 1px dashed var(--accent-primary);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 82%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+    color: var(--accent-primary);
+    pointer-events: none;
+}
+
+.lan-transfer-drop-overlay svg {
+    width: 28px;
+    height: 28px;
+}
+
+.lan-transfer-drop-overlay strong {
+    font-size: 0.86rem;
 }
 
 .lan-transfer-messages::-webkit-scrollbar {
@@ -849,6 +875,12 @@ select {
     app-region: no-drag;
 }
 
+.window-controls.windows {
+    align-self: stretch;
+    gap: 0;
+    order: 2;
+}
+
 .titlebar-row {
     display: flex;
     align-items: center;
@@ -921,6 +953,7 @@ select {
 .titlebar-actions,
 .window-controls,
 .traffic-light,
+.window-control,
 .toolbar-icon-button,
 .toolbar-button,
 .ghost,
@@ -951,6 +984,48 @@ select {
     border: 0;
     background: transparent;
     box-shadow: none;
+}
+
+.window-control {
+    display: inline-grid;
+    width: 46px;
+    height: 32px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--app-text);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.window-control:hover {
+    background: color-mix(in srgb, var(--app-text) 10%, transparent);
+}
+
+.window-control:active {
+    background: color-mix(in srgb, var(--app-text) 16%, transparent);
+}
+
+.window-control.close:hover,
+.window-control.close:active {
+    background: #c42b1c;
+    color: #fff;
+}
+
+.window-control:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -3px;
+}
+
+.window-control-icon {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    stroke-width: 1;
 }
 
 .traffic-light-icon {
@@ -2845,6 +2920,21 @@ select {
     white-space: normal;
     line-height: 1.2;
     overflow-wrap: anywhere;
+}
+
+.window-control-style-setting .meta-label {
+    color: var(--app-text);
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.window-control-style-note {
+    color: var(--app-muted);
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.35;
 }
 
 .update-confirm-backdrop {
