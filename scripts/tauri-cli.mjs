@@ -97,16 +97,7 @@ async function main() {
       ...args.slice(1),
     ];
   } else if (args[0] === "build") {
-    tauriArgs = [
-      "build",
-      "--config",
-      JSON.stringify({
-        app: {
-          windows,
-        },
-      }),
-      ...args.slice(1),
-    ];
+    tauriArgs = ["build", "--features", "custom-protocol", ...args.slice(1)];
   }
 
   const child = spawn(process.execPath, [tauriCliPath, ...tauriArgs], {

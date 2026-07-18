@@ -99,6 +99,11 @@ let unlistenShortcutStatus = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
+const useWindowsWindowControls = computed(
+    () =>
+        settingsState.platformCapabilities.value.platform === "windows" &&
+        settingsState.settings.windowControlStyle === "windows",
+);
 const confirmDialogState = ref({
     cancelLabel: "",
     confirmLabel: "",
@@ -401,50 +406,153 @@ function openResetSettingsConfirm() {
     >
         <section class="titlebar-row">
             <div
-                class="titlebar-dragger"
-                data-tauri-drag-region
-                @dblclick="toggleWindowMaximized"
-            ></div>
-            <div class="window-controls">
+                class="window-controls"
+                :class="{ windows: useWindowsWindowControls }"
+            >
+                <template v-if="!useWindowsWindowControls">
                 <button
-                    class="window-control minimize"
-                    type="button"
-                    aria-label="Minimize"
-                    @click="handleWindowAction('minimize')"
-                >
-                    <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
-                        <path d="M2 9.25h8" />
-                    </svg>
-                </button>
-                <button
-                    class="window-control maximize"
-                    type="button"
-                    :aria-label="isWindowMaximized ? 'Restore down' : 'Maximize'"
-                    @click="toggleWindowMaximized"
-                >
-                    <svg
-                        v-if="isWindowMaximized"
-                        class="window-control-icon"
-                        viewBox="0 0 12 12"
-                        aria-hidden="true"
-                    >
-                        <path d="M3.5 4.5h5v5h-5z M5 3h4v4" />
-                    </svg>
-                    <svg v-else class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
-                        <path d="M3 3h6v6H3z" />
-                    </svg>
-                </button>
-                <button
-                    class="window-control close"
+                    class="traffic-light close"
                     type="button"
                     aria-label="Close"
                     @click="handleWindowAction('close')"
                 >
-                    <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
-                        <path d="m3 3 6 6m0-6-6 6" />
-                    </svg>
+                    <span class="traffic-light-icon" aria-hidden="true">
+                        <svg
+                            class="traffic-light-svg traffic-light-svg-default"
+                            viewBox="0 0 1024 1024"
+                        >
+                            <path
+                                d="M512.298624 1.023829a511.488085 511.488085 0 1 0 0 1022.976171 511.488085 511.488085 0 0 0 0-1022.976171z"
+                                fill="#F55656"
+                            />
+                        </svg>
+                        <svg
+                            class="traffic-light-svg traffic-light-svg-active"
+                            viewBox="0 0 1024 1024"
+                        >
+                            <path
+                                d="M512.298624 1.023829a511.488085 511.488085 0 1 0 0 1022.976171 511.488085 511.488085 0 0 0 0-1022.976171z"
+                                fill="#F55656"
+                            />
+                            <path
+                                d="M567.158814 511.914681l189.152475 188.299283c15.186802 15.35744 15.528079 39.929345 0.682552 55.628062a37.796367 37.796367 0 0 1-54.348275 0.853191L511.957348 566.774871 321.269129 756.780537a37.796367 37.796367 0 0 1-54.348275-0.767872 40.099983 40.099983 0 0 1 0.767872-55.713382L456.755881 511.914681 267.688726 323.615397a40.099983 40.099983 0 0 1-0.767872-55.542742 37.796367 37.796367 0 0 1 54.348275-0.853192L511.957348 456.969172 702.645566 267.048825a37.796367 37.796367 0 0 1 54.433595 0.767872 40.099983 40.099983 0 0 1-0.853192 55.713381L567.244133 511.914681z"
+                                fill="#2A2F3C"
+                            />
+                        </svg>
+                    </span>
                 </button>
+                <button
+                    class="traffic-light minimize"
+                    type="button"
+                    aria-label="Minimize"
+                    @click="handleWindowAction('minimize')"
+                >
+                    <span class="traffic-light-icon" aria-hidden="true">
+                        <svg
+                            class="traffic-light-svg traffic-light-svg-default"
+                            viewBox="0 0 1024 1024"
+                        >
+                            <path
+                                d="M512.298624 1.023829a511.488085 511.488085 0 1 0 0 1022.976171 511.488085 511.488085 0 0 0 0-1022.976171z"
+                                fill="#FFBF2F"
+                            />
+                        </svg>
+                        <svg
+                            class="traffic-light-svg traffic-light-svg-active"
+                            viewBox="0 0 1024 1024"
+                        >
+                            <path
+                                d="M511.573333 0a511.573333 511.573333 0 1 0 0 1023.146667 511.573333 511.573333 0 0 0 0-1023.146667z"
+                                fill="#FFBF2F"
+                            />
+                            <path
+                                d="M170.666667 469.333333m46.933333 0l588.8 0q46.933333 0 46.933333 46.933334l0 0q0 46.933333-46.933333 46.933333l-588.8 0q-46.933333 0-46.933333-46.933333l0 0q0-46.933333 46.933333-46.933334Z"
+                                fill="#2A2F3C"
+                            />
+                        </svg>
+                    </span>
+                </button>
+                <button
+                    class="traffic-light maximize"
+                    type="button"
+                    aria-label="Maximize"
+                    @click="handleWindowAction('maximize')"
+                >
+                    <span class="traffic-light-icon" aria-hidden="true">
+                        <svg
+                            class="traffic-light-svg traffic-light-svg-default"
+                            viewBox="0 0 1024 1024"
+                        >
+                            <path
+                                d="M511.573333 0a511.573333 511.573333 0 1 0 0 1023.146667 511.573333 511.573333 0 0 0 0-1023.146667z"
+                                fill="#44C69D"
+                            />
+                        </svg>
+                        <svg
+                            class="traffic-light-svg traffic-light-svg-active"
+                            viewBox="0 0 1024 1024"
+                        >
+                            <path
+                                d="M511.573333 0a511.573333 511.573333 0 1 0 0 1023.146667 511.573333 511.573333 0 0 0 0-1023.146667z"
+                                fill="#44C69D"
+                            />
+                            <path
+                                d="M253.184 560.384c17.237333 0 31.232 14.08 31.232 31.317333v114.602667l165.802667-165.802667a31.317333 31.317333 0 1 1 44.202666 44.202667L331.093333 748.117333h109.738667a31.317333 31.317333 0 1 1 0 62.549334h-187.733333a31.317333 31.317333 0 0 1-31.232-31.317334V591.701333c0-17.237333 13.994667-31.232 31.317333-31.232zM589.653333 213.333333h187.733334c17.237333 0 31.232 13.994667 31.232 31.317334v187.648a31.317333 31.317333 0 0 1-62.549334 0V317.610667L580.266667 483.498667a31.317333 31.317333 0 0 1-44.202667-44.202667l163.328-163.413333H589.653333a31.317333 31.317333 0 1 1 0-62.549334z"
+                                fill="#2A2F3C"
+                            />
+                        </svg>
+                    </span>
+                </button>
+                </template>
+                <template v-else>
+                    <button
+                        class="window-control minimize"
+                        type="button"
+                        :aria-label="settingsState.t('minimizeAction')"
+                        :title="settingsState.t('minimizeAction')"
+                        @click="handleWindowAction('minimize')"
+                    >
+                        <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M2 9.25h8" />
+                        </svg>
+                    </button>
+                    <button
+                        class="window-control maximize"
+                        type="button"
+                        :aria-label="settingsState.t(isWindowMaximized ? 'restoreAction' : 'maximizeAction')"
+                        :title="settingsState.t(isWindowMaximized ? 'restoreAction' : 'maximizeAction')"
+                        @click="toggleWindowMaximized"
+                    >
+                        <svg
+                            v-if="isWindowMaximized"
+                            class="window-control-icon"
+                            viewBox="0 0 12 12"
+                            aria-hidden="true"
+                        >
+                            <path d="M3.5 4.5h5v5h-5z M5 3h4v4" />
+                        </svg>
+                        <svg v-else class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M3 3h6v6H3z" />
+                        </svg>
+                    </button>
+                    <button
+                        class="window-control close"
+                        type="button"
+                        :aria-label="settingsState.t('closeAction')"
+                        :title="settingsState.t('closeAction')"
+                        @click="handleWindowAction('close')"
+                    >
+                        <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="m3 3 6 6m0-6-6 6" />
+                        </svg>
+                    </button>
+                </template>
             </div>
+            <div
+                class="titlebar-dragger"
+                data-tauri-drag-region
+                @dblclick="toggleWindowMaximized"
+            ></div>
         </section>
 
         <div class="window-shell">

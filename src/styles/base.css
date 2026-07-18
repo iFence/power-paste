@@ -869,24 +869,30 @@ select {
 .window-controls {
     display: flex;
     align-items: center;
-    align-self: stretch;
-    gap: 0;
+    gap: 8px;
     flex: 0 0 auto;
     -webkit-app-region: no-drag;
     app-region: no-drag;
 }
 
+.window-controls.windows {
+    align-self: stretch;
+    gap: 0;
+    order: 2;
+}
+
 .titlebar-row {
     display: flex;
     align-items: center;
-    min-height: 32px;
-    padding: 0;
+    gap: 12px;
+    min-height: 36px;
+    padding: 6px 10px 0;
 }
 
 .titlebar-dragger {
     flex: 1 1 auto;
     min-width: 0;
-    min-height: 32px;
+    min-height: 30px;
     -webkit-app-region: drag;
     app-region: drag;
 }
@@ -946,6 +952,7 @@ select {
 
 .titlebar-actions,
 .window-controls,
+.traffic-light,
 .window-control,
 .toolbar-icon-button,
 .toolbar-button,
@@ -960,9 +967,23 @@ select {
     -webkit-user-select: none;
 }
 
+.traffic-light,
 .toolbar-icon-button {
     border: 1px solid var(--app-panel-border);
     box-shadow: var(--app-shadow);
+}
+
+.traffic-light {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .window-control {
@@ -975,9 +996,7 @@ select {
     background: transparent;
     color: var(--app-text);
     cursor: pointer;
-    transition:
-        background-color 120ms ease,
-        color 120ms ease;
+    transition: background-color 120ms ease, color 120ms ease;
 }
 
 .window-control:hover {
@@ -991,7 +1010,7 @@ select {
 .window-control.close:hover,
 .window-control.close:active {
     background: #c42b1c;
-    color: #ffffff;
+    color: #fff;
 }
 
 .window-control:focus-visible {
@@ -1007,6 +1026,28 @@ select {
     stroke-linecap: square;
     stroke-linejoin: miter;
     stroke-width: 1;
+}
+
+.traffic-light-icon {
+    position: relative;
+    display: block;
+    width: 12px;
+    height: 12px;
+}
+
+.traffic-light-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.traffic-light-svg-active {
+    opacity: 0;
+    transition:
+        opacity 120ms ease,
+        transform 120ms ease;
+    transform: scale(0.84);
 }
 
 .toolbar-icon-button {
@@ -2296,6 +2337,12 @@ select {
             color-mix(in srgb, var(--accent-primary-soft) 80%, transparent);
 }
 
+.traffic-light:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px
+        color-mix(in srgb, var(--accent-primary-soft) 88%, transparent);
+}
+
 .search {
     min-width: 0;
     padding-right: 22px;
@@ -2873,6 +2920,21 @@ select {
     white-space: normal;
     line-height: 1.2;
     overflow-wrap: anywhere;
+}
+
+.window-control-style-setting .meta-label {
+    color: var(--app-text);
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.window-control-style-note {
+    color: var(--app-muted);
+    font-size: 0.72rem;
+    font-weight: 400;
+    line-height: 1.35;
 }
 
 .update-confirm-backdrop {
@@ -3578,6 +3640,13 @@ textarea {
     background: var(--action-button-hover-bg);
 }
 
+.window-controls:hover .traffic-light-svg-active,
+.traffic-light:hover .traffic-light-svg-active,
+.traffic-light:focus-visible .traffic-light-svg-active {
+    opacity: 1;
+    transform: scale(1);
+}
+
 .primary:hover {
     transform: translateY(-1px);
 }
@@ -3587,6 +3656,7 @@ textarea {
     color: #c43f33;
 }
 
+:root[data-theme="light"] .traffic-light,
 :root[data-theme="light"] .toolbar-icon-button,
 :root[data-theme="light"] .toolbar-button,
 :root[data-theme="light"] .ghost {

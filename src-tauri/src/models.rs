@@ -116,6 +116,7 @@ pub(crate) struct AppSettings {
     pub(crate) density: String,
     pub(crate) theme_mode: String,
     pub(crate) accent_color: String,
+    pub(crate) window_control_style: String,
     pub(crate) tag_labels: HashMap<String, String>,
     pub(crate) webdav_sync: WebdavSyncSettings,
     pub(crate) window_x: Option<i32>,
@@ -151,6 +152,7 @@ impl Default for AppSettings {
             density: "compact".into(),
             theme_mode: "system".into(),
             accent_color: "amber".into(),
+            window_control_style: "traffic-lights".into(),
             tag_labels: HashMap::new(),
             webdav_sync: WebdavSyncSettings::default(),
             window_x: None,
@@ -185,6 +187,12 @@ impl AppSettings {
             .lan_transfer_download_dir
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+        if !matches!(
+            self.window_control_style.as_str(),
+            "traffic-lights" | "windows"
+        ) {
+            self.window_control_style = Self::default().window_control_style;
+        }
         self.tag_labels = self
             .tag_labels
             .into_iter()
@@ -845,6 +853,16 @@ mod tests {
 
         assert!(!settings.debug_enabled);
         assert!(!settings.hardware_acceleration_enabled);
+    }
+
+    #[test]
+    fn window_control_style_defaults_to_traffic_lights() {
+        let mut settings = AppSettings::default();
+        settings.window_control_style = "unsupported".into();
+
+        let normalized = settings.normalized();
+
+        assert_eq!(normalized.window_control_style, "traffic-lights");
     }
     #[test]
     fn normalized_migrates_legacy_ignored_apps_to_rules() {

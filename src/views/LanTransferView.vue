@@ -164,7 +164,6 @@ async function sendFiles(paths) {
         return;
     }
 
-    localError.value = "";
     const files = selectedFiles.slice(0, 9);
     localError.value =
         selectedFiles.length > 9
@@ -256,7 +255,6 @@ async function handleFileDrop(event) {
 
     const isOverDropzone = await isOverMessages(payload.position);
     isFileDragOver.value = payload.type === "over" && isOverDropzone;
-
     if (payload.type === "drop" && isOverDropzone) {
         await sendFiles(payload.paths);
     }
@@ -320,11 +318,9 @@ async function goBack() {
 onMounted(async () => {
     localError.value = "";
     try {
-        unlistenFileDrop = await getCurrentWindow().onDragDropEvent(
-            (event) => {
-                void handleFileDrop(event);
-            },
-        );
+        unlistenFileDrop = await getCurrentWindow().onDragDropEvent((event) => {
+            void handleFileDrop(event);
+        });
         await props.onStart();
         await scrollToBottom();
     } catch (error) {
