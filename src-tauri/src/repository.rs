@@ -1029,6 +1029,32 @@ fn build_history_filters(payload: &HistoryQueryPayload) -> (String, Vec<rusqlite
         clauses.push("pinned = 1".to_string());
     }
 
+    if let Some(created_from) = payload
+        .created_from
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let placeholder = bind_values.len() + 1;
+        clauses.push(format!(
+            "datetime(created_at) >= datetime(?{placeholder})"
+        ));
+        bind_values.push(rusqlite::types::Value::Text(created_from.to_string()));
+    }
+
+    if let Some(created_before) = payload
+        .created_before
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let placeholder = bind_values.len() + 1;
+        clauses.push(format!(
+            "datetime(created_at) < datetime(?{placeholder})"
+        ));
+        bind_values.push(rusqlite::types::Value::Text(created_before.to_string()));
+    }
+
     if let Some(tag_color) = payload
         .tag_color
         .as_deref()

@@ -15,6 +15,7 @@ export function useHistoryFilters({ history, settings, t }) {
 
   const historyTabs = computed(() => [
     { key: 'all', label: t('filterAll') },
+    { key: 'today', label: t('filterToday') },
     { key: 'pinned', label: t('filterPinned') },
     { key: 'text', label: t('filterText') },
     { key: 'image', label: t('filterImage') },
@@ -80,10 +81,19 @@ export function useHistoryFilters({ history, settings, t }) {
       kind: null,
       pinnedOnly: false,
       tagColor: activeTagFilter.value || null,
+      createdFrom: null,
+      createdBefore: null,
     }
 
     if (activeFilterTab.value === 'pinned') {
       payload.pinnedOnly = true
+    } else if (activeFilterTab.value === 'today') {
+      const startOfToday = new Date()
+      startOfToday.setHours(0, 0, 0, 0)
+      const startOfTomorrow = new Date(startOfToday)
+      startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+      payload.createdFrom = startOfToday.toISOString()
+      payload.createdBefore = startOfTomorrow.toISOString()
     } else if (activeFilterTab.value !== 'all') {
       payload.kind = activeFilterTab.value
     }

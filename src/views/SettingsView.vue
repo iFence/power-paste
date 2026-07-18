@@ -114,9 +114,6 @@ const soundToggleIndex = computed(() => (props.settings.soundEnabled ? 0 : 1))
 const launchToggleIndex = computed(() => (props.settings.launchOnStartup ? 0 : 1))
 const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0 : 1))
 const pasteStatsToggleIndex = computed(() => (props.settings.pasteStatsEnabled ? 0 : 1))
-const windowControlStyleToggleIndex = computed(() =>
-  props.settings.windowControlStyle === 'windows' ? 1 : 0,
-)
 const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
 const webdavAutoSyncToggleIndex = computed(() => (props.settings.webdavSync?.autoSync ? 0 : 1))
 const hasClipboardWriteSupport = computed(
@@ -975,38 +972,6 @@ watch(
                   <span>{{ option.label }}</span>
                 </button>
               </div>
-            </div>
-          </section>
-
-          <section v-if="platformCapabilities.platform === 'windows'" class="setting-card wide window-control-style-setting">
-            <div class="setting-head">
-              <span class="meta-label">{{ t('windowControlStyle') }}</span>
-              <span class="setting-note window-control-style-note">{{ t('windowControlStyleTip') }}</span>
-            </div>
-            <div
-              class="setting-toggle"
-              role="group"
-              :aria-label="t('windowControlStyle')"
-              :style="segmentedToggleStyle(windowControlStyleToggleIndex, 2)"
-            >
-              <button
-                type="button"
-                class="setting-toggle-option"
-                :class="{ active: settings.windowControlStyle !== 'windows' }"
-                :disabled="isPending('windowControlStyle')"
-                @click="updateSetting('windowControlStyle', 'traffic-lights', 'windowControlStyle')"
-              >
-                {{ t('windowControlTrafficLights') }}
-              </button>
-              <button
-                type="button"
-                class="setting-toggle-option"
-                :class="{ active: settings.windowControlStyle === 'windows' }"
-                :disabled="isPending('windowControlStyle')"
-                @click="updateSetting('windowControlStyle', 'windows', 'windowControlStyle')"
-              >
-                {{ t('windowControlWindows') }}
-              </button>
             </div>
           </section>
 

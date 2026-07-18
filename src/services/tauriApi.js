@@ -31,6 +31,10 @@ export function onQuickPasteStarted(handler) {
   return listen("quick-paste-started", handler);
 }
 
+export function onOpenSettings(handler) {
+  return listen("open-settings", handler);
+}
+
 export function onShortcutStatusUpdated(handler) {
   return listen("shortcut-status-updated", handler);
 }

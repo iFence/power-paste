@@ -178,7 +178,13 @@ export function useKeyboardShortcuts({
 
     if (isSearchShortcut(event)) {
       event.preventDefault();
-      document.getElementById("history-search")?.focus();
+      const searchInput = document.getElementById("history-search");
+      if (searchInput === document.activeElement) {
+        searchInput.blur();
+      } else {
+        searchInput?.focus();
+      }
+      return;
     }
 
     if (withPrimary && /^\d$/.test(event.key) && isHomeRoute?.value && !showEditModal.value) {

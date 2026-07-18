@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import {
     onCopySound,
     onHistoryUpdated,
+    onOpenSettings,
     onQuickPasteStarted,
     onShortcutStatusUpdated,
     onUpdateStatus,
@@ -95,14 +96,13 @@ let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
 let unlistenWindowResize = null;
 let unlistenQuickPaste = null;
+let unlistenOpenSettings = null;
 let unlistenShortcutStatus = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
-const useWindowsWindowControls = computed(
-    () =>
-        settingsState.platformCapabilities.value.platform === "windows" &&
-        settingsState.settings.windowControlStyle === "windows",
+const windowControlPlatform = computed(
+    () => settingsState.platformCapabilities.value.platform,
 );
 const confirmDialogState = ref({
     cancelLabel: "",
@@ -139,6 +139,7 @@ function cleanupListeners() {
     unlistenWindowFocus?.();
     unlistenWindowResize?.();
     unlistenQuickPaste?.();
+    unlistenOpenSettings?.();
     unlistenShortcutStatus?.();
     unlistenHistory = null;
     unlistenCopySound = null;
@@ -147,6 +148,7 @@ function cleanupListeners() {
     unlistenWindowFocus = null;
     unlistenWindowResize = null;
     unlistenQuickPaste = null;
+    unlistenOpenSettings = null;
     unlistenShortcutStatus = null;
 }
 
@@ -284,6 +286,9 @@ async function initializeApp() {
             }
             void startQuickPasteMode();
         });
+        unlistenOpenSettings = await onOpenSettings(() => {
+            void openSettingsRoute();
+        });
         unlistenShortcutStatus = await onShortcutStatusUpdated((event) => {
             if (event?.payload) {
                 settingsState.applyShortcutStatus(event.payload);
@@ -406,14 +411,15 @@ function openResetSettingsConfirm() {
     >
         <section class="titlebar-row">
             <div
+                v-if="isSettingsRoute"
                 class="window-controls"
-                :class="{ windows: useWindowsWindowControls }"
+                :class="windowControlPlatform"
             >
-                <template v-if="!useWindowsWindowControls">
+                <template v-if="windowControlPlatform === 'macos'">
                 <button
                     class="traffic-light close"
                     type="button"
-                    aria-label="Close"
+                    :aria-label="settingsState.t('closeAction')"
                     @click="handleWindowAction('close')"
                 >
                     <span class="traffic-light-icon" aria-hidden="true">
@@ -444,7 +450,7 @@ function openResetSettingsConfirm() {
                 <button
                     class="traffic-light minimize"
                     type="button"
-                    aria-label="Minimize"
+                    :aria-label="settingsState.t('minimizeAction')"
                     @click="handleWindowAction('minimize')"
                 >
                     <span class="traffic-light-icon" aria-hidden="true">
@@ -475,7 +481,7 @@ function openResetSettingsConfirm() {
                 <button
                     class="traffic-light maximize"
                     type="button"
-                    aria-label="Maximize"
+                    :aria-label="settingsState.t('maximizeAction')"
                     @click="handleWindowAction('maximize')"
                 >
                     <span class="traffic-light-icon" aria-hidden="true">
@@ -504,7 +510,7 @@ function openResetSettingsConfirm() {
                     </span>
                 </button>
                 </template>
-                <template v-else>
+                <template v-else-if="windowControlPlatform === 'windows'">
                     <button
                         class="window-control minimize"
                         type="button"
@@ -544,6 +550,49 @@ function openResetSettingsConfirm() {
                     >
                         <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
                             <path d="m3 3 6 6m0-6-6 6" />
+                        </svg>
+                    </button>
+                </template>
+                <template v-else>
+                    <button
+                        class="window-control linux-control minimize"
+                        type="button"
+                        :aria-label="settingsState.t('minimizeAction')"
+                        :title="settingsState.t('minimizeAction')"
+                        @click="handleWindowAction('minimize')"
+                    >
+                        <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M2.5 8.75h7" />
+                        </svg>
+                    </button>
+                    <button
+                        class="window-control linux-control maximize"
+                        type="button"
+                        :aria-label="settingsState.t(isWindowMaximized ? 'restoreAction' : 'maximizeAction')"
+                        :title="settingsState.t(isWindowMaximized ? 'restoreAction' : 'maximizeAction')"
+                        @click="toggleWindowMaximized"
+                    >
+                        <svg
+                            v-if="isWindowMaximized"
+                            class="window-control-icon"
+                            viewBox="0 0 12 12"
+                            aria-hidden="true"
+                        >
+                            <path d="M3.25 4.25h4.5v4.5h-4.5z M4.75 2.75h4.5v4.5" />
+                        </svg>
+                        <svg v-else class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M3 3h6v6H3z" />
+                        </svg>
+                    </button>
+                    <button
+                        class="window-control linux-control close"
+                        type="button"
+                        :aria-label="settingsState.t('closeAction')"
+                        :title="settingsState.t('closeAction')"
+                        @click="handleWindowAction('close')"
+                    >
+                        <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="m3.25 3.25 5.5 5.5m0-5.5-5.5 5.5" />
                         </svg>
                     </button>
                 </template>

@@ -18,7 +18,7 @@ use webview2_com::{
 use windows_core::Interface;
 
 use crate::{
-    models::{SharedState, PANEL_LABEL, QUICK_PASTE_STARTED_EVENT},
+    models::{SharedState, OPEN_SETTINGS_EVENT, PANEL_LABEL, QUICK_PASTE_STARTED_EVENT},
     paste_target::remember_last_target_window,
     save_settings,
     update::spawn_manual_check,
@@ -176,6 +176,24 @@ pub(crate) fn show_quick_paste_panel(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
+// 显示主窗口并通知前端进入设置面板。
+fn show_settings_panel(app: &AppHandle) -> Result<()> {
+    let window = app
+        .get_webview_window(PANEL_LABEL)
+        .context("main window not found")?;
+
+    if window.is_visible()? {
+        window.show()?;
+        window.unminimize()?;
+        window.set_focus()?;
+    } else {
+        show_panel_near_cursor(app, &window)?;
+    }
+
+    app.emit(OPEN_SETTINGS_EVENT, ())?;
+    Ok(())
+}
+
 // Applies persisted window state and wires tray/webview event handlers.
 pub(crate) fn configure_window(app: &AppHandle, shared: Arc<SharedState>) -> Result<()> {
     let window = app
@@ -320,14 +338,14 @@ mod tests {
 fn tray_label(locale: &str, key: &str) -> &'static str {
     if locale == "zh-CN" {
         match key {
-            "show" => "主面板",
+            "settings" => "设置",
             "check_updates" => "检查更新",
             "quit" => "退出",
             _ => "",
         }
     } else {
         match key {
-            "show" => "Main Panel",
+            "settings" => "Settings",
             "check_updates" => "Check for Updates",
             "quit" => "Quit",
             _ => "",
@@ -335,7 +353,7 @@ fn tray_label(locale: &str, key: &str) -> &'static str {
     }
 }
 
-// The tray mirrors the main show/quit actions so the app can stay background-resident.
+// 托盘提供设置、更新和退出入口，使应用可常驻后台。
 pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
     let app_name = app
         .config()
@@ -350,7 +368,13 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
     };
     let version_text = format!("{version_prefix} {}", app.package_info().version);
     let version = MenuItem::with_id(app, "version", version_text, false, None::<&str>)?;
-    let show = MenuItem::with_id(app, "show", tray_label(locale, "show"), true, None::<&str>)?;
+    let settings = MenuItem::with_id(
+        app,
+        "settings",
+        tray_label(locale, "settings"),
+        true,
+        None::<&str>,
+    )?;
     let check_updates = MenuItem::with_id(
         app,
         "check_updates",
@@ -359,15 +383,15 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", tray_label(locale, "quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &check_updates, &quit, &version])?;
+    let menu = Menu::with_items(app, &[&settings, &check_updates, &quit, &version])?;
 
     let mut builder = TrayIconBuilder::with_id("power-paste-tray")
         .menu(&menu)
         .tooltip(&tray_tooltip)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().0.as_str() {
-            "show" => {
-                let _ = toggle_panel(app);
+            "settings" => {
+                let _ = show_settings_panel(app);
             }
             "check_updates" => {
                 let shared = app.state::<Arc<SharedState>>().inner().clone();

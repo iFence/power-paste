@@ -20,6 +20,7 @@ pub(crate) const LAN_RECEIVER_STATUS_EVENT: &str = "lan-receiver-status";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
 pub(crate) const QUICK_PASTE_STARTED_EVENT: &str = "quick-paste-started";
+pub(crate) const OPEN_SETTINGS_EVENT: &str = "open-settings";
 pub(crate) const SHORTCUT_STATUS_UPDATED_EVENT: &str = "shortcut-status-updated";
 pub(crate) const PANEL_LABEL: &str = "main";
 
@@ -582,6 +583,8 @@ pub(crate) struct HistoryQueryPayload {
     pub(crate) kind: Option<String>,
     pub(crate) pinned_only: bool,
     pub(crate) tag_color: Option<String>,
+    pub(crate) created_from: Option<String>,
+    pub(crate) created_before: Option<String>,
     pub(crate) limit: Option<usize>,
     pub(crate) offset: Option<usize>,
     pub(crate) copy_stats_enabled: bool,

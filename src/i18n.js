@@ -264,6 +264,7 @@ export const messages = {
     kindImage: "Image",
     kindMixed: "Image + Text",
     filterAll: "All",
+    filterToday: "Today",
     filterMixed: "Image + Text",
     filterText: "Text",
     filterImage: "Image",
@@ -310,6 +311,7 @@ Object.assign(messages["zh-CN"], {
 
 Object.assign(messages["zh-CN"], {
   filterAll: "全部",
+  filterToday: "今天",
   filterMixed: "图文",
   filterText: "文本",
   filterImage: "图片",

@@ -881,6 +881,12 @@ select {
     order: 2;
 }
 
+.window-controls.linux {
+    align-self: center;
+    gap: 6px;
+    order: 2;
+}
+
 .titlebar-row {
     display: flex;
     align-items: center;
@@ -904,7 +910,6 @@ select {
     width: min(100%, 720px);
     min-width: 0;
     min-height: 40px;
-    padding-top: 8px;
     margin: 0 auto;
 }
 
@@ -1026,6 +1031,17 @@ select {
     stroke-linecap: square;
     stroke-linejoin: miter;
     stroke-width: 1;
+}
+
+.linux-control {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-text) 7%, transparent);
+}
+
+.linux-control:hover {
+    background: color-mix(in srgb, var(--app-text) 13%, transparent);
 }
 
 .traffic-light-icon {
@@ -2920,21 +2936,6 @@ select {
     white-space: normal;
     line-height: 1.2;
     overflow-wrap: anywhere;
-}
-
-.window-control-style-setting .meta-label {
-    color: var(--app-text);
-    font-size: 0.76rem;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-.window-control-style-note {
-    color: var(--app-muted);
-    font-size: 0.72rem;
-    font-weight: 400;
-    line-height: 1.35;
 }
 
 .update-confirm-backdrop {
