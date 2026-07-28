@@ -1,5 +1,13 @@
 # Power Paste
 
+[![Release](https://img.shields.io/github/v/release/iFence/power-paste?label=release&color=blue)](https://github.com/iFence/power-paste/releases)
+[![Downloads](https://img.shields.io/github/downloads/iFence/power-paste/total?label=downloads&color=brightgreen)](https://github.com/iFence/power-paste/releases)
+[![License](https://img.shields.io/github/license/iFence/power-paste?label=license&color=orange)](./LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/iFence/power-paste)
+[![Tauri](https://img.shields.io/badge/tauri-2-blue)](https://tauri.app)
+[![Rust](https://img.shields.io/badge/rust-1.77.2%2B-red)](https://www.rust-lang.org)
+[![Stars](https://img.shields.io/github/stars/iFence/power-paste?style=social)](https://github.com/iFence/power-paste/stargazers)
+
 Power Paste 是一个基于 `Tauri 2`、`Vue 3` 和 `Rust` 构建的桌面剪贴板历史管理器。它围绕“原生感”的桌面工作流设计：后台监听剪贴板变化，通过全局快捷键呼出紧凑面板，然后快速搜索、预览、复制、编辑、打标签，或把历史内容直接粘贴回上一个目标应用。
 
 当前实现是本地优先架构。剪贴板历史保存在本机 SQLite 中，设置保存到 `settings.json`，手机互传则由桌面应用临时开启局域网服务并通过二维码让手机浏览器接入。

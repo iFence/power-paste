@@ -1,5 +1,13 @@
 # Power Paste
 
+[![Release](https://img.shields.io/github/v/release/iFence/power-paste?label=release&color=blue)](https://github.com/iFence/power-paste/releases)
+[![Downloads](https://img.shields.io/github/downloads/iFence/power-paste/total?label=downloads&color=brightgreen)](https://github.com/iFence/power-paste/releases)
+[![License](https://img.shields.io/github/license/iFence/power-paste?label=license&color=orange)](./LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/iFence/power-paste)
+[![Tauri](https://img.shields.io/badge/tauri-2-blue)](https://tauri.app)
+[![Rust](https://img.shields.io/badge/rust-1.77.2%2B-red)](https://www.rust-lang.org)
+[![Stars](https://img.shields.io/github/stars/iFence/power-paste?style=social)](https://github.com/iFence/power-paste/stargazers)
+
 Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`, and `Rust`. It focuses on a native-feeling workflow: watch clipboard changes in the background, open a compact panel with a global shortcut, then quickly search, preview, copy, edit, tag, or paste older items back into the last target application.
 
 The current implementation is local-first. Clipboard history is stored in SQLite on the device, settings are persisted in `settings.json`, and phone transfer runs over a temporary local-network session served by the desktop app itself.
