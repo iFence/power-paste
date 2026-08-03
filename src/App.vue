@@ -175,6 +175,18 @@ function blurSearchIfFocused() {
     }
 }
 
+async function hideHomePanelAfterBlur() {
+    if (route.name !== 'home') {
+        return
+    }
+
+    try {
+        await getCurrentWindow().hide()
+    } catch (error) {
+        console.error('Failed to hide the main panel after blur', error)
+    }
+}
+
 async function syncWindowMaximized() {
     isWindowMaximized.value = await getCurrentWindow().isMaximized();
 }
@@ -303,6 +315,7 @@ async function initializeApp() {
                 }
 
                 blurSearchIfFocused();
+                void hideHomePanelAfterBlur()
             },
         );
         unlistenWindowResize = await getCurrentWindow().onResized(() => {
