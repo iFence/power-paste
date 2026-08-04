@@ -1,5 +1,6 @@
 <script setup>
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -175,16 +176,96 @@ function blurSearchIfFocused() {
     }
 }
 
+// 拖动窗口时 WebView2 的 app-region: drag 会吞掉拖拽区域的鼠标事件，
+// 前端拿不到 pointerdown，无法直接用“按下即拖动”来判断。但拖动时光标
+// 始终位于窗口内、窗口在移动、主鼠标键按住；点击面板外时光标在窗口外、
+// 窗口不动。因此这里用“光标是否在窗口内 + 窗口是否移动 + 鼠标是否按住”
+// 来区分拖动与点击外部。
+let blurHideTimer = null;
+
+async function isCursorInsidePanel() {
+    const window = getCurrentWindow();
+    const [cursor, pos, size] = await Promise.all([
+        cursorPosition(),
+        window.outerPosition(),
+        window.outerSize(),
+    ]);
+    return (
+        cursor.x >= pos.x &&
+        cursor.x < pos.x + size.width &&
+        cursor.y >= pos.y &&
+        cursor.y < pos.y + size.height
+    );
+}
+
 async function hideHomePanelAfterBlur() {
     if (route.name !== 'home') {
         return
     }
 
+    const window = getCurrentWindow();
+
+    let cursorInside;
     try {
-        await getCurrentWindow().hide()
-    } catch (error) {
-        console.error('Failed to hide the main panel after blur', error)
+        cursorInside = await isCursorInsidePanel();
+    } catch {
+        // 查询失败时走下面的延迟确认路径，避免误隐藏。
+        cursorInside = true;
     }
+
+    // 光标在窗口外：肯定是点击了其他窗口，直接隐藏。
+    if (!cursorInside) {
+        try {
+            await window.hide()
+        } catch (error) {
+            console.error('Failed to hide the main panel after blur', error)
+        }
+        return
+    }
+
+    // 光标在窗口内：可能是正在拖动窗口（app-region 吞掉鼠标事件，
+    // 无法提前知道拖动开始）。延迟后确认窗口是否真的移动了：
+    // 移动了说明在拖动，不应隐藏；没移动（如 Alt+Tab、点击被遮挡
+    // 的其他窗口）则仍然隐藏。
+    let startPos;
+    try {
+        startPos = await window.outerPosition();
+    } catch {
+        startPos = null;
+    }
+
+    clearTimeout(blurHideTimer);
+    blurHideTimer = setTimeout(async () => {
+        if (route.name !== 'home') {
+            return;
+        }
+        if (await window.isFocused()) {
+            return;
+        }
+        try {
+            if (startPos) {
+                const endPos = await window.outerPosition();
+                if (endPos.x !== startPos.x || endPos.y !== startPos.y) {
+                    return; // 窗口正在被拖动
+                }
+            }
+        } catch {
+            // 位置查询失败时忽略移动信号
+        }
+        // 主鼠标键仍被按住 → 仍在拖动窗口（可能刚按下还没移动）。
+        try {
+            if (await invoke('is_primary_mouse_button_down')) {
+                return;
+            }
+        } catch {
+            // 查询失败时忽略该信号
+        }
+        try {
+            await window.hide();
+        } catch (error) {
+            console.error('Failed to hide the main panel after blur', error);
+        }
+    }, 250);
 }
 
 async function syncWindowMaximized() {
@@ -340,6 +421,7 @@ onUnmounted(() => {
     document.removeEventListener("visibilitychange", handleDocumentVisibilityChange);
     document.removeEventListener("pointerdown", handleUserInteractionForSound, true);
     document.removeEventListener("keydown", handleUserInteractionForSound, true);
+    clearTimeout(blurHideTimer);
     cleanupListeners();
 });
 

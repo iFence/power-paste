@@ -103,6 +103,23 @@ pub(crate) fn should_enable_devtools(debug_enabled: bool) -> bool {
     debug_enabled
 }
 
+// 拖动窗口时 WebView2 的 app-region: drag 会吞掉拖拽区域的鼠标事件，
+// 前端无法通过 pointerdown 感知“正在拖动”。失焦时用它判断主鼠标键
+// 是否仍被按住：按住说明在拖动窗口，点击面板外则鼠标已经松开。
+#[tauri::command]
+fn is_primary_mouse_button_down() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+        // VK_LBUTTON = 0x01；返回值最高位为 1 表示按键当前被按住。
+        unsafe { GetAsyncKeyState(0x01) < 0 }
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 #[cfg(windows)]
 const WEBVIEW2_GPU_DISABLED_BROWSER_ARGS: &str =
     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-gpu";
@@ -298,7 +315,8 @@ pub fn run() {
             update::get_update_state,
             update::check_for_updates,
             update::install_update,
-            update::set_update_debug_state
+            update::set_update_debug_state,
+            is_primary_mouse_button_down
         ])
         .run(tauri::generate_context!())
         .expect("error while running Power Paste");
