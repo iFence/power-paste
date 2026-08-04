@@ -11,6 +11,7 @@ import checkIcon from '../assets/check.svg'
 const ABOUT_INFO = {
   landingPageUrl: 'https://power-paste.hiaspirin.cc',
   repositoryUrl: 'https://github.com/iFence/power-paste',
+  lumiaUrl: 'https://github.com/iFence/Lumia',
 }
 const SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY = 'clipdesk.settings.activeCategory'
 
@@ -719,6 +720,10 @@ async function applyUpdateDebugStatus(status) {
 
 async function openRepositoryUrl() {
   await openExternalUrl(ABOUT_INFO.repositoryUrl)
+}
+
+async function openLumiaUrl() {
+  await openExternalUrl(ABOUT_INFO.lumiaUrl)
 }
 
 async function openLandingPageUrl() {
@@ -1854,6 +1859,21 @@ watch(
                 </svg>
               </button>
             </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="meta-label">{{ t('recommendedAppsLabel') }}</span>
+            </div>
+            <button
+              class="about-link about-link-icon"
+              type="button"
+              :aria-label="t('lumiaTooltip')"
+              :title="t('lumiaTooltip')"
+              @click="openLumiaUrl"
+            >
+              <img class="about-link-lumia-icon" src="/lumia.png" alt="" aria-hidden="true" />
+            </button>
           </section>
 
           <section class="setting-card wide">

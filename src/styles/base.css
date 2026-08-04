@@ -3527,6 +3527,13 @@ select {
     height: 17px;
 }
 
+.about-link-lumia-icon {
+    width: 19px;
+    height: 19px;
+    border-radius: 5px;
+    object-fit: contain;
+}
+
 .update-card .setting-head {
     gap: 4px;
 }

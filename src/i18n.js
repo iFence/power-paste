@@ -100,6 +100,9 @@ export const messages = {
     aboutTitle: "关于",
     githubRepoLabel: "GitHub 仓库",
     landingPageLabel: "访问官网",
+    recommendedAppsLabel: "推荐应用",
+    lumiaTooltip:
+      "Lumia 是 power-paste 作者采用纯 Rust 开发的一款小巧、精致、高颜值、高性能的跨平台图片查看器。",
     ignoredAppsPlaceholder: "例如 1Password, Bitwarden, KeePassXC",
     launchOnStartupTip: "应用启动时自动运行 Power Paste。",
     maxHistoryItemsTip: "超过数量上限时，会优先清理未置顶的旧记录。",
@@ -226,6 +229,9 @@ export const messages = {
     aboutTitle: "About",
     githubRepoLabel: "GitHub Repository",
     landingPageLabel: "Website",
+    recommendedAppsLabel: "Recommended Apps",
+    lumiaTooltip:
+      "Lumia is a compact, refined, gorgeous, high-performance cross-platform image viewer developed in pure Rust by the author of Power Paste.",
     ignoredAppsPlaceholder: "e.g. 1Password, Bitwarden, KeePassXC",
     launchOnStartupTip: "Run Power Paste automatically when the system starts.",
     maxHistoryItemsTip:
