@@ -877,8 +877,11 @@ select {
 
 .window-controls.windows {
     align-self: stretch;
+    align-items: stretch;
     gap: 0;
     order: 2;
+    /* 抵消 titlebar-row 的内边距，让按钮贴到窗口右上角并占满标题栏高度 */
+    margin: -6px -10px 0 0;
 }
 
 .window-controls.linux {
@@ -1031,6 +1034,51 @@ select {
     stroke-linecap: square;
     stroke-linejoin: miter;
     stroke-width: 1;
+}
+
+/* Windows 原生标题栏按钮样式：贴角、全高、中性配色、接近 Fluent 的图标比例 */
+.window-controls.windows .window-control {
+    width: 46px;
+    height: 100%;
+    border-radius: 0;
+    color: var(--wc-color);
+}
+
+:root:not([data-theme="light"]) .window-controls.windows {
+    --wc-color: rgba(255, 255, 255, 0.92);
+    --wc-hover-bg: rgba(255, 255, 255, 0.07);
+    --wc-active-bg: rgba(255, 255, 255, 0.11);
+}
+
+:root[data-theme="light"] .window-controls.windows {
+    --wc-color: rgba(20, 20, 20, 0.92);
+    --wc-hover-bg: rgba(0, 0, 0, 0.05);
+    --wc-active-bg: rgba(0, 0, 0, 0.09);
+}
+
+.window-controls.windows .window-control:hover {
+    background: var(--wc-hover-bg);
+}
+
+.window-controls.windows .window-control:active {
+    background: var(--wc-active-bg);
+}
+
+.window-controls.windows .window-control.close:hover,
+.window-controls.windows .window-control.close:active {
+    background: #c42b1c;
+    color: #fff;
+}
+
+.window-controls.windows .window-control:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--wc-color) 55%, transparent);
+    outline-offset: -3px;
+}
+
+.window-controls.windows .window-control-icon {
+    width: 13px;
+    height: 13px;
+    stroke-width: 1.2;
 }
 
 .linux-control {

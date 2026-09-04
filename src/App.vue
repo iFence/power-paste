@@ -614,7 +614,7 @@ function openResetSettingsConfirm() {
                         @click="handleWindowAction('minimize')"
                     >
                         <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
-                            <path d="M2 9.25h8" />
+                            <path d="M1.5 6h9" />
                         </svg>
                     </button>
                     <button
@@ -633,7 +633,7 @@ function openResetSettingsConfirm() {
                             <path d="M3.5 4.5h5v5h-5z M5 3h4v4" />
                         </svg>
                         <svg v-else class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
-                            <path d="M3 3h6v6H3z" />
+                            <path d="M2.5 2.5h7v7h-7z" />
                         </svg>
                     </button>
                     <button
@@ -644,7 +644,7 @@ function openResetSettingsConfirm() {
                         @click="handleWindowAction('close')"
                     >
                         <svg class="window-control-icon" viewBox="0 0 12 12" aria-hidden="true">
-                            <path d="m3 3 6 6m0-6-6 6" />
+                            <path d="M2 2l8 8M10 2l-8 8" />
                         </svg>
                     </button>
                 </template>
