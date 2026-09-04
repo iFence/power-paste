@@ -21,6 +21,7 @@ pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
 pub(crate) const QUICK_PASTE_STARTED_EVENT: &str = "quick-paste-started";
 pub(crate) const OPEN_SETTINGS_EVENT: &str = "open-settings";
+pub(crate) const PANEL_SHOWN_EVENT: &str = "panel-shown";
 pub(crate) const SHORTCUT_STATUS_UPDATED_EVENT: &str = "shortcut-status-updated";
 pub(crate) const PANEL_LABEL: &str = "main";
 

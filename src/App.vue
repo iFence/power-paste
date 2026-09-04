@@ -1,5 +1,4 @@
 <script setup>
-import { invoke } from "@tauri-apps/api/core";
 import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -7,6 +6,7 @@ import {
     onCopySound,
     onHistoryUpdated,
     onOpenSettings,
+    onPanelShown,
     onQuickPasteStarted,
     onShortcutStatusUpdated,
     onUpdateStatus,
@@ -98,6 +98,7 @@ let unlistenWindowFocus = null;
 let unlistenWindowResize = null;
 let unlistenQuickPaste = null;
 let unlistenOpenSettings = null;
+let unlistenPanelShown = null;
 let unlistenShortcutStatus = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
@@ -141,6 +142,7 @@ function cleanupListeners() {
     unlistenWindowResize?.();
     unlistenQuickPaste?.();
     unlistenOpenSettings?.();
+    unlistenPanelShown?.();
     unlistenShortcutStatus?.();
     unlistenHistory = null;
     unlistenCopySound = null;
@@ -150,6 +152,7 @@ function cleanupListeners() {
     unlistenWindowResize = null;
     unlistenQuickPaste = null;
     unlistenOpenSettings = null;
+    unlistenPanelShown = null;
     unlistenShortcutStatus = null;
 }
 
@@ -175,13 +178,6 @@ function blurSearchIfFocused() {
         searchInput.blur();
     }
 }
-
-// 拖动窗口时 WebView2 的 app-region: drag 会吞掉拖拽区域的鼠标事件，
-// 前端拿不到 pointerdown，无法直接用“按下即拖动”来判断。但拖动时光标
-// 始终位于窗口内、窗口在移动、主鼠标键按住；点击面板外时光标在窗口外、
-// 窗口不动。因此这里用“光标是否在窗口内 + 窗口是否移动 + 鼠标是否按住”
-// 来区分拖动与点击外部。
-let blurHideTimer = null;
 
 async function isCursorInsidePanel() {
     const window = getCurrentWindow();
@@ -209,63 +205,22 @@ async function hideHomePanelAfterBlur() {
     try {
         cursorInside = await isCursorInsidePanel();
     } catch {
-        // 查询失败时走下面的延迟确认路径，避免误隐藏。
+        // 查询失败时保守起见不隐藏，避免把拖动误当成点击外部。
         cursorInside = true;
     }
 
-    // 光标在窗口外：肯定是点击了其他窗口，直接隐藏。
-    if (!cursorInside) {
-        try {
-            await window.hide()
-        } catch (error) {
-            console.error('Failed to hide the main panel after blur', error)
-        }
+    // 光标在窗口内：可能是正在拖动窗口（拖拽会触发一次“失焦→重新获得
+    // 焦点”，且光标始终在窗口内），此时不应隐藏。只有光标明确位于窗口外
+    // （点击了其他窗口）才隐藏。
+    if (cursorInside) {
         return
     }
 
-    // 光标在窗口内：可能是正在拖动窗口（app-region 吞掉鼠标事件，
-    // 无法提前知道拖动开始）。延迟后确认窗口是否真的移动了：
-    // 移动了说明在拖动，不应隐藏；没移动（如 Alt+Tab、点击被遮挡
-    // 的其他窗口）则仍然隐藏。
-    let startPos;
     try {
-        startPos = await window.outerPosition();
-    } catch {
-        startPos = null;
+        await window.hide()
+    } catch (error) {
+        console.error('Failed to hide the main panel after blur', error)
     }
-
-    clearTimeout(blurHideTimer);
-    blurHideTimer = setTimeout(async () => {
-        if (route.name !== 'home') {
-            return;
-        }
-        if (await window.isFocused()) {
-            return;
-        }
-        try {
-            if (startPos) {
-                const endPos = await window.outerPosition();
-                if (endPos.x !== startPos.x || endPos.y !== startPos.y) {
-                    return; // 窗口正在被拖动
-                }
-            }
-        } catch {
-            // 位置查询失败时忽略移动信号
-        }
-        // 主鼠标键仍被按住 → 仍在拖动窗口（可能刚按下还没移动）。
-        try {
-            if (await invoke('is_primary_mouse_button_down')) {
-                return;
-            }
-        } catch {
-            // 查询失败时忽略该信号
-        }
-        try {
-            await window.hide();
-        } catch (error) {
-            console.error('Failed to hide the main panel after blur', error);
-        }
-    }, 250);
 }
 
 async function syncWindowMaximized() {
@@ -275,6 +230,19 @@ async function syncWindowMaximized() {
 async function toggleWindowMaximized() {
     await handleWindowAction("maximize");
     await syncWindowMaximized();
+}
+
+// 主面板隐藏后再次打开时，恢复到初始状态：第一个 tab、清空搜索框、
+// 清空标签筛选与选中项，并关闭编辑弹窗。
+function resetPanelTransientState() {
+    historyState.query.value = "";
+    historyState.activeFilterTab.value =
+        historyState.historyTabs.value[0]?.key ?? "all";
+    historyState.activeTagFilter.value = "";
+    historyState.setSelectedId(null);
+    historyState.showEditModal.value = false;
+    historyState.editingItemId.value = null;
+    historyState.editDraft.value = "";
 }
 
 function handleDocumentVisibilityChange() {
@@ -382,6 +350,9 @@ async function initializeApp() {
         unlistenOpenSettings = await onOpenSettings(() => {
             void openSettingsRoute();
         });
+        unlistenPanelShown = await onPanelShown(() => {
+            resetPanelTransientState();
+        });
         unlistenShortcutStatus = await onShortcutStatusUpdated((event) => {
             if (event?.payload) {
                 settingsState.applyShortcutStatus(event.payload);
@@ -421,7 +392,6 @@ onUnmounted(() => {
     document.removeEventListener("visibilitychange", handleDocumentVisibilityChange);
     document.removeEventListener("pointerdown", handleUserInteractionForSound, true);
     document.removeEventListener("keydown", handleUserInteractionForSound, true);
-    clearTimeout(blurHideTimer);
     cleanupListeners();
 });
 

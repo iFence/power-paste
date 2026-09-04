@@ -18,7 +18,7 @@ use webview2_com::{
 use windows_core::Interface;
 
 use crate::{
-    models::{SharedState, OPEN_SETTINGS_EVENT, PANEL_LABEL, QUICK_PASTE_STARTED_EVENT},
+    models::{SharedState, OPEN_SETTINGS_EVENT, PANEL_LABEL, PANEL_SHOWN_EVENT, QUICK_PASTE_STARTED_EVENT},
     paste_target::remember_last_target_window,
     save_settings,
     update::spawn_manual_check,
@@ -132,6 +132,9 @@ fn show_panel_near_cursor(app: &AppHandle, window: &WebviewWindow) -> Result<()>
     window.show()?;
     window.unminimize()?;
     window.set_focus()?;
+    // 面板从隐藏变为可见时通知前端，前端据此把主面板重置到初始状态
+    // （回到第一个 tab、清空搜索框等）。
+    app.emit(PANEL_SHOWN_EVENT, ())?;
     Ok(())
 }
 

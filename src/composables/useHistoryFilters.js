@@ -7,15 +7,15 @@ const ACTIVE_TAG_FILTER_STORAGE_KEY = 'clipdesk.activeTagFilter'
 export function useHistoryFilters({ history, settings, t }) {
   const query = ref('')
   const activeFilterTab = ref(
-    window.localStorage.getItem(ACTIVE_FILTER_TAB_STORAGE_KEY) || 'all',
+    window.localStorage.getItem(ACTIVE_FILTER_TAB_STORAGE_KEY) || 'today',
   )
   const activeTagFilter = ref(
     window.localStorage.getItem(ACTIVE_TAG_FILTER_STORAGE_KEY) || '',
   )
 
   const historyTabs = computed(() => [
-    { key: 'all', label: t('filterAll') },
     { key: 'today', label: t('filterToday') },
+    { key: 'all', label: t('filterAll') },
     { key: 'pinned', label: t('filterPinned') },
     { key: 'text', label: t('filterText') },
     { key: 'image', label: t('filterImage') },
