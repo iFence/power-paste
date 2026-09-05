@@ -1,4 +1,5 @@
 <script setup>
+import { invoke } from "@tauri-apps/api/core";
 import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -192,6 +193,11 @@ async function isCursorInsidePanel() {
     );
 }
 
+// 主面板失焦时，快速拖动窗口会让光标瞬时越出窗口边界（或三个异步 IPC
+// 采样不同步），因此光标位于窗口外时不能立刻隐藏，需延迟确认窗口是否在
+// 移动、是否重获焦点、主鼠标键是否仍按住，据此区分“拖动”与“点击外部”。
+let blurHideTimer = null;
+
 async function hideHomePanelAfterBlur() {
     if (route.name !== 'home') {
         return
@@ -208,17 +214,58 @@ async function hideHomePanelAfterBlur() {
     }
 
     // 光标在窗口内：可能是正在拖动窗口（拖拽会触发一次“失焦→重新获得
-    // 焦点”，且光标始终在窗口内），此时不应隐藏。只有光标明确位于窗口外
-    // （点击了其他窗口）才隐藏。
+    // 焦点”，且光标始终在窗口内），此时不应隐藏。
     if (cursorInside) {
         return
     }
 
+    // 光标在窗口外：延迟确认后再隐藏，避免快速拖动时光标暂时越界被误判。
+    let startPos;
     try {
-        await window.hide()
-    } catch (error) {
-        console.error('Failed to hide the main panel after blur', error)
+        startPos = await window.outerPosition();
+    } catch {
+        startPos = null;
     }
+
+    clearTimeout(blurHideTimer);
+    blurHideTimer = setTimeout(async () => {
+        if (route.name !== 'home') {
+            return
+        }
+
+        try {
+            if (await window.isFocused()) {
+                return // 拖动过程中重新获得焦点
+            }
+        } catch {
+            // 忽略查询失败
+        }
+
+        try {
+            if (startPos) {
+                const endPos = await window.outerPosition();
+                if (endPos.x !== startPos.x || endPos.y !== startPos.y) {
+                    return // 窗口正在移动，说明仍在拖动
+                }
+            }
+        } catch {
+            // 忽略查询失败
+        }
+
+        try {
+            if (await invoke('is_primary_mouse_button_down')) {
+                return // 主鼠标键仍按住，说明仍在拖动
+            }
+        } catch {
+            // 忽略查询失败
+        }
+
+        try {
+            await window.hide()
+        } catch (error) {
+            console.error('Failed to hide the main panel after blur', error)
+        }
+    }, 250)
 }
 
 async function syncWindowMaximized() {
@@ -393,6 +440,7 @@ onUnmounted(() => {
     document.removeEventListener("visibilitychange", handleDocumentVisibilityChange);
     document.removeEventListener("pointerdown", handleUserInteractionForSound, true);
     document.removeEventListener("keydown", handleUserInteractionForSound, true);
+    clearTimeout(blurHideTimer);
     cleanupListeners();
 });
 
