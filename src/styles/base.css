@@ -29,6 +29,7 @@
     --lan-transfer-bubble-text: #f5efe7;
     --lan-transfer-own-bubble-bg: var(--accent-primary-strong);
     --lan-transfer-own-bubble-text: var(--accent-primary-text);
+    --settings-sidebar-bg: rgba(30, 36, 44, 0.72);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -466,26 +467,27 @@
 
 .settings-page {
     --settings-control-width: min(100%, 120px);
+    --settings-sidebar-w: 182px;
     position: relative;
     display: grid;
+    grid-template-columns: var(--settings-sidebar-w) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 10px;
-    height: 100%;
+    gap: 0;
+    margin: 0 -10px -4px;
+    height: calc(100% + 4px);
+    flex-shrink: 0;
     min-height: 0;
     color: var(--app-text);
 }
 
 .settings-page-topbar {
+    grid-column: 2;
+    grid-row: 1;
     display: grid;
-    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
-    padding: 6px 0 0;
-}
-
-.settings-page-back {
-    width: 30px;
-    height: 30px;
+    padding: 8px 26px 6px 14px;
 }
 
 .settings-page-title-block {
@@ -546,21 +548,21 @@
 }
 
 .settings-layout {
-    display: grid;
-    grid-template-columns: 126px minmax(0, 1fr);
-    gap: 12px;
-    min-height: 0;
+    display: contents;
 }
 
 .settings-sidebar {
+    grid-column: 1;
+    grid-row: 1 / -1;
     display: flex;
     min-height: 0;
     flex-direction: column;
     gap: 4px;
-    padding: 6px;
-    border: 1px solid var(--app-panel-border);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--app-panel-bg) 72%, transparent);
+    padding: 12px 10px;
+    border: 0;
+    border-right: 1px solid var(--app-panel-border);
+    border-radius: 0;
+    background: var(--settings-sidebar-bg);
     overflow: auto;
     scrollbar-width: none;
 }
@@ -608,10 +610,12 @@
 }
 
 .settings-content {
+    grid-column: 2;
+    grid-row: 2;
     min-height: 0;
     min-width: 0;
     overflow: auto;
-    padding: 0 2px 4px 0;
+    padding: 12px 26px 16px 14px;
     scrollbar-width: none;
 }
 
@@ -740,6 +744,7 @@
     --lan-transfer-bubble-text: #1c232b;
     --lan-transfer-own-bubble-bg: #1f2937;
     --lan-transfer-own-bubble-text: #fff;
+    --settings-sidebar-bg: rgba(233, 237, 242, 0.86);
 }
 
 :root:not([data-theme="light"]) {
@@ -3420,6 +3425,7 @@ select {
     max-width: var(--settings-control-width);
     padding-inline: 10px;
     place-self: center end;
+    box-shadow: none;
 }
 
 .setting-card > .custom-select .custom-select-trigger,
@@ -3854,18 +3860,42 @@ textarea {
     color: #1c8f72;
 }
 
+/* 设置面板内卡片动作按钮不继承容器级投影（覆盖深浅主题下的 --app-shadow / 强调投影） */
+.settings-page .setting-card > .settings-reset-button,
+.settings-page .setting-actions .ghost,
+.settings-page .setting-actions .primary,
+.settings-page .webdav-actions .ghost,
+.settings-page .webdav-actions .primary {
+    box-shadow: none;
+}
+
 @media (max-width: 860px) {
     .window-shell {
         padding: 2px 10px 10px;
     }
 
     .settings-page-topbar {
-        grid-template-columns: 30px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .settings-page-actions {
         grid-column: 1 / -1;
         justify-content: flex-start;
+    }
+
+    .settings-page {
+        --settings-sidebar-w: 140px;
+        margin: 0 -10px -10px;
+        height: calc(100% + 10px);
+        flex-shrink: 0;
+    }
+
+    .settings-page-topbar {
+        padding: 8px 22px 6px 10px;
+    }
+
+    .settings-content {
+        padding: 10px 22px 14px 10px;
     }
 
     .modal-header,

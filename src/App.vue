@@ -66,9 +66,7 @@ const { handleWindowAction } = useKeyboardShortcuts({
     setSelectedId: historyState.setSelectedId,
     settings: settingsState.settings,
     showEditModal: historyState.showEditModal,
-    isSettingsRoute: computed(() => route.name === "settings"),
     isHomeRoute: computed(() => route.name === "home"),
-    leaveSettings: () => router.push({ name: "home" }),
     clearEditing: () => {
         historyState.showEditModal.value = false;
         historyState.editingItemId.value = null;
@@ -352,6 +350,9 @@ async function initializeApp() {
         });
         unlistenPanelShown = await onPanelShown(() => {
             resetPanelTransientState();
+            if (route.name !== "home") {
+                void router.push({ name: "home" });
+            }
         });
         unlistenShortcutStatus = await onShortcutStatusUpdated((event) => {
             if (event?.payload) {
@@ -404,10 +405,6 @@ async function openSettingsRoute() {
 }
 
 async function leaveLanTransferRoute() {
-    await router.push({ name: "home" });
-}
-
-async function leaveSettingsRoute() {
     await router.push({ name: "home" });
 }
 
@@ -724,7 +721,6 @@ function openResetSettingsConfirm() {
                     "
                     :end-shortcut-recording="settingsState.endShortcutRecording"
                     :locale-options="settingsState.localeOptions"
-                    :on-back="leaveSettingsRoute"
                     :on-check-updates="updaterState.runUpdateCheck"
                     :on-clear-update-debug-status="updaterState.clearUpdateDebugStatus"
                     :on-install-update="updaterState.runUpdateInstall"

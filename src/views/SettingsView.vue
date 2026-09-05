@@ -33,7 +33,6 @@ const props = defineProps({
   currentThemeModeOptions: { type: Array, required: true },
   endShortcutRecording: { type: Function, required: true },
   localeOptions: { type: Array, required: true },
-  onBack: { type: Function, required: true },
   onCheckUpdates: { type: Function, required: true },
   onClearUpdateDebugStatus: { type: Function, required: true },
   onInstallUpdate: { type: Function, required: true },
@@ -814,24 +813,6 @@ watch(
     @focusout="hideSettingTooltip($event.target)"
   >
     <header class="settings-page-topbar">
-      <button
-        class="toolbar-icon-button settings-page-back"
-        type="button"
-        :aria-label="t('backAction')"
-        :title="t('backAction')"
-        @click="onBack"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M15.5 5 8.5 12l7 7"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
       <div class="settings-page-title-block">
         <div class="settings-title-row">
           <h1>{{ t('settingsTitle') }}</h1>

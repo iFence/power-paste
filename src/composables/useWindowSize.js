@@ -44,5 +44,6 @@ export function useWindowSize(route) {
 
       await routeSizing.applyRouteSize(routeName, oldRouteName)
     },
+    { immediate: true },
   )
 }

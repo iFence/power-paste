@@ -14,9 +14,7 @@ export function useKeyboardShortcuts({
   setSelectedId,
   settings,
   showEditModal,
-  isSettingsRoute,
   isHomeRoute,
-  leaveSettings,
   clearEditing,
   quickPasteActive,
   commitQuickPaste,
@@ -226,9 +224,6 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      if (isSettingsRoute.value) {
-        void leaveSettings();
-      }
       return;
     }
 
