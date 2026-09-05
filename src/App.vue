@@ -277,19 +277,6 @@ async function toggleWindowMaximized() {
     await syncWindowMaximized();
 }
 
-// 主面板隐藏后再次打开时，恢复到初始状态：第一个 tab、清空搜索框、
-// 清空标签筛选与选中项，并关闭编辑弹窗。
-function resetPanelTransientState() {
-    historyState.query.value = "";
-    historyState.activeFilterTab.value =
-        historyState.historyTabs.value[0]?.key ?? "all";
-    historyState.activeTagFilter.value = "";
-    historyState.setSelectedId(null);
-    historyState.showEditModal.value = false;
-    historyState.editingItemId.value = null;
-    historyState.editDraft.value = "";
-}
-
 function handleDocumentVisibilityChange() {
     if (document.visibilityState === "visible") {
         flushCopySoundIfEnabled();
@@ -396,7 +383,7 @@ async function initializeApp() {
             void openSettingsRoute();
         });
         unlistenPanelShown = await onPanelShown(() => {
-            resetPanelTransientState();
+            void historyState.resetPanelToDefault();
             if (route.name !== "home") {
                 void router.push({ name: "home" });
             }

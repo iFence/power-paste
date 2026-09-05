@@ -119,6 +119,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
   const loadedHistoryOffset = ref(0);
   const totalHistoryCount = ref(0);
   const skipNextFilterRefresh = ref(false);
+  const resettingPanelToDefault = ref(false);
   const deletingHistoryItem = ref(false);
   const {
     activeFilterTab,
@@ -573,6 +574,39 @@ export function useHistory({ platformCapabilities, settings, t }) {
     void loadMoreHistory();
   }
 
+  // 主面板从隐藏恢复到可见时，把主面板的瞬时状态重置为默认值，并把列表
+  // 滚动回顶部、默认选中当前筛选结果的第一条记录。
+  async function resetPanelToDefault() {
+    if (resettingPanelToDefault.value) {
+      return;
+    }
+
+    resettingPanelToDefault.value = true;
+    try {
+      query.value = "";
+      activeFilterTab.value = historyTabs.value[0]?.key ?? "all";
+      activeTagFilter.value = "";
+      showEditModal.value = false;
+      editingItemId.value = null;
+      editDraft.value = "";
+
+      await refreshHistory({ detectNewHistory: false });
+
+      // 先选中第一条记录，再等待列表完成渲染与选中触发的滚动逻辑后，
+      // 将滚动位置强制回顶，确保每次呼出都精确回到最上方。
+      await nextTick();
+      selectedId.value = filteredHistory.value[0]?.id ?? null;
+      await nextTick();
+
+      const panel = historyPanelRef.value;
+      if (panel) {
+        panel.scrollTop = 0;
+      }
+    } finally {
+      resettingPanelToDefault.value = false;
+    }
+  }
+
   watch(selectedId, () => {
     void scrollSelectedIntoView();
     syncPersistedHistoryState(history.value);
@@ -581,6 +615,10 @@ export function useHistory({ platformCapabilities, settings, t }) {
   watch([query, activeFilterTab, activeTagFilter], () => {
     if (skipNextFilterRefresh.value) {
       skipNextFilterRefresh.value = false;
+      return;
+    }
+
+    if (resettingPanelToDefault.value) {
       return;
     }
 
@@ -637,6 +675,7 @@ export function useHistory({ platformCapabilities, settings, t }) {
     pasteItem,
     query,
     refreshHistory,
+    resetPanelToDefault,
     refreshRelativeTimes,
     relativeTimeVersion,
     availableTagFilters,
