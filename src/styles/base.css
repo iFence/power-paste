@@ -1326,7 +1326,7 @@ select {
     gap: 6px;
     width: min(100%, 680px);
     position: relative;
-    padding: 9px 11px 0;
+    padding: 8px 5px 0;
     border-radius: 16px;
     box-shadow: none;
     cursor: grab;
