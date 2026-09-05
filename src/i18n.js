@@ -101,6 +101,8 @@ export const messages = {
     githubRepoLabel: "GitHub 仓库",
     landingPageLabel: "访问官网",
     recommendedAppsLabel: "推荐应用",
+    stewardTooltip:
+      "Steward 是采用 Rust、GPUI 与 gpui-component 构建的一款小巧精致的 Windows 启动器与插件平台。",
     lumiaTooltip:
       "Lumia 是 power-paste 作者采用纯 Rust 开发的一款小巧、精致、高颜值、高性能的跨平台图片查看器。",
     ignoredAppsPlaceholder: "例如 1Password, Bitwarden, KeePassXC",
@@ -230,6 +232,8 @@ export const messages = {
     githubRepoLabel: "GitHub Repository",
     landingPageLabel: "Website",
     recommendedAppsLabel: "Recommended Apps",
+    stewardTooltip:
+      "Steward is a small, polished launcher and plugin platform for Windows, built with Rust, GPUI, and gpui-component.",
     lumiaTooltip:
       "Lumia is a compact, refined, gorgeous, high-performance cross-platform image viewer developed in pure Rust by the author of Power Paste.",
     ignoredAppsPlaceholder: "e.g. 1Password, Bitwarden, KeePassXC",

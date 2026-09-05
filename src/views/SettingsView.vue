@@ -12,6 +12,7 @@ const ABOUT_INFO = {
   landingPageUrl: 'https://power-paste.hiaspirin.cc',
   repositoryUrl: 'https://github.com/iFence/power-paste',
   lumiaUrl: 'https://github.com/iFence/Lumia',
+  stewardUrl: 'https://github.com/iFence/steward',
 }
 const SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY = 'clipdesk.settings.activeCategory'
 
@@ -723,6 +724,10 @@ async function openRepositoryUrl() {
 
 async function openLumiaUrl() {
   await openExternalUrl(ABOUT_INFO.lumiaUrl)
+}
+
+async function openStewardUrl() {
+  await openExternalUrl(ABOUT_INFO.stewardUrl)
 }
 
 async function openLandingPageUrl() {
@@ -1846,15 +1851,26 @@ watch(
             <div class="setting-head">
               <span class="meta-label">{{ t('recommendedAppsLabel') }}</span>
             </div>
-            <button
-              class="about-link about-link-icon"
-              type="button"
-              :aria-label="t('lumiaTooltip')"
-              :title="t('lumiaTooltip')"
-              @click="openLumiaUrl"
-            >
-              <img class="about-link-lumia-icon" src="/lumia.png" alt="" aria-hidden="true" />
-            </button>
+            <div class="about-content">
+              <button
+                class="about-app-link"
+                type="button"
+                :aria-label="t('lumiaTooltip')"
+                :title="t('lumiaTooltip')"
+                @click="openLumiaUrl"
+              >
+                <img class="about-app-link-icon" src="/lumia.png" alt="" aria-hidden="true" />
+              </button>
+              <button
+                class="about-app-link"
+                type="button"
+                :aria-label="t('stewardTooltip')"
+                :title="t('stewardTooltip')"
+                @click="openStewardUrl"
+              >
+                <img class="about-app-link-icon" src="/steward.png" alt="" aria-hidden="true" />
+              </button>
+            </div>
           </section>
 
           <section class="setting-card wide">

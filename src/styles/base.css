@@ -3581,10 +3581,36 @@ select {
     height: 17px;
 }
 
-.about-link-lumia-icon {
-    width: 19px;
-    height: 19px;
-    border-radius: 5px;
+.about-app-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent-primary);
+    cursor: pointer;
+    transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.about-app-link:hover {
+    transform: translateY(-1px);
+}
+
+.about-app-link:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent-primary) 60%, white 40%);
+    outline-offset: 2px;
+    border-radius: 10px;
+}
+
+.about-app-link-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
     object-fit: contain;
 }
 
