@@ -49,7 +49,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Drag history items into other apps; images are dragged as native files when possible
 - Hover image thumbnails to preview larger images
 - Optional copy count and paste count statistics with smart sorting
-- LocalSend-compatible LAN transfer: nearby devices, subnet-based scanning, file/text sending, incoming-request confirmation, transfer progress, and received-file list
+- LocalSend-compatible LAN transfer with LocalSend-style Receive/Send pages, nearby devices, subnet-based scanning, file/folder/text/clipboard sending, incoming-request confirmation, transfer progress, and received-file history
 - Browser QR pages for phones: share files (text shown inline) or receive uploads and typed text straight into the desktop clipboard
 - WebDAV history sync with system credential storage for the remote password
 - Settings for language, theme, accent color, launch on startup, sound, ignored apps, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, and quick paste shortcut
@@ -95,10 +95,13 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 ### LocalSend Transfer
 
 - Speaks the LocalSend protocol, so official LocalSend clients discover Power Paste and both sides can send files
+- Uses LocalSend-style Receive and Send pages: Receive shows the device identity, online state, link entry, and advanced network details; Send prepares content first and sends it by clicking a nearby device
+- Supports files, folders, text, and clipboard content. Folders are expanded recursively, text can be sent together with files, and clipboard content prefers text before images or file lists
 - Refreshing follows official LocalSend: one subnet refreshes directly, several subnets are offered in a list to scan one of them, while the refresh button spins and can be clicked again to cancel
-- Nearby-device list with manual IP entry, file sending, text sending (shown as a message on the peer), and transfer progress
+- Nearby-device list with manual IP entry, file/folder sending, text sending (shown as a message on the peer), clipboard sending, and transfer progress
 - Incoming requests can be accepted, declined, or accepted-and-trusted; trusted devices skip the prompt
 - Received text and images go to the clipboard and history, other files land in the configured download folder and can be opened or revealed
+- Transfer records and received files are grouped in the Receive page history panel, where active transfers can be cancelled
 - Optional browser QR pages: share files to a phone (text shown inline) or receive uploads and typed text from a phone
 - Device name, receive PIN, receive policy, trusted devices, and the download folder are managed in settings; when a peer requires a PIN, Power Paste asks for it and retries
 - While a QR page is open the service switches to plain HTTP (like the official client) and announces `http`, then returns to HTTPS with client-certificate verification afterwards
