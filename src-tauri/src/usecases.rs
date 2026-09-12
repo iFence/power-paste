@@ -105,7 +105,7 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
             anyhow::bail!("unsupported_launch_on_startup");
         }
         if let Some(path) = settings.lan_transfer_download_dir.as_ref() {
-            crate::lan_receiver::validate_download_dir(&PathBuf::from(path))?;
+            crate::lan_transfer::validate_download_dir(&PathBuf::from(path))?;
         }
         if capabilities.supports_launch_on_startup {
             set_launch_on_startup(app, settings.launch_on_startup)?;
@@ -132,6 +132,13 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         if let Some(status) = next_shortcut_status {
             store_and_emit_shortcut_status(app, state, status);
         }
+        crate::lan_transfer::apply_settings_change(
+            app.clone(),
+            state.clone(),
+            settings.lan_transfer_enabled,
+            settings.lan_device_alias != previous_settings.lan_device_alias,
+            settings.lan_transfer_pin != previous_settings.lan_transfer_pin,
+        );
         Ok(())
     }
 }

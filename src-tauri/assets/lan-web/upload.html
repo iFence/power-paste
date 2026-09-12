@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Paste</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 0;
+            padding: 0 1em 2em;
+            line-height: 1.6;
+            text-align: center;
+            background: #f6f7f9;
+            color: #1d232d;
+        }
+        h1 { font-size: 1.25em; padding: 1em 0 0.25em; }
+        #content {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 420px;
+            margin: 1em auto 0;
+            padding: 1em;
+            border: 2px dashed transparent;
+            border-radius: 0.75em;
+            background: #ffffff;
+        }
+        #content.drag-over { border-color: #0f766e; background: #ecfdf5; }
+        button {
+            font: inherit;
+            padding: 0.7em 1em;
+            border-radius: 0.5em;
+            border: none;
+            background: #0f766e;
+            color: #ffffff;
+            cursor: pointer;
+        }
+        button:disabled { opacity: 0.6; cursor: default; }
+        #upload-button { width: 100%; font-size: 1.1em; }
+        textarea {
+            font: inherit;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 0.75em;
+            padding: 0.6em;
+            border: 1px solid #d0d5dd;
+            border-radius: 0.5em;
+            resize: vertical;
+            min-height: 5em;
+        }
+        #send-text { margin-top: 0.5em; width: 100%; }
+        #hint { color: #6b7280; font-size: 0.9em; margin: 0.5em 0 0; }
+        #status { min-height: 1.5em; }
+        #status.error { color: #c62828; }
+    </style>
+</head>
+<body>
+<h1>Power Paste</h1>
+<div id="content">
+    <button id="upload-button" type="button">选择文件</button>
+    <p id="hint">也可以把文件拖到这里</p>
+    <input id="file-input" type="file" multiple style="display: none">
+    <textarea id="text-input" placeholder="输入要发送到电脑的文本"></textarea>
+    <button id="send-text" type="button">发送文本</button>
+    <div id="pin-row" style="display: none; margin-top: 0.75em">
+        <input id="pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">
+        <button id="pin-button" type="button">OK</button>
+    </div>
+    <p id="status"></p>
+</div>
+<script>
+    var BASE_URL = '/api/localsend/v2';
+    var TEXT_PACKAGE_PREFIX = 'PowerPaste-Text-';
+    var zh = (navigator.language || '').toLowerCase().indexOf('zh') === 0;
+    var text = {
+        choose: zh ? '选择文件' : 'Choose files',
+        hint: zh ? '也可以把文件拖到这里' : 'Or drop files here',
+        textPlaceholder: zh ? '输入要发送到电脑的文本' : 'Type text to send to the computer',
+        sendText: zh ? '发送文本' : 'Send text',
+        waiting: zh ? '等待电脑确认…' : 'Waiting for the computer…',
+        rejected: zh ? '对方拒绝了本次传输' : 'The request was declined',
+        busy: zh ? '对方正在处理其他传输' : 'The recipient is busy',
+        done: zh ? '已发送' : 'Sent',
+        sending: zh ? '正在发送 %d/%d' : 'Sending %d/%d',
+        error: zh ? '出错了' : 'Something went wrong',
+        emptyText: zh ? '请输入文本' : 'Enter some text first',
+        pinRequired: zh ? '该设备已设置 PIN，请输入后继续' : 'This device requires a PIN',
+        pinTooMany: zh ? '尝试次数过多，请稍后再试' : 'Too many attempts, please try again later'
+    };
+    var uploading = false;
+    var dragDepth = 0;
+    var pin = sessionStorage.getItem('ppPin') || '';
+    // 等待 PIN 时暂存的文件列表，输入后重试。
+    var pendingFiles = null;
+
+    var statusEl = document.getElementById('status');
+    var uploadButton = document.getElementById('upload-button');
+    var sendTextButton = document.getElementById('send-text');
+    var fileInput = document.getElementById('file-input');
+    var textInput = document.getElementById('text-input');
+
+    document.getElementById('hint').innerText = text.hint;
+    textInput.placeholder = text.textPlaceholder;
+    sendTextButton.innerText = text.sendText;
+
+    function setStatus(value, isError) {
+        statusEl.innerText = value || '';
+        statusEl.className = isError ? 'error' : '';
+    }
+
+    function setBusy(busy) {
+        uploading = busy;
+        uploadButton.disabled = busy;
+        sendTextButton.disabled = busy;
+    }
+
+    function withPin(url) {
+        if (!pin) return url;
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'pin=' + encodeURIComponent(pin);
+    }
+
+    function submitPin() {
+        var input = document.getElementById('pin-input');
+        var value = input.value.trim();
+        if (!value) return;
+        pin = value;
+        sessionStorage.setItem('ppPin', pin);
+        input.value = '';
+        document.getElementById('pin-row').style.display = 'none';
+        if (pendingFiles) {
+            var files = pendingFiles;
+            pendingFiles = null;
+            upload(files);
+        }
+    }
+
+    document.getElementById('pin-button').onclick = submitPin;
+    document.getElementById('pin-input').onkeydown = function (event) {
+        if (event.key === 'Enter') submitPin();
+    };
+
+    function request(url, method, body, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) callback(xhr);
+        };
+        xhr.send(body || null);
+    }
+
+    function fingerprint() {
+        var value = sessionStorage.getItem('ppFingerprint');
+        if (!value) {
+            value = 'web-';
+            for (var i = 0; i < 32; i++) value += Math.floor(Math.random() * 16).toString(16);
+            sessionStorage.setItem('ppFingerprint', value);
+        }
+        return value;
+    }
+
+    function textPackageName() {
+        return TEXT_PACKAGE_PREFIX + Math.floor(Date.now() / 1000) + '.txt';
+    }
+
+    function upload(fileList) {
+        // 拷贝成数组：文件选择框随后会被清空，等待 PIN 时重试仍需保留文件。
+        var files = Array.prototype.slice.call(fileList || []);
+        if (!files.length || uploading) return;
+        setBusy(true);
+        setStatus(text.waiting, false);
+
+        var selected = {};
+        var dtos = {};
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            var id = String(i);
+            selected[id] = file;
+            dtos[id] = {
+                id: id,
+                fileName: file.name,
+                size: file.size,
+                fileType: file.type || 'application/octet-stream'
+            };
+        }
+
+        var body = JSON.stringify({
+            info: {
+                alias: 'Power Paste Web',
+                version: '2.1',
+                deviceType: 'web',
+                fingerprint: fingerprint(),
+                port: 0,
+                protocol: location.protocol === 'https:' ? 'https' : 'http',
+                download: false
+            },
+            files: dtos
+        });
+
+        request(withPin(BASE_URL + '/prepare-upload'), 'POST', body, function (response) {
+            if (response.status === 401) {
+                setBusy(false);
+                pendingFiles = files;
+                setStatus(text.pinRequired, true);
+                document.getElementById('pin-row').style.display = '';
+                document.getElementById('pin-input').focus();
+                return;
+            }
+            if (response.status === 429) {
+                setBusy(false);
+                setStatus(text.pinTooMany, true);
+                return;
+            }
+            if (response.status === 403) {
+                setBusy(false);
+                setStatus(text.rejected, true);
+                return;
+            }
+            if (response.status === 409) {
+                setBusy(false);
+                setStatus(text.busy, true);
+                return;
+            }
+            if (response.status !== 200) {
+                setBusy(false);
+                setStatus(text.error + ' (' + response.status + ')', true);
+                return;
+            }
+
+            var data = JSON.parse(response.responseText);
+            var ids = Object.keys(data.files || {});
+            uploadNext(data.sessionId, data.files || {}, selected, ids, 0, ids.length);
+        });
+    }
+
+    function uploadNext(sessionId, tokens, selected, ids, index, total) {
+        if (index >= total) {
+            setBusy(false);
+            setStatus(text.done, false);
+            return;
+        }
+        var id = ids[index];
+        var url = BASE_URL + '/upload?sessionId=' + encodeURIComponent(sessionId) +
+            '&fileId=' + encodeURIComponent(id) + '&token=' + encodeURIComponent(tokens[id]);
+        request(url, 'POST', selected[id], function (response) {
+            if (response.status !== 200) {
+                setBusy(false);
+                setStatus(text.error + ' (' + response.status + ')', true);
+                return;
+            }
+            setStatus(text.sending.replace('%d', index + 1).replace('%d', total), false);
+            uploadNext(sessionId, tokens, selected, ids, index + 1, total);
+        });
+    }
+
+    uploadButton.onclick = function () { fileInput.click(); };
+    fileInput.onchange = function () {
+        if (fileInput.files.length > 0) {
+            upload(fileInput.files);
+            fileInput.value = '';
+        }
+    };
+    sendTextButton.onclick = function () {
+        var value = textInput.value;
+        if (!value.trim()) {
+            setStatus(text.emptyText, true);
+            return;
+        }
+        var name = textPackageName();
+        var file = new File([value], name, { type: 'text/plain' });
+        upload([file]);
+        textInput.value = '';
+    };
+
+    function isFileDrag(event) {
+        var types = event.dataTransfer && event.dataTransfer.types;
+        if (!types) return false;
+        for (var i = 0; i < types.length; i++) if (types[i] === 'Files') return true;
+        return false;
+    }
+
+    document.addEventListener('dragenter', function (event) {
+        if (!isFileDrag(event) || uploading) return;
+        event.preventDefault();
+        dragDepth++;
+        document.getElementById('content').className = 'drag-over';
+    });
+    document.addEventListener('dragover', function (event) {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+    });
+    document.addEventListener('dragleave', function (event) {
+        if (!isFileDrag(event) || dragDepth === 0) return;
+        dragDepth--;
+        if (dragDepth === 0) document.getElementById('content').className = '';
+    });
+    document.addEventListener('drop', function (event) {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepth = 0;
+        document.getElementById('content').className = '';
+        if (uploading) return;
+        var files = [];
+        for (var i = 0; i < event.dataTransfer.files.length; i++) {
+            files.push(event.dataTransfer.files[i]);
+        }
+        upload(files);
+    });
+</script>
+</body>
+</html>

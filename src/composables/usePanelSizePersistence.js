@@ -32,8 +32,9 @@ async function getPersistedMainPanelSize(appWindow) {
   }
 }
 
+// 只有主面板（home）的尺寸需要被记住与恢复；设置页和 LocalSend 页使用固定尺寸。
 function isMainLikeRoute(routeName) {
-  return routeName === 'home' || routeName === 'lanTransfer'
+  return routeName === 'home'
 }
 
 async function persistMainPanelSize(snapshot) {

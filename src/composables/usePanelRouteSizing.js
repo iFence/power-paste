@@ -5,9 +5,24 @@ const WINDOW_SIZES = {
     width: 650,
     height: 500,
   },
+  // LocalSend 页面使用与设置页相同的固定尺寸，内容更宽裕。
+  lanTransfer: {
+    width: 650,
+    height: 500,
+  },
 }
 
 export function createPanelRouteSizing({ appWindow, persistence, isResizingRef }) {
+  async function resizeTo(size) {
+    await nextTick()
+    await appWindow.setSize({
+      type: 'Logical',
+      width: size.width,
+      height: size.height,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+
   async function applyRouteSize(routeName, oldRouteName) {
     if (isResizingRef.value || routeName === persistence.currentRoute()) {
       return
@@ -16,34 +31,23 @@ export function createPanelRouteSizing({ appWindow, persistence, isResizingRef }
     try {
       isResizingRef.value = true
 
-      if (persistence.isMainLikeRoute(oldRouteName) && routeName === 'settings') {
+      // 离开主面板时记住用户调整过的尺寸，供返回时恢复。
+      if (oldRouteName === 'home') {
         await persistence.captureCurrentHomeSize(appWindow)
-        const targetSize = WINDOW_SIZES.settings
+      }
 
-        await nextTick()
-        await appWindow.setSize({
-          type: 'Logical',
-          width: targetSize.width,
-          height: targetSize.height,
-        })
-
+      const fixedSize = WINDOW_SIZES[routeName]
+      if (fixedSize) {
+        await resizeTo(fixedSize)
         persistence.setCurrentRouteName(routeName)
-        await new Promise((resolve) => setTimeout(resolve, 150))
         return
       }
 
-      if (oldRouteName === 'settings' && persistence.isMainLikeRoute(routeName)) {
+      if (persistence.isMainLikeRoute(routeName)) {
         const savedHomeSize = persistence.savedSize()
         if (savedHomeSize) {
-          await nextTick()
-          await appWindow.setSize({
-            type: 'Logical',
-            width: savedHomeSize.width,
-            height: savedHomeSize.height,
-          })
-
+          await resizeTo(savedHomeSize)
           persistence.setCurrentRouteName(routeName)
-          await new Promise((resolve) => setTimeout(resolve, 150))
           return
         }
       }

@@ -1,64 +1,91 @@
 <script setup>
+// 局域网互传页面：展示服务状态、附近设备、传输进度、已接收文件与浏览器扫码入口。
 import { open } from "@tauri-apps/plugin-dialog";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import {
-    computed,
-    nextTick,
-    onMounted,
-    onUnmounted,
-    ref,
-    watch,
-} from "vue";
+import { lanErrorCode, lanErrorText } from "../utils/lanError";
 
 const props = defineProps({
     busy: { type: Boolean, required: true },
     error: { type: String, default: "" },
+    onAddDevice: { type: Function, required: true },
     onBack: { type: Function, required: true },
+    onCancelTransfer: { type: Function, required: true },
     onOpenFile: { type: Function, required: true },
+    onRefreshDevices: { type: Function, required: true },
     onRevealFile: { type: Function, required: true },
-    onSendFile: { type: Function, required: true },
+    onSendFiles: { type: Function, required: true },
     onSendText: { type: Function, required: true },
+    onSetWebMode: { type: Function, required: true },
     onStart: { type: Function, required: true },
+    onStartService: { type: Function, required: true },
+    onStopService: { type: Function, required: true },
     state: { type: Object, required: true },
-    statusLabel: { type: String, required: true },
     t: { type: Function, required: true },
 });
 
-const draft = ref("");
-const messagesRef = ref(null);
+const manualAddress = ref("");
 const localError = ref("");
-const pendingMessages = ref([]);
+const textTarget = ref(null);
+const textDraft = ref("");
+// 对端要求 PIN 时暂存本次发送参数，输入 PIN 后重试。
+const pinPrompt = ref(null);
+const pinDraft = ref("");
 const isFileDragOver = ref(false);
-const contextMenu = ref({
-    show: false,
-    x: 0,
-    y: 0,
-    message: null,
+let unlistenDragDrop = null;
+
+const devices = computed(() =>
+    Array.isArray(props.state.devices) ? props.state.devices : [],
+);
+const transfers = computed(() =>
+    (Array.isArray(props.state.transfers) ? props.state.transfers : [])
+        .slice()
+        .reverse(),
+);
+const receivedFiles = computed(() =>
+    Array.isArray(props.state.receivedFiles) ? props.state.receivedFiles : [],
+);
+const running = computed(() => props.state.status === "running");
+const failed = computed(() => props.state.status === "error");
+const webMode = computed(() => props.state.webMode || "none");
+const webUrl = computed(() => props.state.webUrl || "");
+const statusLabel = computed(() => {
+    if (failed.value) {
+        return lanErrorText(props.t, props.state.errorCode, props.state.error);
+    }
+    return running.value
+        ? props.t("lanTransferStatusRunning")
+        : props.t("lanTransferStatusStopped");
 });
 
-const messages = computed(() => [
-    ...(Array.isArray(props.state.messages) ? props.state.messages : []),
-    ...pendingMessages.value,
-]);
-const transferUrl = computed(() => props.state.url || "");
-const isTransferConnected = computed(
-    () => props.state.running && Number(props.state.connectedDevices || 0) > 0,
-);
-const connectionLabel = computed(() =>
-    isTransferConnected.value
-        ? props.t("lanTransferConnected")
-        : props.t("lanTransferDisconnected"),
-);
-const canSendText = computed(
-    () => draft.value.trim().length > 0 && props.state.running && !props.busy,
-);
-const canSendFiles = computed(() => props.state.running && !props.busy);
-let unlistenFileDrop = null;
+function transferErrorText(transfer) {
+    return lanErrorText(props.t, lanErrorCode(transfer.error), transfer.error);
+}
+
+// 页面级错误/警告：后端只给错误码与原始细节，这里统一本地化。
+const pageError = computed(() => {
+    if (props.state.error) {
+        return lanErrorText(props.t, props.state.errorCode, props.state.error);
+    }
+    if (props.error) {
+        return lanErrorText(props.t, lanErrorCode(props.error), props.error);
+    }
+    return localError.value;
+});
+
+const pageWarning = computed(() => {
+    const warning = props.state.warning;
+    if (!warning) {
+        return "";
+    }
+    const code = lanErrorCode(warning);
+    return code ? lanErrorText(props.t, code, warning) : warning;
+});
 
 function formatBytes(size) {
     const value = Number(size || 0);
     if (!value) {
-        return "";
+        return "0 B";
     }
     if (value < 1000) {
         return `${value} B`;
@@ -66,288 +93,209 @@ function formatBytes(size) {
     if (value < 1_000_000) {
         return `${Math.round(value / 1000)} KB`;
     }
-    return `${(value / 1_000_000).toFixed(1)} MB`;
-}
-
-function avatarLabel(sender) {
-    return sender === "desktop"
-        ? props.t("lanTransferDesktop")
-        : props.t("lanTransferPhone").slice(0, 1);
-}
-
-function transferProgress(message) {
-    return Math.max(0, Math.min(100, Number(message.progress || 0)));
-}
-
-function transferStatusLabel(message) {
-    if (message.status === "failed") {
-        return props.t("lanTransferUploadFailed");
+    if (value < 1_000_000_000) {
+        return `${(value / 1_000_000).toFixed(1)} MB`;
     }
-    if (message.status === "uploading") {
-        return props.t("lanTransferUploading", {
-            progress: transferProgress(message),
-        });
+    return `${(value / 1_000_000_000).toFixed(2)} GB`;
+}
+
+function progressOf(transfer) {
+    const total = Number(transfer.totalBytes || 0);
+    if (!total) {
+        return 0;
     }
-    return "";
+    return Math.max(0, Math.min(100, Math.round((Number(transfer.doneBytes || 0) / total) * 100)));
 }
 
-function upsertPendingMessage(id, patch) {
-    pendingMessages.value = pendingMessages.value.map((message) =>
-        message.id === id ? { ...message, ...patch } : message,
-    );
+function transferStatusLabel(transfer) {
+    const map = {
+        active: props.t("lanTransferStatusActive"),
+        done: props.t("lanTransferStatusDone"),
+        failed: props.t("lanTransferStatusFailed"),
+        cancelled: props.t("lanTransferStatusCancelled"),
+    };
+    return map[transfer.status] || transfer.status;
 }
 
-function removePendingMessage(id) {
-    pendingMessages.value = pendingMessages.value.filter(
-        (message) => message.id !== id,
-    );
+function deviceSubtitle(device) {
+    const model = device.deviceModel ? `${device.deviceModel} · ` : "";
+    return `${model}${device.host}:${device.port}`;
 }
 
-async function scrollToBottom() {
-    await nextTick();
-    if (messagesRef.value) {
-        messagesRef.value.scrollTop = messagesRef.value.scrollHeight;
-    }
-}
-
-async function sendText() {
-    const text = draft.value.trim();
-    if (!text || props.busy) {
-        return;
-    }
+async function run(action) {
     localError.value = "";
-    draft.value = "";
     try {
-        await props.onSendText(text);
-        await scrollToBottom();
+        await action();
     } catch (error) {
         localError.value = error?.message || String(error);
     }
 }
 
-async function copyTransferUrl() {
-    if (!transferUrl.value) {
+async function refreshDevices() {
+    await run(props.onRefreshDevices);
+}
+
+async function addDevice() {
+    const address = manualAddress.value.trim();
+    if (!address) {
         return;
     }
+    await run(async () => {
+        await props.onAddDevice(address);
+        manualAddress.value = "";
+    });
+}
+
+async function chooseAndSend(device) {
+    const selected = await open({ multiple: true, directory: false });
+    const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
+    if (!paths.length) {
+        return;
+    }
+    await attemptSend("files", device, paths);
+}
+
+function openTextComposer(device) {
+    textTarget.value = device;
+    textDraft.value = "";
+}
+
+function closeTextComposer() {
+    textTarget.value = null;
+    textDraft.value = "";
+}
+
+async function submitText() {
+    const device = textTarget.value;
+    const text = textDraft.value.trim();
+    if (!device || !text) {
+        return;
+    }
+    const sent = await attemptSend("text", device, text);
+    if (sent) {
+        closeTextComposer();
+    }
+}
+
+// 发送文件或文本；对端要求 PIN 时弹出输入框并保留本次参数。
+async function attemptSend(kind, device, payload, pin = "") {
     localError.value = "";
     try {
-        await navigator.clipboard.writeText(transferUrl.value);
+        if (kind === "files") {
+            await props.onSendFiles(device.fingerprint, payload, pin || null);
+        } else {
+            await props.onSendText(device.fingerprint, payload, pin || null);
+        }
+        return true;
     } catch (error) {
-        localError.value = error?.message || String(error);
+        const detail = error?.message || String(error);
+        if (lanErrorCode(detail) === "pin_required") {
+            pinPrompt.value = {
+                device,
+                kind,
+                payload,
+                invalid: Boolean(pin),
+            };
+            pinDraft.value = "";
+            return false;
+        }
+        localError.value = lanErrorText(props.t, lanErrorCode(detail), detail);
+        return false;
     }
 }
 
-function fileNameFromPath(path) {
-    return String(path || "")
-        .split(/[\\/]/)
-        .filter(Boolean)
-        .pop() || "transfer-file";
-}
-
-function fileKindFromName(name) {
-    const extension = String(name || "")
-        .split(".")
-        .pop()
-        ?.toLowerCase();
-    return ["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(extension)
-        ? "image"
-        : "file";
-}
-
-async function sendFiles(paths) {
-    if (!canSendFiles.value) {
+async function submitPin() {
+    const prompt = pinPrompt.value;
+    const pin = pinDraft.value.trim();
+    if (!prompt || !pin) {
         return;
     }
-
-    const selectedFiles = paths.filter(Boolean);
-    if (!selectedFiles.length) {
-        return;
-    }
-
-    const files = selectedFiles.slice(0, 9);
-    localError.value =
-        selectedFiles.length > 9
-            ? props.t("lanTransferTooManyFiles", { max: 9 })
-            : "";
-
-    for (const [index, path] of files.entries()) {
-        const name = fileNameFromPath(path);
-        const id = `desktop-upload-${Date.now()}-${index}`;
-        pendingMessages.value = [
-            ...pendingMessages.value,
-            {
-                id,
-                sender: "desktop",
-                kind: fileKindFromName(name),
-                fileName: name,
-                mimeType: null,
-                size: null,
-                progress: 0,
-                status: "uploading",
-                hasLocalFile: false,
-            },
-        ];
-        await scrollToBottom();
-
-        try {
-            await props.onSendFile(
-                {
-                    path,
-                    name,
-                    mimeType: null,
-                },
-                (progress) => upsertPendingMessage(id, { progress }),
-            );
-            removePendingMessage(id);
-            await scrollToBottom();
-        } catch (error) {
-            upsertPendingMessage(id, {
-                progress: 100,
-                status: "failed",
-                text: error?.message || String(error),
-            });
-            localError.value = error?.message || String(error);
+    const sent = await attemptSend(prompt.kind, prompt.device, prompt.payload, pin);
+    if (sent) {
+        closePinPrompt();
+        if (prompt.kind === "text") {
+            closeTextComposer();
         }
     }
 }
 
-async function chooseFile() {
-    if (!canSendFiles.value) {
+function closePinPrompt() {
+    pinPrompt.value = null;
+    pinDraft.value = "";
+}
+
+async function toggleWebMode(mode) {
+    if (webMode.value === mode) {
+        await run(() => props.onSetWebMode("none", []));
         return;
     }
-
-    const selected = await open({
-        multiple: true,
-        directory: false,
-    });
-    const selectedFiles = Array.isArray(selected)
-        ? selected
-        : selected
-          ? [selected]
-          : [];
-    await sendFiles(selectedFiles);
-}
-
-async function isOverMessages(position) {
-    const messagesElement = messagesRef.value;
-    if (!messagesElement) {
-        return false;
+    // 分享模式需要先选择要分享的文件。
+    if (mode === "share") {
+        const selected = await open({ multiple: true, directory: false });
+        const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
+        if (!paths.length) {
+            return;
+        }
+        await run(() => props.onSetWebMode("share", paths));
+        return;
     }
-
-    const logicalPosition = position.toLogical(
-        await getCurrentWindow().scaleFactor(),
-    );
-    const bounds = messagesElement.getBoundingClientRect();
-    return (
-        logicalPosition.x >= bounds.left &&
-        logicalPosition.x <= bounds.right &&
-        logicalPosition.y >= bounds.top &&
-        logicalPosition.y <= bounds.bottom
-    );
+    await run(() => props.onSetWebMode(mode, []));
 }
 
-async function handleFileDrop(event) {
+async function copyWebUrl() {
+    if (!webUrl.value) {
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(webUrl.value);
+    } catch (error) {
+        localError.value = error?.message || String(error);
+    }
+}
+
+async function handleDrop(event) {
     const { payload } = event;
     if (payload.type === "leave") {
         isFileDragOver.value = false;
         return;
     }
-
-    const isOverDropzone = await isOverMessages(payload.position);
-    isFileDragOver.value = payload.type === "over" && isOverDropzone;
-    if (payload.type === "drop" && isOverDropzone) {
-        await sendFiles(payload.paths);
-    }
-}
-
-function closeContextMenu() {
-    contextMenu.value = {
-        show: false,
-        x: 0,
-        y: 0,
-        message: null,
-    };
-}
-
-function openFileMenu(event, message) {
-    if (event.target instanceof Element && event.target.closest("img")) {
+    if (payload.type === "over") {
+        isFileDragOver.value = true;
         return;
     }
-    if (!message.hasLocalFile) {
+    isFileDragOver.value = false;
+    if (payload.type !== "drop" || !payload.paths?.length) {
         return;
     }
-    event.preventDefault();
-    contextMenu.value = {
-        show: true,
-        x: event.clientX,
-        y: event.clientY,
-        message,
-    };
-}
-
-async function handleOpenContextFile() {
-    const message = contextMenu.value.message;
-    closeContextMenu();
-    if (!message) {
+    const target = devices.value[0];
+    if (!target) {
+        localError.value = props.t("lanTransferNoDevices");
         return;
     }
-    try {
-        await props.onOpenFile(message.id);
-    } catch (error) {
-        localError.value = error?.message || String(error);
-    }
-}
-
-async function handleRevealContextFile() {
-    const message = contextMenu.value.message;
-    closeContextMenu();
-    if (!message) {
-        return;
-    }
-    try {
-        await props.onRevealFile(message.id);
-    } catch (error) {
-        localError.value = error?.message || String(error);
-    }
-}
-
-async function goBack() {
-    await props.onBack();
+    await run(() => props.onSendFiles(target.fingerprint, payload.paths));
 }
 
 onMounted(async () => {
-    localError.value = "";
-    try {
-        unlistenFileDrop = await getCurrentWindow().onDragDropEvent((event) => {
-            void handleFileDrop(event);
-        });
-        await props.onStart();
-        await scrollToBottom();
-    } catch (error) {
-        localError.value = error?.message || String(error);
-    }
+    unlistenDragDrop = await getCurrentWindow().onDragDropEvent((event) => {
+        void handleDrop(event);
+    });
+    await props.onStart();
 });
 
 onUnmounted(() => {
-    unlistenFileDrop?.();
+    unlistenDragDrop?.();
 });
-
-watch(messages, scrollToBottom, { deep: true });
 </script>
 
 <template>
-    <section
-        class="lan-transfer-page"
-        @click="closeContextMenu"
-        @contextmenu.self.prevent="closeContextMenu"
-    >
+    <section class="lan-transfer-page">
         <header class="lan-transfer-topbar">
             <button
                 class="toolbar-icon-button lan-transfer-back"
                 type="button"
                 :aria-label="t('backAction')"
                 :title="t('backAction')"
-                @click="goBack"
+                @click="onBack"
             >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -360,229 +308,331 @@ watch(messages, scrollToBottom, { deep: true });
                     />
                 </svg>
             </button>
-            <div>
+            <div class="lan-transfer-title">
                 <h1>{{ t("lanTransferTitle") }}</h1>
-                <span class="lan-transfer-status-line">
-                    <i
-                        class="lan-transfer-status-dot"
-                        :class="{
-                            connected: isTransferConnected,
-                            disconnected: !isTransferConnected,
-                        }"
-                        aria-hidden="true"
-                    ></i>
-                    <strong>{{ connectionLabel }}</strong>
-                </span>
             </div>
+            <button
+                v-if="running || state.enabled !== false"
+                class="toolbar-icon-button lan-transfer-service-button"
+                :class="{ running }"
+                type="button"
+                :disabled="busy"
+                :title="
+                    running
+                        ? t('lanTransferStopService')
+                        : t('lanTransferStartService')
+                "
+                :aria-label="
+                    running
+                        ? t('lanTransferStopService')
+                        : t('lanTransferStartService')
+                "
+                @click="running ? run(onStopService) : run(onStartService)"
+            >
+                <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path
+                        d="M652 125.54l0 71.8c140 63.74 211.28 193.28 211.28 342.82 0 212.64-171.62 384.98-384.24 384.98-212.6 0-380.56-172.34-380.56-384.98 0-149.22 93.52-278.56 213.52-342.42l0-71.84c-180 68.46-278.14 228.16-278.14 414.24 0 248.52 199.42 449.94 447.92 449.94 248.48 0 447.5-201.42 447.5-449.94 0-186.38-97.28-346.32-277.28-414.6zM512 412c0 22.08-17.92 40-40 40l0 0c-22.08 0-40-17.92-40-40l0-340c0-22.08 17.92-40 40-40l0 0c22.08 0 40 17.92 40 40l0 340z"
+                        fill="currentColor"
+                    />
+                </svg>
+            </button>
         </header>
 
-        <section class="lan-transfer-connect">
-            <div class="lan-transfer-qr" v-html="state.qrSvg"></div>
-            <div class="lan-transfer-link-panel">
-                <div class="lan-transfer-link-row">
-                    <a
-                        class="lan-transfer-url"
-                        :href="transferUrl || undefined"
-                        target="_blank"
-                        rel="noreferrer"
-                        :title="transferUrl || undefined"
-                    >
-                        {{ transferUrl || "--" }}
-                    </a>
-                    <button
-                        class="toolbar-icon-button lan-transfer-copy-link"
-                        type="button"
-                        :disabled="!transferUrl"
-                        :title="t('copy')"
-                        :aria-label="t('copy')"
-                        @click="copyTransferUrl"
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                                d="M8 8h9v11H8V8Zm-3 8V5h9"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.9"
-                                stroke-linejoin="round"
-                            />
-                        </svg>
-                    </button>
-                </div>
-                <div class="lan-transfer-link-meta">
-                    <span>{{ t("lanTransferConnectedDevices") }}</span>
-                    <strong>{{ state.connectedDevices ?? 0 }}</strong>
-                </div>
-            </div>
+        <section class="lan-transfer-status">
+            <span class="lan-transfer-status-pill">
+                <i
+                    class="lan-transfer-status-dot"
+                    :class="{
+                        connected: running,
+                        disconnected: !running,
+                    }"
+                    aria-hidden="true"
+                ></i>
+                {{ statusLabel }}
+            </span>
+            <span v-if="running" class="lan-transfer-status-meta">
+                {{ state.alias }} · {{ state.port }}
+            </span>
         </section>
 
-        <section ref="messagesRef" class="lan-transfer-messages">
-            <div v-if="!messages.length" class="lan-transfer-empty">
-                {{ t("lanTransferEmpty") }}
+        <section class="lan-transfer-web">
+            <div class="lan-transfer-tabs">
+                <button
+                    type="button"
+                    :class="{ active: webMode === 'share' }"
+                    :disabled="busy || !running"
+                    @click="toggleWebMode('share')"
+                >
+                    {{ t("lanTransferWebShare") }}
+                </button>
+                <button
+                    type="button"
+                    :class="{ active: webMode === 'receive' }"
+                    :disabled="busy || !running"
+                    @click="toggleWebMode('receive')"
+                >
+                    {{ t("lanTransferWebReceive") }}
+                </button>
             </div>
-
-            <article
-                v-for="message in messages"
-                :key="message.id"
-                class="lan-transfer-message"
-                :class="`from-${message.sender}`"
-            >
-                <div
-                    class="lan-transfer-avatar"
-                    :aria-label="avatarLabel(message.sender)"
-                >
-                    <img
-                        v-if="message.sender === 'desktop'"
-                        src="/app-icon.png"
-                        alt=""
-                    />
-                    <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                            d="M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 15h4"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                        />
-                    </svg>
-                </div>
-                <div
-                    class="lan-transfer-bubble"
-                    :data-app-context-menu="
-                        message.hasLocalFile ? 'true' : undefined
-                    "
-                    @contextmenu="openFileMenu($event, message)"
-                >
-                    <p
-                        v-if="message.text && message.kind !== 'file'"
-                        class="lan-transfer-text"
-                    >
-                        {{ message.text }}
-                    </p>
-                    <img
-                        v-if="message.imageDataUrl"
-                        class="lan-transfer-image"
-                        :src="message.imageDataUrl"
-                        :alt="message.fileName || t('kindImage')"
-                    />
-                    <div
-                        v-if="message.kind === 'file' || message.fileName"
-                        class="lan-transfer-file"
-                    >
-                        <span class="lan-transfer-file-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24">
+            <div v-if="webUrl" class="lan-transfer-web-body">
+                <div class="lan-transfer-qr" v-html="state.webQrSvg"></div>
+                <div class="lan-transfer-link-panel">
+                    <div class="lan-transfer-url-row">
+                        <a
+                            class="lan-transfer-url"
+                            :href="webUrl"
+                            target="_blank"
+                            rel="noreferrer"
+                            :title="webUrl"
+                        >
+                            {{ webUrl }}
+                        </a>
+                        <button
+                            class="toolbar-icon-button lan-transfer-copy-link"
+                            type="button"
+                            :title="t('copy')"
+                            :aria-label="t('copy')"
+                            @click="copyWebUrl"
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path
-                                    d="M7 3h6l4 4v14H7V3Zm6 1.5V8h3.5"
+                                    d="M8 8h9v11H8V8Zm-3 8V5h9"
                                     fill="none"
                                     stroke="currentColor"
-                                    stroke-width="1.8"
+                                    stroke-width="1.9"
                                     stroke-linejoin="round"
                                 />
                             </svg>
-                        </span>
-                        <div>
-                            <strong>{{
-                                message.fileName || t("lanTransferFile")
-                            }}</strong>
-                            <span>{{ formatBytes(message.size) }}</span>
-                            <small
-                                v-if="
-                                    message.sender === 'phone' && message.text
-                                "
-                            >
-                                {{ message.text }}
-                            </small>
-                            <small
-                                v-if="
-                                    message.status === 'failed' && message.text
-                                "
-                            >
-                                {{ message.text }}
-                            </small>
-                        </div>
+                        </button>
                     </div>
-                    <div
-                        v-if="
-                            message.status === 'uploading' ||
-                            message.status === 'failed'
-                        "
-                        class="lan-transfer-progress"
+                    <small class="lan-transfer-web-hint">
+                        {{
+                            webMode === "share"
+                                ? t("lanTransferWebShareHint")
+                                : t("lanTransferWebReceiveHint")
+                        }}
+                    </small>
+                    <button
+                        class="ghost compact"
+                        type="button"
+                        :disabled="busy"
+                        @click="toggleWebMode(webMode)"
                     >
-                        <span>{{ transferStatusLabel(message) }}</span>
-                        <progress
-                            v-if="message.status === 'uploading'"
-                            :value="transferProgress(message)"
-                            max="100"
-                        ></progress>
-                    </div>
+                        {{ t("lanTransferWebStop") }}
+                    </button>
                 </div>
-            </article>
-
-            <div v-if="isFileDragOver" class="lan-transfer-drop-overlay">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                        d="M12 15V4m0 0L8 8m4-4 4 4M5 15v4h14v-4"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    />
-                </svg>
-                <strong>{{ t("lanTransferDropFiles") }}</strong>
             </div>
+            <p v-else class="lan-transfer-web-hint">
+                {{
+                    state.enabled === false
+                        ? t("lanTransferDisabledHint")
+                        : t("lanTransferWebIdleHint")
+                }}
+            </p>
         </section>
 
-        <form class="lan-transfer-composer" @submit.prevent="sendText">
-            <button
-                class="toolbar-icon-button lan-transfer-attach"
-                type="button"
-                :disabled="busy || !state.running"
-                :title="t('lanTransferChooseFile')"
-                :aria-label="t('lanTransferChooseFile')"
-                @click="chooseFile"
-            >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                        d="M12 5v14M5 12h14"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.2"
-                        stroke-linecap="round"
+        <div class="lan-transfer-body">
+            <section class="lan-transfer-devices">
+                <div class="lan-transfer-section-head">
+                    <span class="meta-label">{{ t("lanTransferDevices") }}</span>
+                    <button
+                        class="ghost compact"
+                        type="button"
+                        :disabled="busy || !running"
+                        @click="refreshDevices"
+                    >
+                        {{ t("lanTransferRefresh") }}
+                    </button>
+                </div>
+                <div class="lan-transfer-add">
+                    <input
+                        v-model="manualAddress"
+                        type="text"
+                        :placeholder="t('lanTransferIpPlaceholder')"
+                        @keydown.enter.prevent="addDevice"
                     />
-                </svg>
-            </button>
-            <textarea
-                v-model="draft"
-                rows="1"
-                :disabled="busy || !state.running"
-                :placeholder="t('lanTransferInputPlaceholder')"
-                @keydown.enter.exact.stop.prevent="sendText"
-            ></textarea>
-            <button
-                class="primary lan-transfer-send"
-                type="submit"
-                :disabled="!canSendText"
-            >
-                {{ t("lanTransferSend") }}
-            </button>
-        </form>
+                    <button
+                        class="ghost compact"
+                        type="button"
+                        :disabled="busy || !running || !manualAddress.trim()"
+                        @click="addDevice"
+                    >
+                        {{ t("lanTransferAddDevice") }}
+                    </button>
+                </div>
+                <p v-if="!devices.length" class="lan-transfer-empty">
+                    {{ t("lanTransferNoDevices") }}
+                </p>
+                <article
+                    v-for="device in devices"
+                    :key="device.fingerprint"
+                    class="lan-transfer-device"
+                >
+                    <div class="lan-transfer-device-info">
+                        <strong>{{ device.alias }}</strong>
+                        <small>{{ deviceSubtitle(device) }}</small>
+                        <span v-if="device.trusted" class="lan-transfer-trusted">
+                            {{ t("lanTransferTrusted") }}
+                        </span>
+                    </div>
+                    <div class="lan-transfer-device-actions">
+                        <button
+                            class="ghost compact"
+                            type="button"
+                            :disabled="busy || !running"
+                            @click="chooseAndSend(device)"
+                        >
+                            {{ t("lanTransferSendFile") }}
+                        </button>
+                        <button
+                            class="ghost compact"
+                            type="button"
+                            :disabled="busy || !running"
+                            @click="openTextComposer(device)"
+                        >
+                            {{ t("lanTransferSendText") }}
+                        </button>
+                    </div>
+                </article>
+            </section>
 
-        <p v-if="error || localError" class="lan-transfer-error">
-            {{ error || localError }}
+            <section v-if="transfers.length" class="lan-transfer-transfers">
+                <div class="lan-transfer-section-head">
+                    <span class="meta-label">{{ t("lanTransferTransfers") }}</span>
+                </div>
+                <article
+                    v-for="transfer in transfers"
+                    :key="transfer.id"
+                    class="lan-transfer-transfer"
+                >
+                    <div class="lan-transfer-transfer-info">
+                        <strong>{{ transfer.label }}</strong>
+                        <small>
+                            {{ transfer.peerAlias }} ·
+                            {{ transferStatusLabel(transfer) }}
+                            <template v-if="transfer.status === 'active'">
+                                ({{ progressOf(transfer) }}%)
+                            </template>
+                        </small>
+                        <progress
+                            v-if="transfer.status === 'active'"
+                            :value="progressOf(transfer)"
+                            max="100"
+                        ></progress>
+                        <small v-if="transfer.error">{{
+                            transferErrorText(transfer)
+                        }}</small>
+                    </div>
+                    <button
+                        v-if="transfer.status === 'active'"
+                        class="ghost compact"
+                        type="button"
+                        @click="run(() => onCancelTransfer(transfer.id))"
+                    >
+                        {{ t("lanTransferCancel") }}
+                    </button>
+                </article>
+            </section>
+
+            <section v-if="receivedFiles.length" class="lan-transfer-received">
+                <div class="lan-transfer-section-head">
+                    <span class="meta-label">{{ t("lanTransferReceived") }}</span>
+                </div>
+                <article
+                    v-for="file in receivedFiles"
+                    :key="file.id"
+                    class="lan-transfer-received-item"
+                >
+                    <div>
+                        <strong>{{ file.fileName }}</strong>
+                        <small>
+                            {{ file.fromAlias }} · {{ formatBytes(file.size) }}
+                        </small>
+                    </div>
+                    <div class="lan-transfer-device-actions">
+                        <button
+                            class="ghost compact"
+                            type="button"
+                            @click="run(() => onOpenFile(file.id))"
+                        >
+                            {{ t("openAction") }}
+                        </button>
+                        <button
+                            class="ghost compact"
+                            type="button"
+                            @click="run(() => onRevealFile(file.id))"
+                        >
+                            {{ t("revealInExplorer") }}
+                        </button>
+                    </div>
+                </article>
+            </section>
+        </div>
+
+        <p v-if="pageWarning" class="lan-transfer-warning">
+            {{ pageWarning }}
+        </p>
+        <p v-if="pageError" class="lan-transfer-error">
+            {{ pageError }}
         </p>
 
-        <div
-            v-if="contextMenu.show"
-            class="lan-transfer-context-menu"
-            :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
-            @click.stop
-        >
-            <button type="button" @click="handleOpenContextFile">
-                {{ t("openAction") }}
-            </button>
-            <button type="button" @click="handleRevealContextFile">
-                {{ t("revealInExplorer") }}
-            </button>
+        <div v-if="isFileDragOver" class="lan-transfer-drop-overlay">
+            <strong>{{ t("lanTransferDropFiles") }}</strong>
+        </div>
+
+        <div v-if="textTarget" class="lan-transfer-text-modal" @click.self="closeTextComposer">
+            <div class="lan-transfer-text-card">
+                <strong>{{ t("lanTransferSendTextTitle", { name: textTarget.alias }) }}</strong>
+                <textarea
+                    v-model="textDraft"
+                    rows="4"
+                    :placeholder="t('lanTransferSendTextPlaceholder')"
+                ></textarea>
+                <div class="lan-transfer-text-actions">
+                    <button class="ghost compact" type="button" @click="closeTextComposer">
+                        {{ t("cancelAction") }}
+                    </button>
+                    <button
+                        class="primary compact"
+                        type="button"
+                        :disabled="busy || !textDraft.trim()"
+                        @click="submitText"
+                    >
+                        {{ t("lanTransferSend") }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="pinPrompt" class="lan-transfer-text-modal" @click.self="closePinPrompt">
+            <div class="lan-transfer-text-card">
+                <strong>{{ t("lanPinTitle") }}</strong>
+                <small>{{ t("lanPinHint") }}</small>
+                <input
+                    v-model="pinDraft"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="6"
+                    :placeholder="t('lanPinPlaceholder')"
+                    @keydown.enter.prevent="submitPin"
+                />
+                <small v-if="pinPrompt.invalid" class="lan-transfer-error">
+                    {{ t("lanPinInvalid") }}
+                </small>
+                <div class="lan-transfer-text-actions">
+                    <button class="ghost compact" type="button" @click="closePinPrompt">
+                        {{ t("cancelAction") }}
+                    </button>
+                    <button
+                        class="primary compact"
+                        type="button"
+                        :disabled="busy || !pinDraft.trim()"
+                        @click="submitPin"
+                    >
+                        {{ t("lanTransferSend") }}
+                    </button>
+                </div>
+            </div>
         </div>
     </section>
 </template>

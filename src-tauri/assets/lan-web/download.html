@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Paste</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 0;
+            padding: 0 1em 2em;
+            line-height: 1.6;
+            text-align: center;
+            background: #f6f7f9;
+            color: #1d232d;
+        }
+        h1 { font-size: 1.25em; padding: 1em 0 0.25em; }
+        #status { color: #616161; }
+        .list { max-width: 560px; margin: 1em auto; text-align: left; }
+        .item {
+            display: block;
+            padding: 0.85em 1em;
+            margin-bottom: 0.6em;
+            background: #ffffff;
+            border: 1px solid #e2e5ea;
+            border-radius: 0.6em;
+        }
+        .item a { color: #0f766e; text-decoration: none; font-weight: 600; }
+        .meta { display: block; color: #6b7280; font-size: 0.85em; margin-top: 0.2em; }
+        button {
+            font: inherit;
+            padding: 0.4em 0.9em;
+            margin-top: 0.5em;
+            border-radius: 0.5em;
+            border: 1px solid #d0d5dd;
+            background: #f2f4f7;
+            color: #1d232d;
+            cursor: pointer;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #f2f4f7;
+            padding: 0.75em;
+            border-radius: 0.5em;
+            margin: 0.5em 0 0;
+            font-size: 0.9em;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+<h1>Power Paste</h1>
+<p id="status"></p>
+<div id="pin-row" class="hidden">
+    <input id="pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">
+    <button type="button" id="pin-button">OK</button>
+</div>
+<div id="list" class="list"></div>
+<script>
+    var BASE_URL = '/api/localsend/v2';
+    var TEXT_PACKAGE_PREFIX = 'PowerPaste-Text-';
+    var zh = (navigator.language || '').toLowerCase().indexOf('zh') === 0;
+    var text = {
+        waiting: zh ? '正在获取文件列表…' : 'Loading files…',
+        files: zh ? '共 %d 个文件' : '%d file(s)',
+        download: zh ? '下载' : 'Download',
+        showText: zh ? '查看文本' : 'Show text',
+        hideText: zh ? '收起文本' : 'Hide text',
+        copy: zh ? '复制文本' : 'Copy text',
+        copied: zh ? '已复制' : 'Copied',
+        copyFailed: zh ? '复制失败，请手动选择' : 'Copy failed, select manually',
+        pinRequired: zh ? '该设备已设置 PIN，请输入后继续' : 'This device requires a PIN',
+        pinInvalid: zh ? 'PIN 不正确，请重新输入' : 'Incorrect PIN, please try again',
+        pinTooMany: zh ? '尝试次数过多，请稍后再试' : 'Too many attempts, please try again later',
+        error: zh ? '出错了' : 'Something went wrong'
+    };
+    var sessionId = sessionStorage.getItem('ppSessionId');
+    var pin = sessionStorage.getItem('ppPin') || '';
+    var fileEntries = {};
+
+    function withPin(url) {
+        if (!pin) return url;
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'pin=' + encodeURIComponent(pin);
+    }
+
+    function showPinRow() {
+        document.getElementById('pin-row').className = '';
+        document.getElementById('pin-input').focus();
+    }
+
+    function hidePinRow() {
+        document.getElementById('pin-row').className = 'hidden';
+    }
+
+    function submitPin() {
+        var input = document.getElementById('pin-input');
+        var value = input.value.trim();
+        if (!value) return;
+        pin = value;
+        sessionStorage.setItem('ppPin', pin);
+        input.value = '';
+        hidePinRow();
+        loadFiles();
+    }
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch];
+        });
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(1) + ' GB';
+    }
+
+    function isTextFile(file) {
+        if (file.fileName && file.fileName.indexOf(TEXT_PACKAGE_PREFIX) === 0) return true;
+        return typeof file.fileType === 'string' && file.fileType.indexOf('text/') === 0;
+    }
+
+    function request(url, method, body, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) callback(xhr);
+        };
+        xhr.send(body || null);
+    }
+
+    function downloadUrl(fileId) {
+        return BASE_URL + '/download?sessionId=' + encodeURIComponent(sessionId) +
+            '&fileId=' + encodeURIComponent(fileId);
+    }
+
+    function loadFiles() {
+        document.getElementById('status').innerText = text.waiting;
+        var url = BASE_URL + '/prepare-download';
+        if (sessionId) url += '?sessionId=' + encodeURIComponent(sessionId);
+        url = withPin(url);
+        request(url, 'POST', null, function (response) {
+            if (response.status === 401) {
+                document.getElementById('status').innerText = text.pinRequired;
+                showPinRow();
+                return;
+            }
+            if (response.status === 429) {
+                document.getElementById('status').innerText = text.pinTooMany;
+                return;
+            }
+            if (response.status !== 200) {
+                document.getElementById('status').innerText = text.error + ' (' + response.status + ')';
+                return;
+            }
+            var data = JSON.parse(response.responseText);
+            sessionId = data.sessionId;
+            sessionStorage.setItem('ppSessionId', sessionId);
+            fileEntries = data.files || {};
+            render(data.files || {});
+        });
+    }
+
+    function render(files) {
+        var ids = Object.keys(files);
+        document.getElementById('status').innerText = text.files.replace('%d', ids.length);
+        var html = '';
+        for (var i = 0; i < ids.length; i++) {
+            var id = ids[i];
+            var file = files[id];
+            html += '<div class="item" data-id="' + escapeHtml(id) + '">' +
+                '<a href="' + escapeHtml(downloadUrl(id)) + '" download>' + escapeHtml(file.fileName) + '</a>' +
+                '<span class="meta">' + formatBytes(file.size) + ' · ' + text.download + '</span>';
+            if (isTextFile(file)) {
+                html += '<button type="button" data-action="text" data-id="' + escapeHtml(id) + '">' +
+                    escapeHtml(text.showText) + '</button>' +
+                    '<pre class="hidden" data-pre="' + escapeHtml(id) + '"></pre>';
+            }
+            html += '</div>';
+        }
+        document.getElementById('list').innerHTML = html;
+    }
+
+    function loadText(id, button, pre) {
+        request(downloadUrl(id), 'GET', null, function (response) {
+            if (response.status !== 200) {
+                pre.innerText = text.error;
+                pre.className = '';
+                return;
+            }
+            pre.innerText = response.responseText;
+            pre.className = '';
+            button.innerText = text.copy;
+            button.dataset.action = 'copy';
+        });
+    }
+
+    function copyText(pre, button) {
+        var value = pre.innerText;
+        var done = function () { button.innerText = text.copied; };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(value).then(done, function () {
+                button.innerText = text.copyFailed;
+            });
+            return;
+        }
+        var range = document.createRange();
+        range.selectNodeContents(pre);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        button.innerText = text.copyFailed;
+    }
+
+    document.getElementById('list').addEventListener('click', function (event) {
+        var button = event.target.closest('button');
+        if (!button) return;
+        var id = button.getAttribute('data-id');
+        var pre = document.querySelector('[data-pre="' + id + '"]');
+        if (!pre) return;
+        if (button.getAttribute('data-action') === 'text') {
+            loadText(id, button, pre);
+            return;
+        }
+        copyText(pre, button);
+    });
+
+    document.getElementById('pin-button').onclick = submitPin;
+    document.getElementById('pin-input').onkeydown = function (event) {
+        if (event.key === 'Enter') submitPin();
+    };
+
+    loadFiles();
+</script>
+</body>
+</html>

@@ -18,6 +18,7 @@ import FilterTabs from "./components/FilterTabs.vue";
 import HistoryList from "./components/HistoryList.vue";
 import EditModal from "./components/EditModal.vue";
 import ConfirmModal from "./components/ConfirmModal.vue";
+import LanIncomingRequestModal from "./components/LanIncomingRequestModal.vue";
 import { useSettings } from "./composables/useSettings";
 import { useUpdater } from "./composables/useUpdater";
 import {
@@ -29,12 +30,12 @@ import {
 } from "./composables/useCopySound";
 import { useTheme } from "./composables/useTheme";
 import { useKeyboardShortcuts } from "./composables/useKeyboardShortcuts";
-import { useLanReceiver } from "./composables/useLanReceiver";
+import { useLanTransfer } from "./composables/useLanTransfer";
 import { useWindowSize } from "./composables/useWindowSize";
 
 const settingsState = useSettings();
 const updaterState = useUpdater({ t: settingsState.t });
-const lanReceiverState = useLanReceiver({ t: settingsState.t });
+const lanTransferState = useLanTransfer();
 const route = useRoute();
 const router = useRouter();
 const historyState = useHistory({
@@ -722,16 +723,21 @@ function openResetSettingsConfirm() {
 
             <template v-else-if="isLanTransferRoute">
                 <LanTransferView
-                    :busy="lanReceiverState.lanReceiverBusy.value"
-                    :error="lanReceiverState.lanReceiverError.value"
+                    :busy="lanTransferState.lanTransferBusy.value"
+                    :error="lanTransferState.lanTransferError.value"
+                    :on-add-device="lanTransferState.addDevice"
                     :on-back="leaveLanTransferRoute"
-                    :on-start="lanReceiverState.openLanReceiver"
-                    :on-send-file="lanReceiverState.sendDesktopFile"
-                    :on-send-text="lanReceiverState.sendDesktopText"
-                    :on-open-file="lanReceiverState.openTransferFile"
-                    :on-reveal-file="lanReceiverState.revealTransferFile"
-                    :state="lanReceiverState.lanReceiverState.value"
-                    :status-label="lanReceiverState.statusLabel.value"
+                    :on-cancel-transfer="lanTransferState.cancelTransfer"
+                    :on-open-file="lanTransferState.openReceivedFile"
+                    :on-refresh-devices="lanTransferState.refreshDevices"
+                    :on-reveal-file="lanTransferState.revealReceivedFile"
+                    :on-send-files="lanTransferState.sendFiles"
+                    :on-send-text="lanTransferState.sendText"
+                    :on-set-web-mode="lanTransferState.setWebMode"
+                    :on-start="lanTransferState.openLanTransfer"
+                    :on-start-service="lanTransferState.startLanTransferService"
+                    :on-stop-service="lanTransferState.stopLanTransferService"
+                    :state="lanTransferState.lanTransferState.value"
                     :t="settingsState.t"
                 />
             </template>
@@ -759,6 +765,9 @@ function openResetSettingsConfirm() {
                     :on-check-updates="updaterState.runUpdateCheck"
                     :on-clear-update-debug-status="updaterState.clearUpdateDebugStatus"
                     :on-install-update="updaterState.runUpdateInstall"
+                    :on-remove-trusted-device="
+                        lanTransferState.removeTrustedDevice
+                    "
                     :on-set-update-debug-status-with-overrides="
                         updaterState.setUpdateDebugStatusWithOverrides
                     "
@@ -930,6 +939,13 @@ function openResetSettingsConfirm() {
             :title="confirmDialogState.title"
             @close="closeConfirmDialog"
             @confirm="confirmDialogAction"
+        />
+        <LanIncomingRequestModal
+            v-if="lanTransferState.lanIncoming.value"
+            :busy="lanTransferState.lanTransferBusy.value"
+            :request="lanTransferState.lanIncoming.value"
+            :t="settingsState.t"
+            :on-respond="lanTransferState.respond"
         />
     </div>
 </template>

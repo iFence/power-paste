@@ -19,8 +19,8 @@ export function onUpdateStatus(handler) {
   return listen("update-status", handler);
 }
 
-export function onLanReceiverStatus(handler) {
-  return listen("lan-receiver-status", handler);
+export function onLanTransferState(handler) {
+  return listen("lan-transfer-state", handler);
 }
 
 export function onWebdavSyncStatus(handler) {
@@ -170,34 +170,54 @@ export function openExternalUrl(url) {
   return invoke("open_external_url", { url });
 }
 
-export function startLanReceiver() {
-  return invoke("start_lan_receiver");
+export function startLanTransfer() {
+  return invoke("start_lan_transfer");
 }
 
-export function stopLanReceiver() {
-  return invoke("stop_lan_receiver");
+export function stopLanTransfer() {
+  return invoke("stop_lan_transfer");
 }
 
-export function getLanReceiverState() {
-  return invoke("get_lan_receiver_state");
+export function getLanTransferState() {
+  return invoke("get_lan_transfer_state");
 }
 
-export function sendLanTransferText(text) {
-  return invoke("send_lan_transfer_text", { text });
+export function refreshLanDevices() {
+  return invoke("refresh_lan_devices");
 }
 
-export function sendLanTransferFile(path, fileName, mimeType) {
-  return invoke("send_lan_transfer_file", {
-    path,
-    fileName,
-    mimeType,
-  });
+export function addLanDevice(host, port) {
+  return invoke("add_lan_device", { host, port: port || null });
 }
 
-export function openLanTransferFile(id) {
-  return invoke("open_lan_transfer_file", { id });
+export function sendLanFiles(fingerprint, paths, pin = null) {
+  return invoke("send_lan_files", { fingerprint, paths, pin });
 }
 
-export function revealLanTransferFile(id) {
-  return invoke("reveal_lan_transfer_file", { id });
+export function sendLanText(fingerprint, text, pin = null) {
+  return invoke("send_lan_text", { fingerprint, text, pin });
+}
+
+export function respondLanRequest(requestId, decision) {
+  return invoke("respond_lan_request", { requestId, decision });
+}
+
+export function cancelLanTransfer(transferId) {
+  return invoke("cancel_lan_transfer", { transferId });
+}
+
+export function setLanWebMode(mode, paths = []) {
+  return invoke("set_lan_web_mode", { mode, paths });
+}
+
+export function openLanReceivedFile(id) {
+  return invoke("open_lan_received_file", { id });
+}
+
+export function revealLanReceivedFile(id) {
+  return invoke("reveal_lan_received_file", { id });
+}
+
+export function removeLanTrustedDevice(fingerprint) {
+  return invoke("remove_lan_trusted_device", { fingerprint });
 }

@@ -10,7 +10,7 @@
 
 Power Paste is a desktop clipboard history manager built with `Tauri 2`, `Vue 3`, and `Rust`. It focuses on a native-feeling workflow: watch clipboard changes in the background, open a compact panel with a global shortcut, then quickly search, preview, copy, edit, tag, or paste older items back into the last target application.
 
-The current implementation is local-first. Clipboard history is stored in SQLite on the device, settings are persisted in `settings.json`, and phone transfer runs over a temporary local-network session served by the desktop app itself.
+The current implementation is local-first. Clipboard history is stored in SQLite on the device, settings are persisted in `settings.json`, and local-network transfer speaks the LocalSend protocol (embedded from `localsend/localsend`, Apache-2.0), so official LocalSend clients can discover and exchange files with Power Paste directly.
 
 中文说明见 [README.zh-CN.md](./README.zh-CN.md)。
 
@@ -49,7 +49,8 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Drag history items into other apps; images are dragged as native files when possible
 - Hover image thumbnails to preview larger images
 - Optional copy count and paste count statistics with smart sorting
-- Local-network phone transfer for text, images, and files through a browser page opened by scanning a QR code
+- LocalSend-compatible LAN transfer: nearby devices, file/text sending, incoming-request confirmation, transfer progress, and received-file list
+- Browser QR pages for phones: share files (text shown inline) or receive uploads and typed text straight into the desktop clipboard
 - WebDAV history sync with system credential storage for the remote password
 - Settings for language, theme, accent color, launch on startup, sound, ignored apps, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, and quick paste shortcut
 - Tray integration, single-instance behavior, background startup, automatic update checks, and manual update checks
@@ -91,16 +92,16 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Ignored app rules can match by app path, bundle ID, process name, or display name
 - Clipboard changes copied from ignored applications are skipped without changing the system clipboard itself
 
-### Phone and PC Transfer
+### LocalSend Transfer
 
-- Start a temporary LAN transfer session from the desktop app
-- Scan a QR code with a phone to open a browser-based transfer page
-- No mobile app is required
-- Send text and files from desktop to phone
-- Send text, images, and files from phone to desktop
-- Files received on desktop are saved to the configured download directory
-- Desktop-side transfer history can open or reveal received files
-- Session status shows connected / disconnected state and is cleaned up after idle timeout
+- Speaks the LocalSend protocol, so official LocalSend clients discover Power Paste and both sides can send files
+- Nearby-device list with manual IP entry, file sending, text sending (shown as a message on the peer), and transfer progress
+- Incoming requests can be accepted, declined, or accepted-and-trusted; trusted devices skip the prompt
+- Received text and images go to the clipboard and history, other files land in the configured download folder and can be opened or revealed
+- Optional browser QR pages: share files to a phone (text shown inline) or receive uploads and typed text from a phone
+- Device name, receive PIN, receive policy, trusted devices, and the download folder are managed in settings; when a peer requires a PIN, Power Paste asks for it and retries
+- While a QR page is open the service switches to plain HTTP (like the official client) and announces `http`, then returns to HTTPS with client-certificate verification afterwards
+- LAN transfer shares port 53317 with official LocalSend, so both cannot run on the same machine at the same time; the page reports the port conflict and one of them can be stopped
 
 ### WebDAV Sync
 
@@ -201,7 +202,7 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 - `tauri-plugin-sql` with SQLite
 - `tauri-plugin-clipboard-next`
 - `tauri-plugin-dialog`
-- `tiny_http` for the temporary phone transfer server
+- `localsend` (vendored `packages/core` snapshot) for the LocalSend protocol server, client, and multicast discovery
 
 ### Platform Integration
 

@@ -25,10 +25,6 @@
     --action-cluster-bg: transparent;
     --action-button-bg: transparent;
     --action-button-hover-bg: rgba(255, 255, 255, 0.08);
-    --lan-transfer-bubble-bg: #1d242d;
-    --lan-transfer-bubble-text: #f5efe7;
-    --lan-transfer-own-bubble-bg: var(--accent-primary-strong);
-    --lan-transfer-own-bubble-text: var(--accent-primary-text);
     --settings-sidebar-bg: rgba(30, 36, 44, 0.72);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -39,8 +35,9 @@
 }
 
 .lan-transfer-page {
+    position: relative;
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     color: var(--app-text);
@@ -49,44 +46,81 @@
 .lan-transfer-topbar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px 6px;
+    gap: 8px;
+    padding: 10px 12px 6px;
 }
 
 .lan-transfer-back {
     flex: 0 0 auto;
 }
 
+.lan-transfer-service-button {
+    flex: 0 0 auto;
+}
+
+/* 服务按钮只改变图标颜色：不加底色方框，也没有悬浮位移。 */
+.lan-transfer-service-button,
+.lan-transfer-service-button:hover {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+}
+
+/* 运行中：主题色，点击即停止服务。 */
+.lan-transfer-service-button.running,
+.lan-transfer-service-button.running:hover {
+    color: var(--accent-primary);
+}
+
+/* 已停止：灰色，点击即启动服务。 */
+.lan-transfer-service-button:not(.running) {
+    color: var(--app-muted);
+}
+
+.lan-transfer-service-button:not(.running):hover {
+    color: var(--app-text);
+}
+
+.lan-transfer-title {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+}
+
 .lan-transfer-topbar h1 {
     margin: 0;
     font-size: 1rem;
-    line-height: 1.15;
+    font-weight: 700;
+    line-height: 1.2;
 }
 
-.lan-transfer-topbar span {
-    display: block;
-    margin-top: 2px;
-    color: var(--app-muted);
+.lan-transfer-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 12px 8px;
+    padding: 7px 10px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--app-panel-bg) 74%, transparent);
     font-size: 0.76rem;
 }
 
-.lan-transfer-status-line {
+.lan-transfer-status-pill {
     display: inline-flex;
-    min-width: 0;
-    gap: 6px;
     align-items: center;
+    gap: 6px;
+    color: var(--app-text);
+    font-weight: 600;
 }
 
-.lan-transfer-status-line strong {
+.lan-transfer-status-meta {
     overflow: hidden;
+    margin-left: auto;
+    color: var(--app-muted);
+    font-size: 0.72rem;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.lan-transfer-status-line strong {
-    color: var(--app-text);
-    font-style: normal;
-    font-weight: 700;
 }
 
 .lan-transfer-status-dot {
@@ -107,84 +141,54 @@
     box-shadow: 0 0 10px rgba(245, 86, 86, 0.86);
 }
 
-.lan-transfer-connect {
-    display: grid;
-    grid-template-columns: 96px minmax(0, 1fr);
-    gap: 12px;
-    align-items: center;
-    margin: 0 10px 8px;
-    padding: 8px;
-    border: 1px solid var(--app-panel-border);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--app-panel-bg) 82%, transparent);
-}
-
 .lan-transfer-qr {
-    width: 96px;
-    height: 96px;
+    width: 104px;
+    height: 104px;
+    flex: 0 0 auto;
     display: grid;
     place-items: center;
     overflow: hidden;
-    border-radius: 6px;
+    padding: 6px;
+    border-radius: 10px;
     background: #fff;
 }
 
 .lan-transfer-qr svg {
-    width: 88px;
-    height: 88px;
+    width: 100%;
+    height: 100%;
 }
 
 .lan-transfer-link-panel {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
 }
 
-.lan-transfer-link-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 34px;
-    gap: 8px;
+.lan-transfer-url-row {
+    display: flex;
     align-items: center;
+    gap: 6px;
     min-width: 0;
 }
 
 .lan-transfer-url {
+    flex: 1;
     overflow: hidden;
+    padding: 6px 9px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 9px;
+    background: var(--app-input-bg);
     color: var(--app-text);
-    font-size: 0.8rem;
-    font-weight: 700;
+    font-size: 0.76rem;
+    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .lan-transfer-copy-link {
-    width: 34px;
-    height: 34px;
-}
-
-.lan-transfer-link-meta {
-    display: inline-flex;
-    min-width: 0;
-    gap: 6px;
-    align-items: center;
-    color: var(--app-muted);
-    font-size: 0.76rem;
-    line-height: 1.2;
-}
-
-.lan-transfer-link-meta strong {
-    color: var(--app-text);
-    font-size: 0.8rem;
-}
-
-.lan-transfer-messages {
-    position: relative;
-    min-height: 0;
-    overflow: auto;
-    padding: 6px 10px 12px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
 }
 
 .lan-transfer-drop-overlay {
@@ -212,243 +216,376 @@
     font-size: 0.86rem;
 }
 
-.lan-transfer-messages::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-}
-
 .lan-transfer-empty {
     display: grid;
-    min-height: 100%;
     place-items: center;
-    padding: 20px;
+    margin: 0;
+    padding: 16px 10px;
+    border: 1px dashed color-mix(in srgb, var(--app-panel-border) 92%, transparent);
+    border-radius: 10px;
     color: var(--app-muted);
-    font-size: 0.86rem;
+    font-size: 0.78rem;
     line-height: 1.5;
     text-align: center;
 }
 
-.lan-transfer-message {
+/* 浏览器扫码入口：分享链接与接收链接两种互斥模式。 */
+.lan-transfer-web {
     display: grid;
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 8px;
-    align-items: end;
-    margin: 0 0 10px;
+    gap: 10px;
+    margin: 0 12px 8px;
+    padding: 10px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--app-panel-bg) 74%, transparent);
 }
 
-.lan-transfer-message.from-desktop {
-    grid-template-columns: minmax(0, 1fr) 30px;
-}
-
-.lan-transfer-message.from-desktop .lan-transfer-avatar {
-    grid-column: 2;
-}
-
-.lan-transfer-message.from-desktop .lan-transfer-bubble {
-    grid-column: 1;
-    grid-row: 1;
-    justify-self: end;
-}
-
-.lan-transfer-avatar {
+.lan-transfer-tabs {
     display: grid;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    overflow: hidden;
-    border-radius: 0;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--app-input-bg) 92%, transparent);
+}
+
+.lan-transfer-tabs button {
+    border: 0;
+    padding: 7px 8px;
+    border-radius: 8px;
     background: transparent;
     color: var(--app-muted);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition:
+        background-color 160ms ease,
+        color 160ms ease;
 }
 
-.lan-transfer-avatar img {
-    width: 22px;
-    height: 22px;
+.lan-transfer-tabs button:hover:not(:disabled) {
+    color: var(--app-text);
 }
 
-.lan-transfer-avatar svg {
-    width: 18px;
-    height: 18px;
+.lan-transfer-tabs button.active {
+    border-color: transparent;
+    background: var(--accent-primary-strong);
+    color: var(--accent-primary-text);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--accent-primary) 26%, transparent);
 }
 
-.lan-transfer-bubble {
-    width: fit-content;
-    max-width: min(86%, 520px);
-    padding: 10px 12px;
-    border: 0;
-    border-radius: 16px;
-    background: var(--lan-transfer-bubble-bg);
-    color: var(--lan-transfer-bubble-text);
-    font-size: 0.84rem;
-    line-height: 1.42;
-    box-shadow: 0 8px 24px rgba(32, 38, 46, 0.08);
-}
-
-.lan-transfer-message.from-desktop .lan-transfer-bubble {
-    background: var(--lan-transfer-own-bubble-bg);
-    color: var(--lan-transfer-own-bubble-text);
-}
-
-.lan-transfer-text {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
-.lan-transfer-image {
-    display: block;
-    max-width: min(100%, 260px);
-    max-height: 240px;
-    margin-top: 6px;
-    border-radius: 6px;
-    object-fit: contain;
-}
-
-.lan-transfer-file {
+.lan-transfer-web-body {
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
     align-items: center;
 }
 
-.lan-transfer-file-icon {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    border-radius: 7px;
-    background: color-mix(
-        in srgb,
-        var(--accent-primary-strong) 20%,
-        transparent
-    );
-    color: var(--accent-primary-strong);
-}
-
-.lan-transfer-file-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
-.lan-transfer-file strong,
-.lan-transfer-file span,
-.lan-transfer-file small {
+.lan-transfer-web-hint {
     display: block;
+    margin: 0;
+    color: var(--app-muted);
+    font-size: 0.72rem;
+    line-height: 1.4;
+}
+
+.lan-transfer-body {
+    display: grid;
+    gap: 10px;
+    min-height: 0;
+    overflow: auto;
+    padding: 0 12px 12px;
+    scrollbar-width: none;
+}
+
+.lan-transfer-body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.lan-transfer-devices,
+.lan-transfer-transfers,
+.lan-transfer-received {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--app-panel-bg) 74%, transparent);
+}
+
+.lan-transfer-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.lan-transfer-add {
+    display: flex;
+    gap: 6px;
+}
+
+.lan-transfer-add input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 9px;
+    background: var(--app-input-bg);
+    color: var(--app-text);
+    font: inherit;
+    font-size: 0.78rem;
+}
+
+.lan-transfer-device,
+.lan-transfer-transfer,
+.lan-transfer-received-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 1px solid color-mix(in srgb, var(--app-panel-border) 82%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 56%, transparent);
+    transition:
+        border-color 160ms ease,
+        background-color 160ms ease;
+}
+
+.lan-transfer-device:hover,
+.lan-transfer-transfer:hover,
+.lan-transfer-received-item:hover {
+    border-color: color-mix(in srgb, var(--accent-primary) 34%, var(--app-panel-border));
+    background: color-mix(in srgb, var(--app-panel-strong-bg) 78%, transparent);
+}
+
+.lan-transfer-device-info,
+.lan-transfer-transfer-info,
+.lan-transfer-received-item > div:first-child {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.lan-transfer-device-info strong,
+.lan-transfer-transfer-info strong,
+.lan-transfer-received-item strong {
     overflow: hidden;
+    font-size: 0.82rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.lan-transfer-file strong {
-    font-size: 0.8rem;
-}
-
-.lan-transfer-file span,
-.lan-transfer-file small {
-    color: currentColor;
+.lan-transfer-device-info small,
+.lan-transfer-transfer-info small,
+.lan-transfer-received-item small {
+    color: var(--app-muted);
     font-size: 0.7rem;
-    opacity: 0.68;
 }
 
-.lan-transfer-progress {
-    display: grid;
-    gap: 5px;
-    margin-top: 8px;
-    min-width: 180px;
+.lan-transfer-trusted {
+    justify-self: start;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+    color: var(--accent-primary);
+    font-size: 0.68rem;
 }
 
-.lan-transfer-progress span {
-    font-size: 0.7rem;
-    opacity: 0.72;
+.lan-transfer-device-actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
 }
 
-.lan-transfer-progress progress {
+.lan-transfer-transfer-info progress {
     width: 100%;
     height: 5px;
     overflow: hidden;
     border: 0;
     border-radius: 999px;
-    background: color-mix(in srgb, currentColor 18%, transparent);
+    background: color-mix(in srgb, var(--app-muted) 24%, transparent);
 }
 
-.lan-transfer-progress progress::-webkit-progress-bar {
-    background: color-mix(in srgb, currentColor 18%, transparent);
+.lan-transfer-transfer-info progress::-webkit-progress-bar {
+    background: color-mix(in srgb, var(--app-muted) 24%, transparent);
 }
 
-.lan-transfer-progress progress::-webkit-progress-value {
+.lan-transfer-transfer-info progress::-webkit-progress-value {
     border-radius: 999px;
-    background: currentColor;
+    background: var(--accent-primary-strong);
 }
 
-.lan-transfer-progress progress::-moz-progress-bar {
-    border-radius: 999px;
-    background: currentColor;
+.lan-transfer-warning {
+    margin: 0 12px 8px;
+    color: #b8860b;
+    font-size: 0.76rem;
 }
 
-.lan-transfer-composer {
+.lan-transfer-text-modal {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
     display: grid;
-    grid-template-columns: 30px minmax(0, 1fr) auto;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.lan-transfer-text-card {
+    display: grid;
     gap: 8px;
-    align-items: end;
-    padding: 8px 10px 10px;
-    border-top: 1px solid var(--app-panel-border);
-    background: color-mix(in srgb, var(--app-bg) 88%, transparent);
+    width: min(92%, 320px);
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--app-select-menu-bg);
+    color: var(--app-select-menu-text);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
 }
 
-.lan-transfer-attach {
-    width: 30px;
-    height: 30px;
-}
-
-.lan-transfer-composer textarea {
+.lan-transfer-text-card textarea {
+    box-sizing: border-box;
     width: 100%;
-    min-height: 34px;
-    max-height: 96px;
+    padding: 8px 10px;
     resize: vertical;
     border: 1px solid var(--app-panel-border);
     border-radius: 8px;
-    padding: 8px 10px;
     background: var(--app-input-bg);
     color: var(--app-text);
     font: inherit;
-    line-height: 1.35;
+    font-size: 0.82rem;
 }
 
-.lan-transfer-send {
-    min-height: 34px;
-    padding: 0 14px;
+.lan-transfer-text-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* 接收请求确认弹窗：全局显示，切换页面也不会漏掉请求。 */
+.lan-incoming-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.lan-incoming-card {
+    display: grid;
+    gap: 10px;
+    width: min(90%, 340px);
+    max-height: 80%;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 14px;
+    background: var(--app-select-menu-bg);
+    color: var(--app-select-menu-text);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
+}
+
+.lan-incoming-card h2 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.lan-incoming-from {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+}
+
+.lan-incoming-from small {
+    color: var(--app-muted);
+    font-size: 0.72rem;
+}
+
+.lan-incoming-text {
+    max-height: 180px;
+    overflow: auto;
+    margin: 0;
+    padding: 8px 10px;
     border-radius: 8px;
+    background: var(--app-input-bg);
+    color: var(--app-text);
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.lan-incoming-files {
+    display: grid;
+    gap: 4px;
+    max-height: 200px;
+    overflow: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lan-incoming-files li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.8rem;
+}
+
+.lan-incoming-files small {
+    color: var(--app-muted);
+}
+
+.lan-incoming-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* 设置页：已信任设备列表。 */
+.lan-trusted-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lan-trusted-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 8px;
+}
+
+.lan-trusted-list span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.lan-trusted-list strong {
+    overflow: hidden;
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lan-trusted-list small {
+    color: var(--app-muted);
+    font-size: 0.7rem;
 }
 
 .lan-transfer-error {
-    margin: -4px 10px 8px;
+    margin: 0 12px 8px;
     color: #d9534f;
     font-size: 0.78rem;
-}
-
-.lan-transfer-context-menu {
-    position: fixed;
-    z-index: 30;
-    display: grid;
-    min-width: 168px;
-    overflow: hidden;
-    border: 1px solid var(--app-panel-border);
-    border-radius: 8px;
-    background: var(--app-select-menu-bg);
-    color: var(--app-select-menu-text);
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
-}
-
-.lan-transfer-context-menu button {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    padding: 9px 12px;
-    text-align: left;
-}
-
-.lan-transfer-context-menu button:hover {
-    background: var(--accent-primary-hover-soft);
 }
 
 .path-picker-wrap {
@@ -740,10 +877,6 @@
     --action-cluster-bg: transparent;
     --action-button-bg: transparent;
     --action-button-hover-bg: rgba(255, 255, 255, 0.78);
-    --lan-transfer-bubble-bg: #fff;
-    --lan-transfer-bubble-text: #1c232b;
-    --lan-transfer-own-bubble-bg: #1f2937;
-    --lan-transfer-own-bubble-text: #fff;
     --settings-sidebar-bg: rgba(233, 237, 242, 0.86);
 }
 
@@ -2317,6 +2450,24 @@ select {
         0 20px 48px color-mix(in srgb, black 28%, transparent),
         inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
     backdrop-filter: blur(10px);
+}
+
+/* 下拉菜单始终向下展开，并脱离设置页的滚动容器：既不遮挡、也不会撑出滚动条，
+   固定定位让它不会被 overflow: auto 的祖先裁掉。 */
+.custom-select-menu.custom-select-menu-fixed {
+    position: fixed;
+    top: auto;
+    right: auto;
+    z-index: 80;
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+.custom-select-menu.custom-select-menu-fixed::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 .custom-select-option {

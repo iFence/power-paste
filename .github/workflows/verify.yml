@@ -64,6 +64,12 @@ jobs:
         run: cargo test
         working-directory: src-tauri
 
+      - name: Run vendored LocalSend tests
+        # formats_nanosecond_timestamp 断言 1ns 精度，而 Windows 的 SystemTime 只有 100ns
+        # 精度，因此该上游用例在 Windows 上必然失败；其余用例用于验证协议实现未被破坏。
+        run: cargo test -p localsend --features crypto,discovery,http,multicast -- --skip formats_nanosecond_timestamp
+        working-directory: src-tauri
+
       - name: Build release binary
         run: cargo build --release
         working-directory: src-tauri

@@ -110,7 +110,21 @@ export const messages = {
     maxHistoryItemsTip: "超过数量上限时，会优先清理未置顶的旧记录。",
     maxHistoryDaysTip: "超过保留天数的未置顶历史记录会被自动清理。",
     maxImageBytesTip: "超过该大小的图片不会写入历史记录。",
-    lanTransferDownloadDirTip: "手机电脑互传接收到的文件会保存到这个目录。",
+    lanTransferDownloadDirTip: "局域网互传接收到的文件会保存到这个目录。",
+    lanTransferEnabled: "启用局域网互传",
+    lanTransferEnabledTip:
+      "开启后本机会监听 LocalSend 默认端口 53317，并在局域网内被官方 LocalSend 客户端发现。",
+    lanDeviceAlias: "设备名称",
+    lanDeviceAliasTip: "其他设备上显示的名字，留空则使用主机名。",
+    lanDeviceAliasPlaceholder: "留空使用主机名",
+    lanReceivePolicy: "接收策略",
+    lanReceivePolicyTip:
+      "每次询问：未信任的设备需要确认；全部自动接受：任何设备都不再询问。已信任设备始终直接接受。",
+    lanReceivePolicyAsk: "每次询问",
+    lanReceivePolicyAuto: "全部自动接受",
+    lanTrustedDevices: "已信任设备",
+    lanTrustedDevicesTip: "来自这些设备的传输请求会直接接受，不再弹出确认。",
+    lanTrustedUnknownDevice: "未知设备",
     globalShortcutTip: "按下这个全局快捷键可唤起或隐藏主窗口。",
     quickPasteShortcutTip:
       "按住快捷键唤起主窗口；不松开 Ctrl 时重复按 ` 向下选择，松开 Ctrl 后粘贴当前条目。",
@@ -245,7 +259,23 @@ export const messages = {
     maxImageBytesTip:
       "Images larger than this limit are not stored in history.",
     lanTransferDownloadDirTip:
-      "Files received from phone and PC transfer are saved here.",
+      "Files received over the LAN are saved to this folder.",
+    lanTransferEnabled: "Enable LAN transfer",
+    lanTransferEnabledTip:
+      "When on, this device listens on the LocalSend default port 53317 and is discoverable by official LocalSend clients on the LAN.",
+    lanDeviceAlias: "Device name",
+    lanDeviceAliasTip:
+      "The name other devices see. Leave empty to use the host name.",
+    lanDeviceAliasPlaceholder: "Leave empty to use the host name",
+    lanReceivePolicy: "Receive policy",
+    lanReceivePolicyTip:
+      "Ask every time: untrusted devices need confirmation. Accept automatically: no prompt for any device. Trusted devices are always accepted.",
+    lanReceivePolicyAsk: "Ask every time",
+    lanReceivePolicyAuto: "Accept automatically (all devices)",
+    lanTrustedDevices: "Trusted devices",
+    lanTrustedDevicesTip:
+      "Transfers from these devices are accepted without a confirmation prompt.",
+    lanTrustedUnknownDevice: "Unknown device",
     globalShortcutTip:
       "Use this global shortcut to show or hide the main window.",
     quickPasteShortcutTip:
@@ -423,31 +453,49 @@ Object.assign(messages["zh-CN"], {
   updateDebugClear: "\u6062\u590d\u771f\u5b9e\u68c0\u67e5",
   saveSettingsFailed: "\u4fdd\u5b58\u8bbe\u7f6e\u5931\u8d25",
   backAction: "\u8fd4\u56de",
-  lanReceiverTitle: "\u624b\u673a\u7535\u8111\u4e92\u4f20",
-  lanReceiverSubtitle:
-    "\u626b\u7801\u540e\u7528\u624b\u673a\u6d4f\u89c8\u5668\u4e0e\u7535\u8111\u4e92\u4f20\u6587\u5b57\u3001\u56fe\u7247\u548c\u6587\u4ef6",
-  lanReceiverStatus: "\u8fde\u63a5\u72b6\u6001",
-  lanReceiverReady: "\u7b49\u5f85\u4e92\u4f20\u6d88\u606f",
-  lanReceiverStopped: "\u5df2\u505c\u6b62",
-  lanReceiverReceivedText:
-    "\u5df2\u63a5\u6536\u6587\u672c\u5e76\u5199\u5165\u526a\u8d34\u677f",
-  lanReceiverReceivedImage:
-    "\u5df2\u63a5\u6536\u56fe\u7247\u5e76\u5199\u5165\u526a\u8d34\u677f",
-  lanReceiverReceivedFile: "\u5df2\u63a5\u6536\u6587\u4ef6\u5e76\u4fdd\u5b58",
-  lanReceiverProcessingImage:
-    "\u56fe\u7247\u5df2\u4e0a\u4f20\uff0c\u6b63\u5728\u5199\u5165\u684c\u9762\u526a\u8d34\u677f",
-  lanReceiverFailed: "\u63a5\u6536\u5931\u8d25",
-  lanTransferTitle: "\u624b\u673a\u7535\u8111\u4e92\u4f20",
-  lanTransferPhone: "\u624b\u673a",
-  lanTransferDesktop: "\u7535\u8111",
-  lanTransferPort: "\u7aef\u53e3",
-  lanTransferConnected: "\u5df2\u8fde\u63a5",
-  lanTransferDisconnected: "\u5df2\u65ad\u5f00",
-  lanTransferConnectedDevices: "\u8fde\u63a5\u8bbe\u5907\u6570",
-  lanTransferEmpty:
-    "\u626b\u7801\u540e\u5f00\u59cb\u5bf9\u8bdd\uff0c\u6587\u5b57\u4f1a\u8fdb\u5165\u526a\u8d34\u677f\uff0c\u6587\u4ef6\u4f1a\u4fdd\u5b58\u5230\u4e0b\u8f7d\u76ee\u5f55\u3002",
-  lanTransferFile: "\u6587\u4ef6",
-  lanTransferChooseFile: "\u9009\u62e9\u56fe\u7247\u6216\u6587\u4ef6",
+  lanReceiverTitle: "LocalSend",
+  lanTransferStatusRunning: "\u5df2\u5f00\u542f",
+  lanTransferStatusStopped: "\u5df2\u505c\u6b62",
+  lanTransferStatusPortInUse:
+    "\u7aef\u53e3 53317 \u88ab\u5360\u7528\uff0c\u53ef\u80fd\u672c\u673a LocalSend \u6b63\u5728\u8fd0\u884c",
+  lanTransferStatusActive: "\u4f20\u8f93\u4e2d",
+  lanTransferStatusDone: "\u5df2\u5b8c\u6210",
+  lanTransferStatusFailed: "\u5931\u8d25",
+  lanTransferStatusCancelled: "\u5df2\u53d6\u6d88",
+  lanTransferDevices: "\u9644\u8fd1\u8bbe\u5907",
+  lanTransferRefresh: "\u5237\u65b0",
+  lanTransferAddDevice: "\u6dfb\u52a0",
+  lanTransferIpPlaceholder:
+    "\u8f93\u5165\u5bf9\u7aef IP\uff08\u5982 192.168.1.20\uff09",
+  lanTransferNoDevices:
+    "\u6682\u65f6\u6ca1\u6709\u53d1\u73b0\u8bbe\u5907\uff0c\u8bf7\u786e\u4fdd\u5bf9\u7aef LocalSend \u5df2\u6253\u5f00\u63a5\u6536",
+  lanTransferTrusted: "\u5df2\u4fe1\u4efb",
+  lanTransferSendFile: "\u53d1\u9001\u6587\u4ef6",
+  lanTransferSendText: "\u53d1\u9001\u6587\u672c",
+  lanTransferSendTextTitle: "\u53d1\u9001\u6587\u672c\u7ed9 {name}",
+  lanTransferSendTextPlaceholder:
+    "\u8f93\u5165\u8981\u53d1\u9001\u7684\u6587\u672c\uff0c\u5bf9\u7aef\u4f1a\u76f4\u63a5\u663e\u793a\u4e3a\u6d88\u606f",
+  lanTransferTransfers: "\u4f20\u8f93\u8bb0\u5f55",
+  lanTransferReceived: "\u5df2\u6536\u5230\u7684\u6587\u4ef6",
+  lanTransferCancel: "\u53d6\u6d88",
+  lanTransferWebShare: "\u5206\u4eab\u7ed9\u6d4f\u89c8\u5668",
+  lanTransferWebReceive: "\u6d4f\u89c8\u5668\u4f20\u7ed9\u6211",
+  lanTransferWebShareHint:
+    "\u540c\u4e00\u5c40\u57df\u7f51\u5185\u7684\u6d4f\u89c8\u5668\u6253\u5f00\u540e\u53ef\u4e0b\u8f7d\u672c\u673a\u5206\u4eab\u7684\u6587\u4ef6\uff0c\u6587\u672c\u4f1a\u76f4\u63a5\u5c55\u793a\u3002",
+  lanTransferWebReceiveHint:
+    "\u6d4f\u89c8\u5668\u6253\u5f00\u540e\u53ef\u4e0a\u4f20\u6587\u4ef6\uff0c\u4e5f\u53ef\u8f93\u5165\u6587\u672c\u53d1\u9001\u5230\u672c\u673a\u526a\u8d34\u677f\u3002",
+  lanTransferWebIdleHint:
+    "\u9009\u62e9\u4e00\u4e2a\u6a21\u5f0f\u540e\u751f\u6210\u624b\u673a\u626b\u7801\u5730\u5740\uff1a\u4e24\u79cd\u6a21\u5f0f\u4e92\u65a5\uff0c\u5207\u6362\u65f6\u4f1a\u91cd\u542f\u670d\u52a1\u3002",
+  lanTransferWebStop: "\u5173\u95ed\u626b\u7801\u9875",
+  lanTransferStartService: "\u542f\u52a8\u670d\u52a1",
+  lanTransferStopService: "\u505c\u6b62\u670d\u52a1",
+  lanTransferDisabledHint:
+    "\u5c40\u57df\u7f51\u4e92\u4f20\u5df2\u5728\u8bbe\u7f6e\u4e2d\u5173\u95ed\uff0c\u53ef\u5728\u8bbe\u7f6e\u9875\u201c\u4e92\u4f20\u201d\u5206\u7ec4\u91cd\u65b0\u5f00\u542f\u3002",
+  lanIncomingTitle: "\u6536\u5230\u4f20\u8f93\u8bf7\u6c42",
+  lanIncomingAccept: "\u63a5\u53d7",
+  lanIncomingDecline: "\u62d2\u7edd",
+  lanIncomingAcceptAndTrust: "\u63a5\u53d7\u5e76\u4fe1\u4efb",
+  lanTransferTitle: "LocalSend",
   lanTransferDropFiles: "\u677e\u5f00\u4ee5\u53d1\u9001\u6587\u4ef6",
   windowControlStyle: "\u7a97\u53e3\u63a7\u4ef6\u6837\u5f0f",
   windowControlStyleTip: "\u4ec5\u5f71\u54cd\u5f53\u524d\u5e94\u7528\u7684\u6807\u9898\u680f\u6309\u94ae\uff0c\u5207\u6362\u540e\u7acb\u5373\u751f\u6548\u3002",
@@ -456,13 +504,7 @@ Object.assign(messages["zh-CN"], {
   minimizeAction: "\u6700\u5c0f\u5316",
   maximizeAction: "\u6700\u5927\u5316",
   restoreAction: "\u8fd8\u539f",
-  lanTransferInputPlaceholder:
-    "\u8f93\u5165\u8981\u53d1\u9001\u5230\u624b\u673a\u7684\u6587\u5b57",
   lanTransferSend: "\u53d1\u9001",
-  lanTransferTooManyFiles:
-    "\u4e00\u6b21\u6700\u591a\u9009\u62e9 {max} \u4e2a\u6587\u4ef6\u6216\u56fe\u7247\uff0c\u5df2\u53ea\u53d1\u9001\u524d {max} \u4e2a",
-  lanTransferUploading: "\u4e0a\u4f20\u4e2d {progress}%",
-  lanTransferUploadFailed: "\u4e0a\u4f20\u5931\u8d25",
   openAction: "\u6253\u5f00",
   revealInExplorer:
     "\u5728\u6587\u4ef6\u8d44\u6e90\u7ba1\u7406\u5668\u6253\u5f00",
@@ -472,6 +514,37 @@ Object.assign(messages["zh-CN"], {
     "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u4f4d\u7f6e\u4e0d\u662f\u76ee\u5f55",
   lanTransferDownloadDirNotWritable:
     "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u76ee\u5f55\u4e0d\u53ef\u5199",
+  lanTransferPin: "\u63a5\u6536 PIN",
+  lanTransferPinTip:
+    "\u8bbe\u7f6e\u540e\uff0c\u5176\u4ed6\u8bbe\u5907\u5fc5\u987b\u8f93\u5165\u76f8\u540c PIN \u624d\u80fd\u4f20\u8f93\uff1b\u7559\u7a7a\u8868\u793a\u4e0d\u9700\u8981\u3002",
+  lanTransferPinPlaceholder: "\u7559\u7a7a\u8868\u793a\u4e0d\u9700\u8981",
+  lanPinTitle: "\u8f93\u5165 PIN",
+  lanPinHint:
+    "\u8be5\u8bbe\u5907\u542f\u7528\u4e86 PIN\uff0c\u8bf7\u8f93\u5165\u540e\u7ee7\u7eed\u3002",
+  lanPinPlaceholder: "PIN",
+  lanPinInvalid: "PIN \u4e0d\u6b63\u786e\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165\u3002",
+  lanErrorPortInUse:
+    "\u7aef\u53e3 53317 \u5df2\u88ab\u5360\u7528\uff0c\u672c\u673a\u53ef\u80fd\u6709\u5176\u5b83 LocalSend \u5ba2\u6237\u7aef\u6b63\u5728\u8fd0\u884c\u3002",
+  lanErrorMulticastUnavailable:
+    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u53ef\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+  lanErrorListenerFailed:
+    "\u5c40\u57df\u7f51\u76d1\u542c\u5931\u8d25\uff0c\u5df2\u5c1d\u8bd5\u81ea\u52a8\u6062\u590d\uff1b\u82e5\u4ecd\u5931\u8d25\u8bf7\u91cd\u542f\u670d\u52a1\u3002",
+  lanErrorServiceFailed: "\u5c40\u57df\u7f51\u670d\u52a1\u542f\u52a8\u5931\u8d25\u3002",
+  lanErrorNotRunning: "\u5c40\u57df\u7f51\u670d\u52a1\u672a\u8fd0\u884c\u3002",
+  lanErrorDeviceMissing:
+    "\u627e\u4e0d\u5230\u8be5\u8bbe\u5907\uff0c\u8bf7\u5237\u65b0\u8bbe\u5907\u5217\u8868\u540e\u91cd\u8bd5\u3002",
+  lanErrorNoFiles: "\u6ca1\u6709\u53ef\u53d1\u9001\u7684\u6587\u4ef6\u3002",
+  lanErrorFileNotFound: "\u6587\u4ef6\u4e0d\u5b58\u5728\u6216\u5df2\u88ab\u79fb\u52a8\u3002",
+  lanErrorRequestMissing: "\u8be5\u8bf7\u6c42\u5df2\u5931\u6548\u3002",
+  lanErrorPinRequired:
+    "\u5bf9\u7aef\u542f\u7528\u4e86 PIN\uff0c\u8bf7\u8f93\u5165 PIN \u540e\u91cd\u8bd5\u3002",
+  lanErrorDeclined: "\u5bf9\u65b9\u62d2\u7edd\u4e86\u672c\u6b21\u4f20\u8f93\u3002",
+  lanErrorBusy:
+    "\u5bf9\u65b9\u6b63\u5728\u5904\u7406\u5176\u5b83\u4f20\u8f93\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002",
+  lanErrorTooManyRequests:
+    "PIN \u5c1d\u8bd5\u6b21\u6570\u8fc7\u591a\uff0c\u5bf9\u7aef\u5df2\u6682\u65f6\u62d2\u7edd\u672c\u673a\uff1b\u8bf7\u5728\u5bf9\u7aef\u91cd\u65b0\u5f00\u59cb\u63a5\u6536\u6216\u91cd\u542f\u5bf9\u7aef\u5e94\u7528\u540e\u518d\u8bd5\u3002",
+  lanErrorEmptyText: "\u8bf7\u8f93\u5165\u8981\u53d1\u9001\u7684\u6587\u672c\u3002",
+  lanErrorGeneric: "\u4f20\u8f93\u5931\u8d25\uff1a{detail}",
   settingsCategorySync: "\u540c\u6b65",
   webdavSyncEnabled: "WebDAV \u540c\u6b65",
   webdavAutoSync: "\u81ea\u52a8\u540c\u6b65",
@@ -585,29 +658,48 @@ Object.assign(messages["en-US"], {
   updateDebugClear: "Use Real Check",
   saveSettingsFailed: "Failed to save settings",
   backAction: "Back",
-  lanReceiverTitle: "Phone and PC Transfer",
-  lanReceiverSubtitle:
-    "Scan with a phone browser to exchange text, images, and files.",
-  lanReceiverStatus: "Status",
-  lanReceiverReady: "Waiting for transfer messages",
-  lanReceiverStopped: "Stopped",
-  lanReceiverReceivedText: "Text received and copied to the clipboard",
-  lanReceiverReceivedImage: "Image received and copied to the clipboard",
-  lanReceiverReceivedFile: "File received and saved",
-  lanReceiverProcessingImage:
-    "Image uploaded and is being copied to the desktop clipboard",
-  lanReceiverFailed: "Receive failed",
-  lanTransferTitle: "Phone and PC Transfer",
-  lanTransferPhone: "Phone",
-  lanTransferDesktop: "Desktop",
-  lanTransferPort: "Port",
-  lanTransferConnected: "Connected",
-  lanTransferDisconnected: "Disconnected",
-  lanTransferConnectedDevices: "Connected devices",
-  lanTransferEmpty:
-    "Scan the QR code and start chatting. Text goes to the clipboard; files are saved to the download folder.",
-  lanTransferFile: "File",
-  lanTransferChooseFile: "Choose image or file",
+  lanReceiverTitle: "LocalSend",
+  lanTransferStatusRunning: "Running",
+  lanTransferStatusStopped: "Stopped",
+  lanTransferStatusPortInUse:
+    "Port 53317 is in use. LocalSend may already be running on this device.",
+  lanTransferStatusActive: "Transferring",
+  lanTransferStatusDone: "Completed",
+  lanTransferStatusFailed: "Failed",
+  lanTransferStatusCancelled: "Cancelled",
+  lanTransferDevices: "Nearby devices",
+  lanTransferRefresh: "Refresh",
+  lanTransferAddDevice: "Add",
+  lanTransferIpPlaceholder: "Enter the peer IP (e.g. 192.168.1.20)",
+  lanTransferNoDevices:
+    "No device discovered yet. Make sure LocalSend is receiving on the other device.",
+  lanTransferTrusted: "Trusted",
+  lanTransferSendFile: "Send files",
+  lanTransferSendText: "Send text",
+  lanTransferSendTextTitle: "Send text to {name}",
+  lanTransferSendTextPlaceholder:
+    "Type the text to send; it shows up as a message on the other device",
+  lanTransferTransfers: "Transfers",
+  lanTransferReceived: "Received files",
+  lanTransferCancel: "Cancel",
+  lanTransferWebShare: "Share to a browser",
+  lanTransferWebReceive: "Upload from a browser",
+  lanTransferWebShareHint:
+    "Open the link in any browser on the same LAN to download what this device shares; text is shown inline.",
+  lanTransferWebReceiveHint:
+    "Open the link in a browser to upload files or type text that lands in this device's clipboard.",
+  lanTransferWebIdleHint:
+    "Pick a mode to get a QR code: the download and upload pages are mutually exclusive, and switching restarts the service.",
+  lanTransferWebStop: "Stop link",
+  lanTransferStartService: "Start service",
+  lanTransferStopService: "Stop service",
+  lanTransferDisabledHint:
+    "LAN transfer is turned off in settings. Re-enable it under the Transfer category.",
+  lanIncomingTitle: "Incoming transfer",
+  lanIncomingAccept: "Accept",
+  lanIncomingDecline: "Decline",
+  lanIncomingAcceptAndTrust: "Accept and trust",
+  lanTransferTitle: "LocalSend",
   lanTransferDropFiles: "Drop files to send",
   windowControlStyle: "Window controls",
   windowControlStyleTip: "Changes the app title bar buttons immediately.",
@@ -616,12 +708,7 @@ Object.assign(messages["en-US"], {
   minimizeAction: "Minimize",
   maximizeAction: "Maximize",
   restoreAction: "Restore down",
-  lanTransferInputPlaceholder: "Type text to send to the phone",
   lanTransferSend: "Send",
-  lanTransferTooManyFiles:
-    "You can choose up to {max} files or images at once. Only the first {max} will be sent.",
-  lanTransferUploading: "Uploading {progress}%",
-  lanTransferUploadFailed: "Upload failed",
   openAction: "Open",
   revealInExplorer: "Show in File Explorer",
   lanTransferDownloadDirMissing: "The transfer download folder does not exist.",
@@ -629,6 +716,33 @@ Object.assign(messages["en-US"], {
     "The transfer download location is not a folder.",
   lanTransferDownloadDirNotWritable:
     "The transfer download folder is not writable.",
+  lanTransferPin: "Receive PIN",
+  lanTransferPinTip:
+    "When set, other devices must enter the same PIN to transfer. Leave blank to disable.",
+  lanTransferPinPlaceholder: "Leave blank to disable",
+  lanPinTitle: "Enter PIN",
+  lanPinHint: "This device requires a PIN. Enter it to continue.",
+  lanPinPlaceholder: "PIN code",
+  lanPinInvalid: "Incorrect PIN. Please try again.",
+  lanErrorPortInUse:
+    "Port 53317 is already in use. Another LocalSend client may be running on this machine.",
+  lanErrorMulticastUnavailable:
+    "Multicast is unavailable, so discovery may fail. Add a device manually to connect.",
+  lanErrorListenerFailed:
+    "The LAN listener failed. An automatic recovery was attempted; restart the service if it keeps failing.",
+  lanErrorServiceFailed: "Could not start the LAN service.",
+  lanErrorNotRunning: "The LAN service is not running.",
+  lanErrorDeviceMissing: "Device not found. Refresh the device list and try again.",
+  lanErrorNoFiles: "No files to send.",
+  lanErrorFileNotFound: "The file no longer exists.",
+  lanErrorRequestMissing: "This request has expired.",
+  lanErrorPinRequired: "The peer requires a PIN. Enter it and try again.",
+  lanErrorDeclined: "The peer declined the transfer.",
+  lanErrorBusy: "The peer is busy with another transfer. Try again later.",
+  lanErrorTooManyRequests:
+    "Too many PIN attempts; the peer has temporarily blocked this device. Restart receiving (or the peer app) and try again.",
+  lanErrorEmptyText: "Enter the text to send.",
+  lanErrorGeneric: "Transfer failed: {detail}",
   settingsCategorySync: "Sync",
   webdavSyncEnabled: "WebDAV Sync",
   webdavAutoSync: "Auto sync",

@@ -3,7 +3,7 @@ use std::{
     fs,
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc, Mutex},
-    time::{Instant, SystemTime},
+    time::Instant,
 };
 
 use anyhow::Result;
@@ -16,7 +16,6 @@ pub(crate) const SETTINGS_FILE: &str = "settings.json";
 pub(crate) const SQLITE_FILE: &str = "clipdesk.db";
 pub(crate) const HISTORY_UPDATED_EVENT: &str = "history-updated";
 pub(crate) const COPY_SOUND_EVENT: &str = "copy-sound";
-pub(crate) const LAN_RECEIVER_STATUS_EVENT: &str = "lan-receiver-status";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
 pub(crate) const QUICK_PASTE_STARTED_EVENT: &str = "quick-paste-started";
@@ -108,6 +107,12 @@ pub(crate) struct AppSettings {
     pub(crate) copy_stats_enabled: bool,
     pub(crate) paste_stats_enabled: bool,
     pub(crate) lan_transfer_download_dir: Option<String>,
+    pub(crate) lan_transfer_enabled: bool,
+    // 接收端要求的 PIN：为空表示不校验，设置后对端必须提供相同的 PIN。
+    pub(crate) lan_transfer_pin: Option<String>,
+    pub(crate) lan_device_alias: Option<String>,
+    pub(crate) lan_receive_policy: String,
+    pub(crate) lan_trusted_devices: Vec<LanTrustedDevice>,
     pub(crate) global_shortcut: String,
     pub(crate) quick_paste_shortcut: String,
     pub(crate) search_shortcut: String,
@@ -144,6 +149,11 @@ impl Default for AppSettings {
             copy_stats_enabled: false,
             paste_stats_enabled: false,
             lan_transfer_download_dir: None,
+            lan_transfer_enabled: true,
+            lan_transfer_pin: None,
+            lan_device_alias: None,
+            lan_receive_policy: "ask".into(),
+            lan_trusted_devices: Vec::new(),
             global_shortcut: "Ctrl+Shift+V".into(),
             quick_paste_shortcut: "Ctrl+Backquote".into(),
             search_shortcut: "Ctrl+F".into(),
@@ -189,6 +199,23 @@ impl AppSettings {
             .lan_transfer_download_dir
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+        self.lan_device_alias = self
+            .lan_device_alias
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        // PIN 由协议原样比较，这里只去掉空白；长度与字符集由界面限制。
+        self.lan_transfer_pin = self
+            .lan_transfer_pin
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if !matches!(self.lan_receive_policy.as_str(), "ask" | "auto") {
+            self.lan_receive_policy = Self::default().lan_receive_policy;
+        }
+        let mut seen_fingerprints = HashSet::new();
+        self.lan_trusted_devices.retain(|entry| {
+            let fingerprint = entry.fingerprint.trim().to_ascii_uppercase();
+            !fingerprint.is_empty() && seen_fingerprints.insert(fingerprint)
+        });
         if !matches!(
             self.window_control_style.as_str(),
             "traffic-lights" | "windows"
@@ -630,94 +657,21 @@ pub(crate) struct SharedState {
     pub(crate) update_status: Arc<Mutex<UpdateStatus>>,
     pub(crate) pending_update: Arc<Mutex<Option<Update>>>,
     pub(crate) update_debug_override: Arc<Mutex<Option<UpdateStatus>>>,
-    pub(crate) lan_receiver: Arc<Mutex<Option<LanReceiverSession>>>,
+    pub(crate) lan_transfer: Arc<crate::lan_transfer::LanTransferHandle>,
     pub(crate) webdav_sync_status: Arc<Mutex<WebdavSyncStatusDto>>,
     pub(crate) shortcut_status: Arc<Mutex<ShortcutStatusDto>>,
     pub(crate) webdav_sync_running: Arc<AtomicBool>,
     pub(crate) webdav_sync_pending: Arc<AtomicBool>,
 }
 
-#[derive(Debug)]
-pub(crate) struct LanReceiverSession {
-    pub(crate) url: String,
-    pub(crate) qr_svg: String,
-    pub(crate) ip: String,
-    pub(crate) ip_candidates: Vec<String>,
-    pub(crate) port: u16,
-    pub(crate) token: String,
-    pub(crate) expires_at: Option<SystemTime>,
-    pub(crate) stop_requested: Arc<AtomicBool>,
-    pub(crate) last_status: Option<LanReceiverStatus>,
-    pub(crate) last_phone_seen: Option<SystemTime>,
-    pub(crate) last_phone_seen_emit: Option<SystemTime>,
-    pub(crate) last_activity: SystemTime,
-    pub(crate) messages: Vec<LanTransferMessage>,
-    pub(crate) files: HashMap<String, LanTransferFile>,
-}
-
-#[derive(Debug, Clone, Serialize)]
+// 已信任的设备：来自该指纹的传输不再询问。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct LanReceiverStateDto {
-    pub(crate) running: bool,
-    pub(crate) url: Option<String>,
-    pub(crate) qr_svg: Option<String>,
-    pub(crate) ip: Option<String>,
-    pub(crate) ip_candidates: Vec<String>,
-    pub(crate) port: Option<u16>,
-    pub(crate) token: Option<String>,
-    pub(crate) expires_at: Option<u64>,
-    pub(crate) last_status: Option<LanReceiverStatus>,
-    pub(crate) connected_devices: usize,
-    pub(crate) messages: Vec<LanTransferMessageDto>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LanReceiverStatus {
-    pub(crate) kind: String,
-    pub(crate) message: String,
-    pub(crate) received_kind: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct LanTransferFile {
-    pub(crate) file_name: String,
-    pub(crate) mime_type: String,
-    pub(crate) path: PathBuf,
-    pub(crate) size: usize,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct LanTransferMessage {
-    pub(crate) id: String,
-    pub(crate) sender: String,
-    pub(crate) kind: String,
-    pub(crate) text: Option<String>,
-    pub(crate) file_name: Option<String>,
-    pub(crate) mime_type: Option<String>,
-    pub(crate) size: Option<usize>,
-    pub(crate) image_data_url: Option<String>,
-    pub(crate) download_url: Option<String>,
-    pub(crate) local_path: Option<PathBuf>,
-    pub(crate) created_at: u64,
-    pub(crate) status: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LanTransferMessageDto {
-    pub(crate) id: String,
-    pub(crate) sender: String,
-    pub(crate) kind: String,
-    pub(crate) text: Option<String>,
-    pub(crate) file_name: Option<String>,
-    pub(crate) mime_type: Option<String>,
-    pub(crate) size: Option<usize>,
-    pub(crate) image_data_url: Option<String>,
-    pub(crate) download_url: Option<String>,
-    pub(crate) has_local_file: bool,
-    pub(crate) created_at: u64,
-    pub(crate) status: String,
+pub(crate) struct LanTrustedDevice {
+    pub(crate) fingerprint: String,
+    pub(crate) alias: String,
+    pub(crate) last_seen_at: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]

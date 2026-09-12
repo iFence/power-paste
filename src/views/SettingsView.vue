@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
@@ -37,6 +37,7 @@ const props = defineProps({
   onCheckUpdates: { type: Function, required: true },
   onClearUpdateDebugStatus: { type: Function, required: true },
   onInstallUpdate: { type: Function, required: true },
+  onRemoveTrustedDevice: { type: Function, required: true },
   onSetUpdateDebugStatusWithOverrides: { type: Function, required: true },
   openSelectKey: { type: String, default: null },
   pendingSettingKey: { type: String, default: '' },
@@ -117,6 +118,19 @@ const copyStatsToggleIndex = computed(() => (props.settings.copyStatsEnabled ? 0
 const pasteStatsToggleIndex = computed(() => (props.settings.pasteStatsEnabled ? 0 : 1))
 const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
 const webdavAutoSyncToggleIndex = computed(() => (props.settings.webdavSync?.autoSync ? 0 : 1))
+const lanTransferToggleIndex = computed(() => (props.settings.lanTransferEnabled ? 0 : 1))
+const lanReceivePolicyOptions = computed(() => [
+  { value: 'ask', label: props.t('lanReceivePolicyAsk') },
+  { value: 'auto', label: props.t('lanReceivePolicyAuto') },
+])
+// 下拉菜单的固定定位样式，key 为 openSelectKey；展开方向始终向下。
+const selectMenuStyle = ref({})
+const SELECT_MENU_GAP = 8
+// 触发元素不参与响应式，仅用于滚动/缩放时重新定位。
+const selectTriggerElements = {}
+const lanTrustedDevices = computed(() =>
+  Array.isArray(props.settings.lanTrustedDevices) ? props.settings.lanTrustedDevices : [],
+)
 const hasClipboardWriteSupport = computed(
   () =>
     props.platformCapabilities.supportsTextWrite ||
@@ -263,6 +277,44 @@ async function updateSetting(field, value, key = field) {
   await props.applySettingPatch({ [field]: value }, key)
 }
 
+const lanAliasDraft = ref(props.settings.lanDeviceAlias || '')
+
+watch(
+  () => props.settings.lanDeviceAlias,
+  (value) => {
+    lanAliasDraft.value = value || ''
+  },
+)
+
+// 设备名长度有限，留空表示使用主机名。
+async function saveLanDeviceAlias() {
+  const value = lanAliasDraft.value.trim()
+  await updateSetting('lanDeviceAlias', value || null, 'lanDeviceAlias')
+}
+
+const lanPinDraft = ref(props.settings.lanTransferPin || '')
+
+watch(
+  () => props.settings.lanTransferPin,
+  (value) => {
+    lanPinDraft.value = value || ''
+  },
+)
+
+// 接收 PIN：仅接受 4-6 位数字，留空表示不校验；输入非法时不做保存。
+async function saveLanTransferPin() {
+  const value = lanPinDraft.value.trim()
+  if (value && !/^\d{4,6}$/.test(value)) {
+    lanPinDraft.value = props.settings.lanTransferPin || ''
+    return
+  }
+  await updateSetting('lanTransferPin', value || null, 'lanTransferPin')
+}
+
+async function removeLanTrustedDevice(fingerprint) {
+  await props.onRemoveTrustedDevice(fingerprint)
+}
+
 async function updateWebdavSetting(field, value, key = `webdavSync.${field}`) {
   if ((props.settings.webdavSync?.[field] ?? '') === value) {
     return
@@ -274,6 +326,74 @@ async function updateWebdavSetting(field, value, key = `webdavSync.${field}`) {
 async function chooseSelectOption(key, field, value) {
   props.closeSelect()
   await updateSetting(field, value, key)
+}
+
+// 菜单始终在触发控件正下方展开（下拉），并脱离设置页滚动容器：
+// 固定定位避免被 overflow: auto 的祖先裁掉或撑出滚动条，
+// 下方空间不足时压缩菜单高度让其内部滚动。
+// 先套用基准位置，再按渲染结果修正一次：祖先若带 transform/filter，
+// 固定定位会以该祖先为参照系，需要用实测偏移反推内联坐标。
+async function applySelectMenuPosition(key, trigger) {
+  const menu = trigger?.parentElement?.querySelector('.custom-select-menu')
+  if (!menu) {
+    return
+  }
+
+  const rect = trigger.getBoundingClientRect()
+  const desiredLeft = rect.left
+  const desiredTop = rect.bottom + SELECT_MENU_GAP
+  const maxHeight = Math.max(
+    96,
+    window.innerHeight - desiredTop - SELECT_MENU_GAP,
+  )
+  const base = {
+    left: `${desiredLeft}px`,
+    top: `${desiredTop}px`,
+    width: `${rect.width}px`,
+    maxHeight: `${maxHeight}px`,
+  }
+  selectMenuStyle.value = { ...selectMenuStyle.value, [key]: base }
+
+  await nextTick()
+  const rendered = menu.getBoundingClientRect()
+  const deltaX = rendered.left - desiredLeft
+  const deltaY = rendered.top - desiredTop
+  if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+    selectMenuStyle.value = {
+      ...selectMenuStyle.value,
+      [key]: {
+        ...base,
+        left: `${desiredLeft - deltaX}px`,
+        top: `${desiredTop - deltaY}px`,
+      },
+    }
+  }
+}
+
+async function openSelectMenu(event, key) {
+  const willOpen = props.openSelectKey !== key
+  props.toggleSelect(key)
+  if (!willOpen) {
+    return
+  }
+
+  const trigger = event?.currentTarget
+  if (!trigger) {
+    return
+  }
+  selectTriggerElements[key] = trigger
+  await nextTick()
+  await applySelectMenuPosition(key, trigger)
+}
+
+// 设置页滚动或窗口尺寸变化时，菜单跟随触发控件重新定位。
+function repositionOpenSelect() {
+  const key = props.openSelectKey
+  const trigger = key ? selectTriggerElements[key] : null
+  if (!key || !trigger) {
+    return
+  }
+  void applySelectMenuPosition(key, trigger)
 }
 
 async function updateCopyStatsEnabled(value) {
@@ -792,6 +912,14 @@ onUnmounted(() => {
   if (updateFeedbackTimer) {
     clearTimeout(updateFeedbackTimer)
   }
+  window.removeEventListener('resize', repositionOpenSelect)
+  document.removeEventListener('scroll', repositionOpenSelect, true)
+})
+
+onMounted(() => {
+  window.addEventListener('resize', repositionOpenSelect)
+  // capture 确保能监听到设置页内部滚动容器的滚动。
+  document.addEventListener('scroll', repositionOpenSelect, true)
 })
 
 watch(
@@ -911,14 +1039,19 @@ watch(
                 :aria-expanded="openSelectKey === 'themeMode'"
                 :aria-label="t('themeMode')"
                 :disabled="isPending('themeMode')"
-                @click.stop="toggleSelect('themeMode')"
+                @click.stop="openSelectMenu($event, 'themeMode')"
               >
                 <span class="custom-select-value">
                   {{ selectedOptionLabel(currentThemeModeOptions, settings.themeMode) }}
                 </span>
                 <span class="custom-select-chevron" aria-hidden="true"></span>
               </button>
-              <div v-if="openSelectKey === 'themeMode'" class="custom-select-menu" @click.stop>
+              <div
+                v-if="openSelectKey === 'themeMode'"
+                class="custom-select-menu custom-select-menu-fixed"
+                :style="selectMenuStyle.themeMode"
+                @click.stop
+              >
                 <button
                   v-for="option in currentThemeModeOptions"
                   :key="option.value"
@@ -944,14 +1077,19 @@ watch(
                 :aria-expanded="openSelectKey === 'accentColor'"
                 :aria-label="t('accentColor')"
                 :disabled="isPending('accentColor')"
-                @click.stop="toggleSelect('accentColor')"
+                @click.stop="openSelectMenu($event, 'accentColor')"
               >
                 <span class="custom-select-value">
                   {{ selectedOptionLabel(currentAccentColorOptions, settings.accentColor) }}
                 </span>
                 <span class="custom-select-chevron" aria-hidden="true"></span>
               </button>
-              <div v-if="openSelectKey === 'accentColor'" class="custom-select-menu" @click.stop>
+              <div
+                v-if="openSelectKey === 'accentColor'"
+                class="custom-select-menu custom-select-menu-fixed"
+                :style="selectMenuStyle.accentColor"
+                @click.stop
+              >
                 <button
                   v-for="option in currentAccentColorOptions"
                   :key="option.value"
@@ -1480,6 +1618,164 @@ watch(
         </div>
 
         <div v-if="activeCategory === 'transfer'" class="settings-grid settings-section-grid">
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanTransferEnabled') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanTransferEnabledTip')" :aria-label="t('lanTransferEnabledTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('lanTransferEnabled')"
+              :style="segmentedToggleStyle(lanTransferToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.lanTransferEnabled }"
+                :disabled="isPending('lanTransferEnabled')"
+                @click="updateSetting('lanTransferEnabled', true, 'lanTransferEnabled')"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.lanTransferEnabled }"
+                :disabled="isPending('lanTransferEnabled')"
+                @click="updateSetting('lanTransferEnabled', false, 'lanTransferEnabled')"
+              >
+                {{ t('toggleOff') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanDeviceAlias') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanDeviceAliasTip')" :aria-label="t('lanDeviceAliasTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <input
+              v-model="lanAliasDraft"
+              type="text"
+              :placeholder="t('lanDeviceAliasPlaceholder')"
+              :disabled="isPending('lanDeviceAlias')"
+              @change="saveLanDeviceAlias"
+              @keydown.enter.prevent="saveLanDeviceAlias"
+            />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanTransferPin') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanTransferPinTip')" :aria-label="t('lanTransferPinTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <input
+              v-model="lanPinDraft"
+              type="password"
+              inputmode="numeric"
+              maxlength="6"
+              :placeholder="t('lanTransferPinPlaceholder')"
+              :disabled="isPending('lanTransferPin')"
+              @change="saveLanTransferPin"
+              @keydown.enter.prevent="saveLanTransferPin"
+            />
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanReceivePolicy') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanReceivePolicyTip')" :aria-label="t('lanReceivePolicyTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <div
+              class="custom-select"
+              :class="{ open: openSelectKey === 'lanReceivePolicy' }"
+            >
+              <button
+                type="button"
+                class="custom-select-trigger"
+                :aria-expanded="openSelectKey === 'lanReceivePolicy'"
+                :aria-label="t('lanReceivePolicy')"
+                :disabled="isPending('lanReceivePolicy')"
+                @click.stop="openSelectMenu($event, 'lanReceivePolicy')"
+              >
+                <span class="custom-select-value">
+                  {{ selectedOptionLabel(lanReceivePolicyOptions, settings.lanReceivePolicy) }}
+                </span>
+                <span class="custom-select-chevron" aria-hidden="true"></span>
+              </button>
+              <div
+                v-if="openSelectKey === 'lanReceivePolicy'"
+                class="custom-select-menu custom-select-menu-fixed"
+                :style="selectMenuStyle.lanReceivePolicy"
+                @click.stop
+              >
+                <button
+                  v-for="option in lanReceivePolicyOptions"
+                  :key="option.value"
+                  type="button"
+                  class="custom-select-option"
+                  :class="{ active: settings.lanReceivePolicy === option.value }"
+                  @click="chooseSelectOption('lanReceivePolicy', 'lanReceivePolicy', option.value)"
+                >
+                  <span>{{ option.label }}</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="lanTrustedDevices.length" class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanTrustedDevices') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanTrustedDevicesTip')" :aria-label="t('lanTrustedDevicesTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <ul class="lan-trusted-list">
+              <li v-for="device in lanTrustedDevices" :key="device.fingerprint">
+                <span>
+                  <strong>{{ device.alias || t('lanTrustedUnknownDevice') }}</strong>
+                  <small>{{ device.fingerprint.slice(-8) }}</small>
+                </span>
+                <button
+                  class="ghost compact"
+                  type="button"
+                  @click="removeLanTrustedDevice(device.fingerprint)"
+                >
+                  {{ t('removeAction') }}
+                </button>
+              </li>
+            </ul>
+          </section>
+
           <section class="setting-card wide">
             <div class="setting-head">
               <span class="setting-label-row">

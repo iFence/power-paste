@@ -4,7 +4,13 @@ version = "0.8.4"
 description = "Native-feeling clipboard history manager"
 authors = ["Codex"]
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.97.1"
+
+# 内嵌的 LocalSend 协议核心库作为工作区成员，便于统一运行测试与 clippy。
+[workspace]
+members = ["vendor/localsend"]
+default-members = ["."]
+resolver = "2"
 
 [lib]
 name = "power_paste_lib"
@@ -19,9 +25,13 @@ tauri-build = { version = "2.5.6", features = [] }
 [dependencies]
 anyhow = "1.0"
 base64 = "0.22"
+bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+localsend = { path = "vendor/localsend", features = ["crypto", "discovery", "http", "multicast"] }
+pem = "4"
 qrcode = "0.14"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 semver = "1"
@@ -38,6 +48,9 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-updater = { version = "2.9.1", features = ["rustls-tls"], default-features = false }
 thiserror = "2.0"
 tiny_http = "0.12"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "fs", "macros"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["rt"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
 tauri-plugin-drag = "2.1.1"

@@ -152,6 +152,10 @@ pub(crate) fn toggle_panel(app: &AppHandle) -> Result<()> {
             window.show()?;
             window.unminimize()?;
             window.set_focus()?;
+            // 面板可见但未聚焦时（例如刚被其他窗口盖住或失去焦点），呼出同样
+            // 视为一次"打开主面板"：通知前端回到主面板，而不是停留在
+            // LocalSend 或设置页面。
+            app.emit(PANEL_SHOWN_EVENT, ())?;
         }
     } else {
         show_panel_near_cursor(app, &window)?;
