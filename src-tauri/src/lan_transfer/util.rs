@@ -2,12 +2,97 @@
 
 use std::{
     fs,
+    net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::{Context, Result};
 use uuid::Uuid;
+
+// 虚拟网卡名称前缀：容器、虚拟机、隧道与点对点接口的地址不适合作为扫码页地址。
+const VIRTUAL_INTERFACE_PREFIXES: &[&str] = &[
+    "docker",
+    "veth",
+    "br-",
+    "virbr",
+    "vmnet",
+    "vboxnet",
+    "tun",
+    "tap",
+    "wg",
+    "utun",
+    "awdl",
+    "llw",
+    "anpi",
+    "zt",
+    "tailscale",
+    "ham",
+    "pan",
+    "vmnic",
+];
+
+// 判断网卡名是否属于虚拟/隧道接口。
+fn is_virtual_interface(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    VIRTUAL_INTERFACE_PREFIXES
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
+}
+
+// 给候选地址打分：数值越小越优先，地址类别优先于网卡类型。
+fn candidate_rank(ip: IpAddr, interface_name: Option<&str>) -> (u8, u8) {
+    let address_rank = match ip {
+        IpAddr::V4(address) if address.is_private() => 0,
+        IpAddr::V4(address) if address.is_link_local() => 3,
+        IpAddr::V4(_) => 1,
+        IpAddr::V6(address) if address.is_unicast_link_local() => 3,
+        IpAddr::V6(_) => 2,
+    };
+
+    let interface_rank = match interface_name {
+        Some(name) if is_virtual_interface(name) => 2,
+        Some(_) => 0,
+        None => 1,
+    };
+
+    (address_rank, interface_rank)
+}
+
+// 从候选地址里选出最适合放进二维码的地址；全部不理想时仍返回最优的一个。
+fn preferred_lan_address_with<'a>(
+    candidates: &[SocketAddr],
+    interface_name_of: impl Fn(IpAddr) -> Option<&'a str>,
+) -> Option<SocketAddr> {
+    candidates
+        .iter()
+        .enumerate()
+        .min_by_key(|(index, candidate)| {
+            let (address_rank, interface_rank) =
+                candidate_rank(candidate.ip(), interface_name_of(candidate.ip()));
+            (address_rank, interface_rank, *index)
+        })
+        .map(|(_, candidate)| *candidate)
+}
+
+// 扫描页地址：优先真实网卡上的私有 IPv4，避免二维码指向 docker0 / VPN 等虚拟网卡。
+pub(crate) fn preferred_lan_address(candidates: &[SocketAddr]) -> Option<SocketAddr> {
+    let interfaces = if_addrs::get_if_addrs()
+        .map(|interfaces| {
+            interfaces
+                .into_iter()
+                .map(|interface| (interface.ip(), interface.name))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    preferred_lan_address_with(candidates, |ip| {
+        interfaces
+            .iter()
+            .find(|(address, _)| *address == ip)
+            .map(|(_, name)| name.as_str())
+    })
+}
 
 // 返回当前时间的毫秒时间戳，用于事件与文件名。
 pub(crate) fn now_ms() -> u64 {
@@ -114,9 +199,15 @@ pub(crate) fn validate_download_dir(path: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{
+        net::{IpAddr, SocketAddr},
+        path::Path,
+    };
 
-    use super::{infer_mime_type, sanitize_file_name, unique_file_path};
+    use super::{
+        infer_mime_type, is_virtual_interface, preferred_lan_address_with, sanitize_file_name,
+        unique_file_path,
+    };
 
     #[test]
     fn sanitizes_file_names() {
@@ -140,5 +231,57 @@ mod tests {
             infer_mime_type(Path::new("data.bin")),
             "application/octet-stream"
         );
+    }
+
+    #[test]
+    fn detects_virtual_interface_names() {
+        assert!(is_virtual_interface("docker0"));
+        assert!(is_virtual_interface("vEthernet (WSL)"));
+        assert!(is_virtual_interface("utun3"));
+        assert!(is_virtual_interface("tailscale0"));
+        assert!(!is_virtual_interface("eth0"));
+        assert!(!is_virtual_interface("en0"));
+        assert!(!is_virtual_interface("WLAN"));
+    }
+
+    #[test]
+    fn prefers_a_physical_interface_over_a_virtual_one() {
+        // 虚拟网卡排在前面时仍然要选中真实网卡，否则二维码会指向容器/虚拟机地址。
+        let docker = SocketAddr::from(([172, 17, 0, 1], 53317));
+        let wifi = SocketAddr::from(([192, 168, 1, 20], 53317));
+
+        let picked = preferred_lan_address_with(&[docker, wifi], |ip| match ip {
+            IpAddr::V4(address) if address.octets()[1] == 17 => Some("docker0"),
+            _ => Some("en0"),
+        });
+
+        assert_eq!(picked, Some(wifi));
+    }
+
+    #[test]
+    fn prefers_private_ipv4_over_other_addresses() {
+        let carrier_nat = SocketAddr::from(([100, 64, 0, 7], 53317));
+        let lan = SocketAddr::from(([10, 0, 0, 5], 53317));
+
+        let picked = preferred_lan_address_with(&[carrier_nat, lan], |_| Some("eth0"));
+
+        assert_eq!(picked, Some(lan));
+    }
+
+    #[test]
+    fn keeps_the_first_candidate_when_every_address_is_unideal() {
+        // 只有链路本地地址时仍然返回结果，保证扫码页不会因为挑不出地址而整体失败。
+        let link_local = SocketAddr::from(([169, 254, 12, 34], 53317));
+
+        assert_eq!(
+            preferred_lan_address_with(&[link_local], |_| Some("eth0")),
+            Some(link_local)
+        );
+    }
+
+    #[test]
+    fn returns_none_without_candidates() {
+        let empty: Vec<SocketAddr> = Vec::new();
+        assert_eq!(preferred_lan_address_with(&empty, |_| Some("eth0")), None);
     }
 }

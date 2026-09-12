@@ -527,6 +527,12 @@ Object.assign(messages["zh-CN"], {
     "\u7aef\u53e3 53317 \u5df2\u88ab\u5360\u7528\uff0c\u672c\u673a\u53ef\u80fd\u6709\u5176\u5b83 LocalSend \u5ba2\u6237\u7aef\u6b63\u5728\u8fd0\u884c\u3002",
   lanErrorMulticastUnavailable:
     "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u53ef\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+  lanWarningMulticastWindows:
+    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u8bf7\u68c0\u67e5 Windows \u9632\u706b\u5899\u662f\u5426\u653e\u884c Power Paste\uff0c\u6216\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+  lanWarningMulticastMacos:
+    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u8bf7\u5728\u300c\u7cfb\u7edf\u8bbe\u7f6e \u2192 \u9690\u79c1\u4e0e\u5b89\u5168\u6027 \u2192 \u672c\u5730\u7f51\u7edc\u300d\u4e2d\u5141\u8bb8 Power Paste\uff0c\u6216\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+  lanWarningMulticastLinux:
+    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u8bf7\u68c0\u67e5\u9632\u706b\u5899\uff08ufw/firewalld\uff09\u662f\u5426\u653e\u884c TCP 53317 \u4e0e UDP \u7ec4\u64ad 224.0.0.167:53317\uff0c\u6216\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
   lanErrorListenerFailed:
     "\u5c40\u57df\u7f51\u76d1\u542c\u5931\u8d25\uff0c\u5df2\u5c1d\u8bd5\u81ea\u52a8\u6062\u590d\uff1b\u82e5\u4ecd\u5931\u8d25\u8bf7\u91cd\u542f\u670d\u52a1\u3002",
   lanErrorServiceFailed: "\u5c40\u57df\u7f51\u670d\u52a1\u542f\u52a8\u5931\u8d25\u3002",
@@ -728,6 +734,12 @@ Object.assign(messages["en-US"], {
     "Port 53317 is already in use. Another LocalSend client may be running on this machine.",
   lanErrorMulticastUnavailable:
     "Multicast is unavailable, so discovery may fail. Add a device manually to connect.",
+  lanWarningMulticastWindows:
+    "Multicast is unavailable, so discovery may fail. Check that the Windows firewall allows Power Paste, or add the device manually.",
+  lanWarningMulticastMacos:
+    "Multicast is unavailable, so discovery may fail. Allow Power Paste under System Settings → Privacy & Security → Local Network, or add the device manually.",
+  lanWarningMulticastLinux:
+    "Multicast is unavailable, so discovery may fail. Check that the firewall (ufw/firewalld) allows TCP 53317 and UDP multicast 224.0.0.167:53317, or add the device manually.",
   lanErrorListenerFailed:
     "The LAN listener failed. An automatic recovery was attempted; restart the service if it keeps failing.",
   lanErrorServiceFailed: "Could not start the LAN service.",

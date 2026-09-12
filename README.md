@@ -102,6 +102,8 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Device name, receive PIN, receive policy, trusted devices, and the download folder are managed in settings; when a peer requires a PIN, Power Paste asks for it and retries
 - While a QR page is open the service switches to plain HTTP (like the official client) and announces `http`, then returns to HTTPS with client-certificate verification afterwards
 - LAN transfer shares port 53317 with official LocalSend, so both cannot run on the same machine at the same time; the page reports the port conflict and one of them can be stopped
+- On macOS, allow Power Paste under System Settings → Privacy & Security → Local Network; while the permission is denied, multicast discovery cannot work
+- On Linux, make sure the firewall (ufw / firewalld) allows TCP 53317 and UDP multicast 224.0.0.167:53317 on the active LAN interface; when discovery fails the page shows the platform-specific fix
 
 ### WebDAV Sync
 

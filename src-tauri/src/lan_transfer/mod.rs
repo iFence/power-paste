@@ -18,7 +18,7 @@ use tauri::{AppHandle, Emitter};
 
 use localsend::{
     discovery::{
-        DiscoveryConfig, DiscoveryEvent, DiscoveryHandle, DeviceIdentity, HttpChannel,
+        DeviceIdentity, DiscoveryConfig, DiscoveryEvent, DiscoveryHandle, HttpChannel,
         DEFAULT_DISCOVERY_TIMEOUT,
     },
     http::server::{
@@ -587,7 +587,8 @@ impl LanTransferHandle {
             return Err(AppError::Message("lan_transfer_not_running".into()));
         };
 
-        let interface_ips = local_interface_addresses(&InterfaceFilter::default()).unwrap_or_default();
+        let interface_ips =
+            local_interface_addresses(&InterfaceFilter::default()).unwrap_or_default();
         let known_channels: Vec<HttpChannel> = {
             let inner = self.inner.lock().unwrap();
             inner
@@ -649,11 +650,7 @@ impl LanTransferHandle {
                         device.device.fingerprint.clone(),
                         device.device.alias.clone(),
                         device.device.device_model.clone(),
-                        device
-                            .device
-                            .device_type
-                            .as_ref()
-                            .map(device_type_label),
+                        device.device.device_type.as_ref().map(device_type_label),
                         channel.host.clone(),
                         channel.port,
                         channel.protocol,
@@ -1021,7 +1018,10 @@ impl LanTransferHandle {
             Vec::new()
         };
 
-        if let Err(error) = self.apply_web_mode(app, shared, &identity, mode, collected).await {
+        if let Err(error) = self
+            .apply_web_mode(app, shared, &identity, mode, collected)
+            .await
+        {
             return Err(AppError::from(error));
         }
 
@@ -1115,12 +1115,61 @@ fn resolve_alias(settings: &AppSettings) -> String {
 }
 
 fn default_alias() -> String {
-    std::env::var("COMPUTERNAME")
-        .or_else(|_| std::env::var("HOSTNAME"))
-        .ok()
-        .map(|value| value.trim_end_matches(".local").to_string())
-        .filter(|value| !value.is_empty())
+    alias_candidates()
+        .into_iter()
+        .find_map(|value| normalize_hostname(&value))
         .unwrap_or_else(|| "Power Paste".to_string())
+}
+
+// 收集默认名候选：Windows 的 COMPUTERNAME、部分 shell 的 HOSTNAME，最后补上系统主机名。
+fn alias_candidates() -> Vec<String> {
+    let mut candidates = Vec::new();
+    for key in ["COMPUTERNAME", "HOSTNAME"] {
+        if let Ok(value) = std::env::var(key) {
+            candidates.push(value);
+        }
+    }
+    if let Some(value) = system_hostname() {
+        candidates.push(value);
+    }
+    candidates
+}
+
+// 系统主机名：macOS 的 GUI 进程不继承 shell 环境变量，必须向系统查询；Linux 读内核主机名文件。
+fn system_hostname() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::NSProcessInfo;
+
+        Some(NSProcessInfo::processInfo().hostName().to_string())
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/proc/sys/kernel/hostname").ok()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        None
+    }
+}
+
+// 规范化主机名：去掉首尾空白与 `.local` 后缀，过滤空值与 localhost，避免设备名退化成无效值。
+fn normalize_hostname(value: &str) -> Option<String> {
+    let trimmed = strip_local_suffix(value.trim()).trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("localhost") {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+// 忽略大小写地去掉 `.local` 后缀；按原字符串长度截断，保证索引不会落在字符边界之外。
+fn strip_local_suffix(value: &str) -> &str {
+    match value.to_ascii_lowercase().strip_suffix(".local") {
+        Some(prefix) => &value[..prefix.len()],
+        None => value,
+    }
 }
 
 // 解析本次发送使用的 PIN：优先使用用户刚输入的，其次复用本设备已成功验证过的。
@@ -1443,7 +1492,7 @@ pub(crate) fn apply_settings_change(
 
 #[cfg(test)]
 mod tests {
-    use super::{advertised_device, client_timeout_for, ClientPurpose};
+    use super::{advertised_device, client_timeout_for, normalize_hostname, ClientPurpose};
     use localsend::model::discovery::ProtocolType;
 
     #[test]
@@ -1460,5 +1509,28 @@ mod tests {
         // 对端人工确认与大体量上传都可能远超 30 秒，传输链路不能设置总超时。
         assert_eq!(client_timeout_for(ClientPurpose::Transfer), None);
         assert!(client_timeout_for(ClientPurpose::Discovery).is_some());
+    }
+
+    #[test]
+    fn normalizes_hostnames_for_the_default_device_name() {
+        // macOS 的主机名带 `.local`，Windows 的名称可能带空白，都要归一成可直接展示的名字。
+        assert_eq!(
+            normalize_hostname("MacBook-Pro.local"),
+            Some("MacBook-Pro".to_string())
+        );
+        assert_eq!(
+            normalize_hostname("  DESKTOP-ABC  "),
+            Some("DESKTOP-ABC".to_string())
+        );
+        assert_eq!(normalize_hostname("host.LOCAL"), Some("host".to_string()));
+        assert_eq!(normalize_hostname(""), None);
+        assert_eq!(normalize_hostname("   "), None);
+        assert_eq!(normalize_hostname("localhost"), None);
+    }
+
+    #[test]
+    fn always_resolves_a_default_device_name() {
+        // 任何平台上都不能出现空设备名，否则对端列表里会出现无名设备。
+        assert!(!super::default_alias().is_empty());
     }
 }

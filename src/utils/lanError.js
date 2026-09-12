@@ -19,6 +19,15 @@ const LAN_ERROR_KEYS = {
   empty_payload: "lanErrorEmptyText",
 };
 
+// 组播失败的成因与平台强相关：macOS 是本地网络权限，Linux 是防火墙与组播放行。
+const LAN_WARNING_KEYS_BY_PLATFORM = {
+  lan_multicast_unavailable: {
+    windows: "lanWarningMulticastWindows",
+    macos: "lanWarningMulticastMacos",
+    linux: "lanWarningMulticastLinux",
+  },
+};
+
 // 取出后端错误里的稳定错误码；不是已知错误码时返回空串。
 export function lanErrorCode(value) {
   const text =
@@ -42,4 +51,13 @@ export function lanErrorText(t, code, detail = "") {
     return t("lanErrorServiceFailed");
   }
   return t("lanErrorGeneric", { detail: extra });
+}
+
+// 把警告码翻译成当前平台对应的排障文案；平台未知或没有专属文案时回退到通用错误文案。
+export function lanWarningText(t, code, detail = "", platform = "") {
+  const key = LAN_WARNING_KEYS_BY_PLATFORM[code]?.[platform];
+  if (key) {
+    return t(key);
+  }
+  return lanErrorText(t, code, detail);
 }

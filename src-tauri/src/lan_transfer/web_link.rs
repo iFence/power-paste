@@ -2,7 +2,12 @@
 //!
 //! 浏览器无法校验自签证书，因此链接模式一律以明文 HTTP 提供服务，关闭后恢复加密服务。
 
-use std::{collections::HashMap, path::PathBuf, sync::{Arc, Weak}, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use localsend::{
@@ -98,10 +103,8 @@ pub(super) fn build_config(
 
 // 计算浏览器访问地址与二维码。
 pub(super) fn page_link(server: &ServerHandle) -> Result<(String, String)> {
-    let address = server
-        .local_addresses()
-        .into_iter()
-        .next()
+    // 服务端给出的地址按字典序排序，首项可能是 docker0 / VPN 等虚拟网卡，这里按网卡类型挑一次。
+    let address = super::util::preferred_lan_address(&server.local_addresses())
         .context("lan_transfer_no_interface")?;
     let url = format!("http://{address}");
     let qr_svg = build_qr_svg(&url)?;
@@ -132,7 +135,9 @@ pub(crate) fn spawn_web_events(
                     let _ = decision_tx.send(true);
                 }
                 WebSendEvent::FileDownload {
-                    file_id, content_tx, ..
+                    file_id,
+                    content_tx,
+                    ..
                 } => {
                     let path = {
                         let inner = handle.inner.lock().unwrap();
@@ -160,10 +165,7 @@ pub(super) async fn restart_server(
 ) -> Result<()> {
     let (old_server, old_stop, server_tx, web_tx) = {
         let mut inner = handle.inner.lock().unwrap();
-        let service = inner
-            .service
-            .as_mut()
-            .context("lan_transfer_not_running")?;
+        let service = inner.service.as_mut().context("lan_transfer_not_running")?;
         (
             service.server.clone(),
             service.server_stop.take(),

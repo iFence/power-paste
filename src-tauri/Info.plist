@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- macOS 15 起使用组播发现局域网设备需要用户的“本地网络”授权，缺少说明文案时弹窗不可读。 -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Power Paste 需要访问本地网络，以便在局域网内与 LocalSend 设备互相发现并传输内容。 / Power Paste needs local network access to discover and transfer content with LocalSend devices on your network.</string>
+</dict>
+</plist>

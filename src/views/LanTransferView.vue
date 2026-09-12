@@ -3,7 +3,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { lanErrorCode, lanErrorText } from "../utils/lanError";
+import { lanErrorCode, lanErrorText, lanWarningText } from "../utils/lanError";
 
 const props = defineProps({
     busy: { type: Boolean, required: true },
@@ -20,6 +20,7 @@ const props = defineProps({
     onStart: { type: Function, required: true },
     onStartService: { type: Function, required: true },
     onStopService: { type: Function, required: true },
+    platform: { type: String, default: "" },
     state: { type: Object, required: true },
     t: { type: Function, required: true },
 });
@@ -79,7 +80,7 @@ const pageWarning = computed(() => {
         return "";
     }
     const code = lanErrorCode(warning);
-    return code ? lanErrorText(props.t, code, warning) : warning;
+    return code ? lanWarningText(props.t, code, warning, props.platform) : warning;
 });
 
 function formatBytes(size) {

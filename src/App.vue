@@ -737,6 +737,7 @@ function openResetSettingsConfirm() {
                     :on-start="lanTransferState.openLanTransfer"
                     :on-start-service="lanTransferState.startLanTransferService"
                     :on-stop-service="lanTransferState.stopLanTransferService"
+                    :platform="settingsState.platformCapabilities.value.platform"
                     :state="lanTransferState.lanTransferState.value"
                     :t="settingsState.t"
                 />

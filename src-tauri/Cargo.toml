@@ -29,6 +29,8 @@ bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
+# 枚举本机网卡，用于给扫码页挑选合适的局域网地址（版本与内嵌 localsend 保持一致）。
+if-addrs = "0.15"
 keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 localsend = { path = "vendor/localsend", features = ["crypto", "discovery", "http", "multicast"] }
 pem = "4"
