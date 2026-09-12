@@ -1,14 +1,17 @@
 import { computed, onUnmounted, ref } from "vue";
 import {
   addLanDevice,
+  cancelLanScan,
   cancelLanTransfer,
   getLanTransferState,
+  listLanSubnets,
   onLanTransferState,
   openLanReceivedFile,
   refreshLanDevices,
   removeLanTrustedDevice,
   respondLanRequest,
   revealLanReceivedFile,
+  scanLanSubnets,
   sendLanFiles,
   sendLanText,
   setLanWebMode,
@@ -34,6 +37,7 @@ function emptyState() {
     webMode: "none",
     webUrl: null,
     webQrSvg: null,
+    scan: null,
   };
 }
 
@@ -66,6 +70,7 @@ export function useLanTransfer() {
   const lanTransfers = computed(() => lanTransferState.value.transfers || []);
   const lanIncoming = computed(() => lanTransferState.value.incoming || null);
   const lanReceivedFiles = computed(() => lanTransferState.value.receivedFiles || []);
+  const lanScan = computed(() => lanTransferState.value.scan || null);
 
   async function setupListener() {
     if (unlisten) {
@@ -115,6 +120,25 @@ export function useLanTransfer() {
 
   function refreshDevices() {
     return run(refreshLanDevices);
+  }
+
+  // 网段候选不进状态快照：返回的是候选列表而不是完整服务状态，不走 run。
+  async function listSubnets() {
+    lanTransferError.value = "";
+    try {
+      return await listLanSubnets();
+    } catch (error) {
+      lanTransferError.value = formatError(error);
+      throw error;
+    }
+  }
+
+  function scanSubnets(subnets, port = null) {
+    return run(() => scanLanSubnets(subnets, port));
+  }
+
+  function cancelScan() {
+    return run(cancelLanScan);
   }
 
   function addDevice(host, port) {
@@ -169,15 +193,18 @@ export function useLanTransfer() {
 
   return {
     addDevice,
+    cancelScan,
     cancelTransfer,
     lanDevices,
     lanIncoming,
     lanReceivedFiles,
     lanRunning,
+    lanScan,
     lanTransferBusy,
     lanTransferError,
     lanTransferState,
     lanTransfers,
+    listSubnets,
     openLanTransfer,
     openReceivedFile,
     refreshDevices,
@@ -185,6 +212,7 @@ export function useLanTransfer() {
     removeTrustedDevice,
     respond,
     revealReceivedFile,
+    scanSubnets,
     sendFiles,
     sendText,
     setWebMode,

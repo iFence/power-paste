@@ -464,6 +464,14 @@ Object.assign(messages["zh-CN"], {
   lanTransferStatusCancelled: "\u5df2\u53d6\u6d88",
   lanTransferDevices: "\u9644\u8fd1\u8bbe\u5907",
   lanTransferRefresh: "\u5237\u65b0",
+  lanScanMenuTitle: "\u9009\u62e9\u7f51\u6bb5",
+  lanScanMenuHint:
+    "\u53ea\u626b\u63cf\u6240\u9009\u7f51\u6bb5\uff0c\u5176\u4f59\u7f51\u6bb5\u4e0d\u4f1a\u88ab\u63a2\u6d4b\u3002",
+  lanScanLastUsed: "\u4e0a\u6b21",
+  lanScanCancel: "\u53d6\u6d88\u626b\u63cf",
+  lanScanNoInterface: "\u6ca1\u6709\u53ef\u7528\u7684\u5c40\u57df\u7f51\u7f51\u5361\u3002",
+  lanScanInvalidSubnet: "\u7f51\u6bb5\u65e0\u6548\uff0c\u4ec5\u652f\u6301 /24\u3002",
+  lanScanNoSubnet: "\u8bf7\u9009\u62e9\u8981\u626b\u63cf\u7684\u7f51\u6bb5\u3002",
   lanTransferAddDevice: "\u6dfb\u52a0",
   lanTransferIpPlaceholder:
     "\u8f93\u5165\u5bf9\u7aef IP\uff08\u5982 192.168.1.20\uff09",
@@ -664,6 +672,7 @@ Object.assign(messages["en-US"], {
   updateDebugClear: "Use Real Check",
   saveSettingsFailed: "Failed to save settings",
   backAction: "Back",
+  closeAction: "Close",
   lanReceiverTitle: "LocalSend",
   lanTransferStatusRunning: "Running",
   lanTransferStatusStopped: "Stopped",
@@ -675,6 +684,14 @@ Object.assign(messages["en-US"], {
   lanTransferStatusCancelled: "Cancelled",
   lanTransferDevices: "Nearby devices",
   lanTransferRefresh: "Refresh",
+  lanScanMenuTitle: "Choose a subnet",
+  lanScanMenuHint:
+    "Only the selected subnet is scanned; other subnets are left alone.",
+  lanScanLastUsed: "Last",
+  lanScanCancel: "Cancel scan",
+  lanScanNoInterface: "No usable LAN interface was found.",
+  lanScanInvalidSubnet: "Invalid subnet: only /24 is supported.",
+  lanScanNoSubnet: "Choose a subnet to scan.",
   lanTransferAddDevice: "Add",
   lanTransferIpPlaceholder: "Enter the peer IP (e.g. 192.168.1.20)",
   lanTransferNoDevices:

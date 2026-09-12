@@ -337,9 +337,149 @@
     height: 14px;
 }
 
+/* 扫描中按钮转为主题色并持续旋转，作为唯一的进行中提示。 */
+.ghost.compact.lan-transfer-refresh.spinning {
+    border-color: transparent;
+    background: var(--accent-primary-strong);
+    color: var(--accent-primary-text);
+}
+
+.lan-transfer-refresh.spinning svg {
+    animation: lan-transfer-spin 900ms linear infinite;
+}
+
+@keyframes lan-transfer-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lan-transfer-refresh.spinning svg {
+        animation: none;
+    }
+}
+
 .ghost.compact.lan-transfer-refresh:disabled {
     cursor: default;
     opacity: 0.55;
+}
+
+/* 网段菜单：列出本机网卡所在网段，单选后立即扫描。 */
+.lan-subnet-picker {
+    display: grid;
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--app-input-bg) 88%, transparent);
+}
+
+.lan-subnet-picker-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ghost.compact.lan-subnet-picker-close,
+.toolbar-icon-button.lan-subnet-picker-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0;
+}
+
+.lan-subnet-picker-close svg {
+    width: 12px;
+    height: 12px;
+}
+
+.lan-subnet-picker-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lan-subnet-picker-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--app-panel-bg) 72%, transparent);
+    color: var(--app-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 160ms ease,
+        background-color 160ms ease;
+}
+
+.lan-subnet-picker-item:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent-primary) 42%, transparent);
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
+.lan-subnet-picker-item:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.lan-subnet-picker-item.selected {
+    border-color: color-mix(in srgb, var(--accent-primary) 36%, transparent);
+}
+
+.lan-subnet-picker-info {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.lan-subnet-picker-info strong {
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.lan-subnet-picker-info small {
+    color: var(--app-muted);
+    font-size: 0.7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lan-subnet-picker-last {
+    flex-shrink: 0;
+    color: var(--app-muted);
+    font-size: 0.68rem;
+    white-space: nowrap;
+}
+
+.lan-subnet-picker-empty {
+    margin: 0;
+    padding: 12px 8px;
+    border: 1px dashed color-mix(in srgb, var(--app-panel-border) 92%, transparent);
+    border-radius: 9px;
+    color: var(--app-muted);
+    font-size: 0.74rem;
+    text-align: center;
+}
+
+.lan-subnet-picker-hint {
+    margin: 0;
+    color: var(--app-muted);
+    font-size: 0.68rem;
+    line-height: 1.4;
 }
 
 .lan-transfer-add {

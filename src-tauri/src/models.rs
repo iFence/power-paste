@@ -113,6 +113,8 @@ pub(crate) struct AppSettings {
     pub(crate) lan_device_alias: Option<String>,
     pub(crate) lan_receive_policy: String,
     pub(crate) lan_trusted_devices: Vec<LanTrustedDevice>,
+    // 刷新时最后一次主动扫描的网段（如 `192.168.1.0/24`），仅用于下次高亮。
+    pub(crate) lan_scan_last_subnet: Option<String>,
     pub(crate) global_shortcut: String,
     pub(crate) quick_paste_shortcut: String,
     pub(crate) search_shortcut: String,
@@ -154,6 +156,7 @@ impl Default for AppSettings {
             lan_device_alias: None,
             lan_receive_policy: "ask".into(),
             lan_trusted_devices: Vec::new(),
+            lan_scan_last_subnet: None,
             global_shortcut: "Ctrl+Shift+V".into(),
             quick_paste_shortcut: "Ctrl+Backquote".into(),
             search_shortcut: "Ctrl+F".into(),
@@ -216,6 +219,10 @@ impl AppSettings {
             let fingerprint = entry.fingerprint.trim().to_ascii_uppercase();
             !fingerprint.is_empty() && seen_fingerprints.insert(fingerprint)
         });
+        self.lan_scan_last_subnet = self
+            .lan_scan_last_subnet
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         if !matches!(
             self.window_control_style.as_str(),
             "traffic-lights" | "windows"

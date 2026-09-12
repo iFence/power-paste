@@ -186,6 +186,18 @@ export function refreshLanDevices() {
   return invoke("refresh_lan_devices");
 }
 
+export function listLanSubnets() {
+  return invoke("list_lan_subnets");
+}
+
+export function scanLanSubnets(subnets, port = null) {
+  return invoke("scan_lan_subnets", { subnets, port });
+}
+
+export function cancelLanScan() {
+  return invoke("cancel_lan_scan");
+}
+
 export function addLanDevice(host, port) {
   return invoke("add_lan_device", { host, port: port || null });
 }

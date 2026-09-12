@@ -3,6 +3,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import LanSubnetPicker from "../components/LanSubnetPicker.vue";
 import { lanErrorCode, lanErrorText, lanWarningText } from "../utils/lanError";
 
 const props = defineProps({
@@ -11,11 +12,14 @@ const props = defineProps({
     onAddDevice: { type: Function, required: true },
     onBack: { type: Function, required: true },
     onCancelTransfer: { type: Function, required: true },
+    onCancelScan: { type: Function, required: true },
+    onListSubnets: { type: Function, required: true },
     onOpenFile: { type: Function, required: true },
     onRefreshDevices: { type: Function, required: true },
     onRevealFile: { type: Function, required: true },
     onSendFiles: { type: Function, required: true },
     onSendText: { type: Function, required: true },
+    onScanSubnets: { type: Function, required: true },
     onSetWebMode: { type: Function, required: true },
     onStart: { type: Function, required: true },
     onStartService: { type: Function, required: true },
@@ -33,6 +37,10 @@ const textDraft = ref("");
 const pinPrompt = ref(null);
 const pinDraft = ref("");
 const isFileDragOver = ref(false);
+// 网段菜单：只在打开时向后端拉取本机网段，避免每次进入页面都枚举网卡。
+const subnetMenuOpen = ref(false);
+const subnetItems = ref([]);
+const lastSubnet = ref("");
 let unlistenDragDrop = null;
 
 const devices = computed(() =>
@@ -48,6 +56,18 @@ const receivedFiles = computed(() =>
 );
 const running = computed(() => props.state.status === "running");
 const failed = computed(() => props.state.status === "error");
+// 扫描中只有刷新按钮旋转 + 主题色高亮，不出现任何进度元素。
+const scanRunning = computed(() => Boolean(props.state.scan?.running));
+// 刷新按钮的提示随状态变化：扫描中为取消，网段下拉展开时为收起。
+const refreshTitle = computed(() => {
+    if (scanRunning.value) {
+        return props.t("lanScanCancel");
+    }
+    if (subnetMenuOpen.value) {
+        return props.t("closeAction");
+    }
+    return props.t("lanTransferRefresh");
+});
 const webMode = computed(() => props.state.webMode || "none");
 const webUrl = computed(() => props.state.webUrl || "");
 const statusLabel = computed(() => {
@@ -132,8 +152,39 @@ async function run(action) {
     }
 }
 
+// 刷新按钮与官方 LocalSend 一致：只有一个网段时直接刷新，多个网段时弹出网段下拉；
+// 扫描中再次点击则取消当前扫描，避免多轮结果互相覆盖。
 async function refreshDevices() {
-    await run(props.onRefreshDevices);
+    if (scanRunning.value) {
+        await run(props.onCancelScan);
+        return;
+    }
+    if (subnetMenuOpen.value) {
+        subnetMenuOpen.value = false;
+        return;
+    }
+    await run(async () => {
+        // 每次点击都重新枚举，保证显示的是当前网络状态。
+        const payload = await props.onListSubnets();
+        const items = Array.isArray(payload?.subnets) ? payload.subnets : [];
+        subnetItems.value = items;
+        lastSubnet.value = payload?.lastSubnet || "";
+        // 容器/VPN 等虚拟网卡不参与判断，否则几乎每台机器都会弹出下拉；
+        // 只有虚拟网卡时退回按全部网段判断。
+        const physicalCount = items.filter((item) => !item.virtualInterface).length;
+        const countable = physicalCount || items.length;
+        if (countable <= 1) {
+            subnetMenuOpen.value = false;
+            await props.onRefreshDevices();
+            return;
+        }
+        subnetMenuOpen.value = true;
+    });
+}
+
+async function selectSubnet(cidr) {
+    subnetMenuOpen.value = false;
+    await run(() => props.onScanSubnets([cidr]));
 }
 
 async function addDevice() {
@@ -438,9 +489,10 @@ onUnmounted(() => {
                     <span class="meta-label">{{ t("lanTransferDevices") }}</span>
                     <button
                         class="ghost compact lan-transfer-refresh"
+                        :class="{ spinning: scanRunning }"
                         type="button"
-                        :title="t('lanTransferRefresh')"
-                        :aria-label="t('lanTransferRefresh')"
+                        :title="refreshTitle"
+                        :aria-label="refreshTitle"
                         :disabled="busy || !running"
                         @click="refreshDevices"
                     >
@@ -452,6 +504,15 @@ onUnmounted(() => {
                         </svg>
                     </button>
                 </div>
+                <LanSubnetPicker
+                    v-if="subnetMenuOpen"
+                    :busy="busy"
+                    :items="subnetItems"
+                    :last-subnet="lastSubnet"
+                    :t="t"
+                    @close="subnetMenuOpen = false"
+                    @select="selectSubnet"
+                />
                 <div class="lan-transfer-add">
                     <input
                         v-model="manualAddress"

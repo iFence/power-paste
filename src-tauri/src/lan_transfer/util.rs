@@ -33,7 +33,7 @@ const VIRTUAL_INTERFACE_PREFIXES: &[&str] = &[
 ];
 
 // 判断网卡名是否属于虚拟/隧道接口。
-fn is_virtual_interface(name: &str) -> bool {
+pub(crate) fn is_virtual_interface(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     VIRTUAL_INTERFACE_PREFIXES
         .iter()

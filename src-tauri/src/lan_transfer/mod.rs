@@ -18,7 +18,7 @@ use tauri::{AppHandle, Emitter};
 
 use localsend::{
     discovery::{
-        DeviceIdentity, DiscoveryConfig, DiscoveryEvent, DiscoveryHandle, HttpChannel,
+        DeviceIdentity, DiscoveryConfig, DiscoveryEvent, DiscoveryHandle,
         DEFAULT_DISCOVERY_TIMEOUT,
     },
     http::server::{
@@ -29,7 +29,7 @@ use localsend::{
     },
     model::discovery::ProtocolType,
     multicast::{DEFAULT_MULTICAST_GROUP, DEFAULT_MULTICAST_GROUP_V6, DEFAULT_PORT},
-    util::interface::{local_interface_addresses, InterfaceFilter},
+    util::interface::InterfaceFilter,
 };
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
@@ -38,12 +38,15 @@ use crate::models::{AppError, AppSettings, LanTrustedDevice, SharedState};
 
 mod identity;
 mod receive;
+mod scan;
 mod send;
 mod text_package;
 mod util;
 mod web_link;
 
 use identity::LanIdentity;
+use scan::{ScanScope, ScanState};
+pub(crate) use scan::{list_subnets, LanScanDto, LanSubnetsDto};
 pub(crate) use text_package::{is_text_package, TEXT_RESTORE_MAX_BYTES};
 pub(crate) use util::validate_download_dir;
 
@@ -109,6 +112,8 @@ pub(crate) struct LanStateDto {
     pub(crate) web_mode: String,
     pub(crate) web_url: Option<String>,
     pub(crate) web_qr_svg: Option<String>,
+    // 刷新/网段扫描进度；未扫描过时为 None。
+    pub(crate) scan: Option<LanScanDto>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -260,6 +265,7 @@ struct Inner {
     sessions: HashMap<String, receive::ReceiveSession>,
     service: Option<Service>,
     pending: HashMap<String, oneshot::Sender<LanDecision>>,
+    scan: Option<ScanState>,
 }
 
 impl Inner {
@@ -284,6 +290,7 @@ impl Inner {
             sessions: HashMap::new(),
             service: None,
             pending: HashMap::new(),
+            scan: None,
         }
     }
 
@@ -371,6 +378,8 @@ impl Inner {
 pub(crate) struct LanTransferHandle {
     inner: Mutex<Inner>,
     recovery: Mutex<RecoveryWindow>,
+    // 设备确认次数：智能刷新据它判断局域网里是否已经有回应，决定要不要回退扫网段。
+    confirmations: AtomicU64,
 }
 
 // 自愈窗口计数：避免监听器反复失败时无休止重建。
@@ -386,7 +395,32 @@ impl LanTransferHandle {
         Self {
             inner: Mutex::new(Inner::new()),
             recovery: Mutex::new(RecoveryWindow::default()),
+            confirmations: AtomicU64::new(0),
         }
+    }
+
+    // 记录或更新一个已确认的设备，并累加确认计数。
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn upsert_device(
+        &self,
+        fingerprint: String,
+        alias: String,
+        device_model: Option<String>,
+        device_type: Option<String>,
+        host: String,
+        port: u16,
+        protocol: ProtocolType,
+    ) {
+        self.inner.lock().unwrap().upsert_device(
+            fingerprint,
+            alias,
+            device_model,
+            device_type,
+            host,
+            port,
+            protocol,
+        );
+        self.confirmations.fetch_add(1, Ordering::Relaxed);
     }
 
     // 组装前端状态快照。
@@ -475,6 +509,7 @@ impl LanTransferHandle {
             web_mode: inner.web.mode.clone(),
             web_url: inner.web.url.clone(),
             web_qr_svg: inner.web.qr_svg.clone(),
+            scan: inner.scan.as_ref().map(|value| value.to_dto()),
         }
     }
 
@@ -563,57 +598,70 @@ impl LanTransferHandle {
                 qr_svg: None,
             };
         }
+        scan::clear(self);
 
         let settings = shared.settings.lock().unwrap().clone();
         emit_state(app, self, &settings);
         Ok(self.state(&settings))
     }
 
-    // 主动刷新一次设备发现：先广播，再探测已知地址，必要时扫描网段。
+    // 主动刷新一次设备发现：先广播，再探测已知地址，必要时扫描本机全部网段。
     pub(crate) async fn refresh(
         self: &Arc<Self>,
         app: &AppHandle,
         shared: &Arc<SharedState>,
     ) -> Result<LanStateDto, AppError> {
+        scan::start(self, app, shared, ScanScope::Auto, self.port())?;
         let settings = shared.settings.lock().unwrap().clone();
-        let discovery = {
-            let inner = self.inner.lock().unwrap();
-            inner
-                .service
-                .as_ref()
-                .map(|service| service.discovery.clone())
-        };
-        let Some(discovery) = discovery else {
-            return Err(AppError::Message("lan_transfer_not_running".into()));
-        };
-
-        let interface_ips =
-            local_interface_addresses(&InterfaceFilter::default()).unwrap_or_default();
-        let known_channels: Vec<HttpChannel> = {
-            let inner = self.inner.lock().unwrap();
-            inner
-                .devices
-                .iter()
-                .map(|device| HttpChannel {
-                    host: device.host.clone(),
-                    port: device.port,
-                    protocol: device.protocol,
-                })
-                .collect()
-        };
-
-        let _ = discovery
-            .discover_staged(
-                known_channels,
-                interface_ips,
-                DEFAULT_PORT,
-                ProtocolType::Https,
-                Duration::from_secs(1),
-            )
-            .await;
-
         emit_state(app, self, &settings);
         Ok(self.state(&settings))
+    }
+
+    // 只扫描用户选定的网段，并记住这次选择。
+    pub(crate) async fn scan_subnets(
+        self: &Arc<Self>,
+        app: &AppHandle,
+        shared: &Arc<SharedState>,
+        subnets: Vec<String>,
+        port: Option<u16>,
+    ) -> Result<LanStateDto, AppError> {
+        let subnets = scan::normalize_subnets(&subnets)?;
+        if let Some(first) = subnets.first() {
+            remember_scan_subnet(shared, &first.cidr)?;
+        }
+
+        let port = match port {
+            Some(port) if port > 0 => port,
+            _ => self.port(),
+        };
+        scan::start(self, app, shared, ScanScope::Subnets(subnets), port)?;
+
+        let settings = shared.settings.lock().unwrap().clone();
+        emit_state(app, self, &settings);
+        Ok(self.state(&settings))
+    }
+
+    // 取消正在进行的扫描。
+    pub(crate) fn cancel_scan(
+        self: &Arc<Self>,
+        app: &AppHandle,
+        shared: &Arc<SharedState>,
+    ) -> LanStateDto {
+        scan::cancel(self);
+        let settings = shared.settings.lock().unwrap().clone();
+        emit_state(app, self, &settings);
+        self.state(&settings)
+    }
+
+    // 本机对外服务端口：身份尚未建立时回退到 LocalSend 默认端口。
+    fn port(&self) -> u16 {
+        self.inner
+            .lock()
+            .unwrap()
+            .identity
+            .as_ref()
+            .map(|identity| identity.port)
+            .unwrap_or(DEFAULT_PORT)
     }
 
     // 手动添加一台设备：直接向指定地址发送注册请求，用于组播不可用的网络。
@@ -645,8 +693,7 @@ impl LanTransferHandle {
         match discovery.discover(&host, port, ProtocolType::Https).await {
             Ok(Some(device)) => {
                 if let Some(channel) = device.device.channel.http() {
-                    let mut inner = self.inner.lock().unwrap();
-                    inner.upsert_device(
+                    self.upsert_device(
                         device.device.fingerprint.clone(),
                         device.device.alias.clone(),
                         device.device.device_model.clone(),
@@ -1373,18 +1420,15 @@ fn spawn_discovery_events(
                     let Some(channel) = device.channel.http() else {
                         continue;
                     };
-                    {
-                        let mut inner = handle.inner.lock().unwrap();
-                        inner.upsert_device(
-                            device.fingerprint.clone(),
-                            device.alias.clone(),
-                            device.device_model.clone(),
-                            device.device_type.as_ref().map(device_type_label),
-                            channel.host.clone(),
-                            channel.port,
-                            channel.protocol,
-                        );
-                    }
+                    handle.upsert_device(
+                        device.fingerprint.clone(),
+                        device.alias.clone(),
+                        device.device_model.clone(),
+                        device.device_type.as_ref().map(device_type_label),
+                        channel.host.clone(),
+                        channel.port,
+                        channel.protocol,
+                    );
                     let _ = &discovery;
                     emit_state_with(&app, &handle, &shared);
                 }
@@ -1411,8 +1455,7 @@ pub(crate) fn confirm_device(
     host: String,
     fingerprint: String,
 ) {
-    let mut inner = handle.inner.lock().unwrap();
-    inner.upsert_device(
+    handle.upsert_device(
         fingerprint,
         info.alias.clone(),
         info.device_model.clone(),
@@ -1458,6 +1501,19 @@ pub(crate) fn is_trusted(settings: &AppSettings, fingerprint: &str) -> bool {
         .lan_trusted_devices
         .iter()
         .any(|entry| entry.fingerprint == fingerprint)
+}
+
+// 记住用户最近一次主动选择的扫描网段，供下次刷新时高亮。
+fn remember_scan_subnet(shared: &Arc<SharedState>, cidr: &str) -> Result<(), AppError> {
+    let mut settings = shared.settings.lock().unwrap().clone();
+    if settings.lan_scan_last_subnet.as_deref() == Some(cidr) {
+        return Ok(());
+    }
+
+    settings.lan_scan_last_subnet = Some(cidr.to_string());
+    crate::storage::save_settings(&shared.paths, &settings)?;
+    *shared.settings.lock().unwrap() = settings;
+    Ok(())
 }
 
 // 设置变更后同步局域网服务：开关变化时启停，设备名或 PIN 变化时重启以更新广播与校验。

@@ -35,15 +35,16 @@ mod usecases;
 
 // Tauri command entrypoints stay thin and delegate to feature modules.
 use commands::{
-    add_lan_device, cancel_lan_transfer, clear_history, clear_webdav_credential, copy_item,
-    delete_item, get_default_download_dir, get_history, get_installed_app_icon,
+    add_lan_device, cancel_lan_scan, cancel_lan_transfer, clear_history, clear_webdav_credential,
+    copy_item, delete_item, get_default_download_dir, get_history, get_installed_app_icon,
     get_lan_transfer_state, get_platform_capabilities, get_settings, get_shortcut_status,
-    get_webdav_sync_state, list_installed_apps, open_external_url, open_lan_received_file,
-    paste_item, prepare_image_drag_file, refresh_lan_devices, remove_lan_trusted_device,
-    reset_settings, respond_lan_request, retry_shortcut_registration, reveal_lan_received_file,
-    save_main_panel_size, send_lan_files, send_lan_text, set_lan_web_mode, start_lan_transfer,
-    stop_lan_transfer, sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin,
-    update_item_tags, update_settings, update_text_item, update_webdav_credential,
+    get_webdav_sync_state, list_installed_apps, list_lan_subnets, open_external_url,
+    open_lan_received_file, paste_item, prepare_image_drag_file, refresh_lan_devices,
+    remove_lan_trusted_device, reset_settings, respond_lan_request, retry_shortcut_registration,
+    reveal_lan_received_file, save_main_panel_size, scan_lan_subnets, send_lan_files, send_lan_text,
+    set_lan_web_mode, start_lan_transfer, stop_lan_transfer, sync_webdav_now, test_webdav_sync,
+    toggle_favorite, toggle_pin, update_item_tags, update_settings, update_text_item,
+    update_webdav_credential,
 };
 use history_preview::{handle_history_preview_request, HISTORY_PREVIEW_PROTOCOL};
 use models::{
@@ -315,6 +316,9 @@ pub fn run() {
             stop_lan_transfer,
             get_lan_transfer_state,
             refresh_lan_devices,
+            list_lan_subnets,
+            scan_lan_subnets,
+            cancel_lan_scan,
             add_lan_device,
             send_lan_files,
             send_lan_text,

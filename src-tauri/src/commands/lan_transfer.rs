@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc};
 use tauri::{AppHandle, State};
 
 use crate::{
-    lan_transfer::{LanDecision, LanStateDto},
+    lan_transfer::{LanDecision, LanStateDto, LanSubnetsDto},
     models::{AppError, SharedState},
     system_open,
 };
@@ -60,6 +60,40 @@ pub(crate) async fn add_lan_device(
         .lan_transfer
         .discover_address(&app, &shared, host, port.unwrap_or(0))
         .await
+}
+
+// 列出本机网卡所在的 /24 网段与上次选择，供刷新时挑网段扫描。
+#[tauri::command]
+pub(crate) fn list_lan_subnets(
+    state: State<'_, Arc<SharedState>>,
+) -> Result<LanSubnetsDto, AppError> {
+    let last = state.settings.lock().unwrap().lan_scan_last_subnet.clone();
+    crate::lan_transfer::list_subnets(last.as_deref())
+}
+
+// 只扫描指定网段：广播并探测已知地址后，逐台主机主动探测所选网段。
+#[tauri::command]
+pub(crate) async fn scan_lan_subnets(
+    app: AppHandle,
+    state: State<'_, Arc<SharedState>>,
+    subnets: Vec<String>,
+    port: Option<u16>,
+) -> Result<LanStateDto, AppError> {
+    let shared = state.inner().clone();
+    shared
+        .lan_transfer
+        .scan_subnets(&app, &shared, subnets, port)
+        .await
+}
+
+// 取消正在进行的网段扫描。
+#[tauri::command]
+pub(crate) fn cancel_lan_scan(
+    app: AppHandle,
+    state: State<'_, Arc<SharedState>>,
+) -> Result<LanStateDto, AppError> {
+    let shared = state.inner().clone();
+    Ok(shared.lan_transfer.cancel_scan(&app, &shared))
 }
 
 // 向指定设备发送文件，路径来自前端的文件选择器；pin 用于对端启用了 PIN 的场景。
