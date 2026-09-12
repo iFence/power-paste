@@ -321,6 +321,27 @@
     gap: 8px;
 }
 
+/* 刷新按钮只展示图标：与紧凑按钮同高，避免撑高标题行。 */
+.ghost.compact.lan-transfer-refresh {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0;
+}
+
+.lan-transfer-refresh svg {
+    width: 14px;
+    height: 14px;
+}
+
+.ghost.compact.lan-transfer-refresh:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
 .lan-transfer-add {
     display: flex;
     gap: 6px;
