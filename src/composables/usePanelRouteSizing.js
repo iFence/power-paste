@@ -5,10 +5,10 @@ const WINDOW_SIZES = {
     width: 650,
     height: 500,
   },
-  // LocalSend 页面使用与设置页相同的固定尺寸，内容更宽裕。
+  // 互传页使用宽屏桌面布局，窄窗时由页面内部切换为底部导航。
   lanTransfer: {
-    width: 650,
-    height: 500,
+    width: 900,
+    height: 600,
   },
 }
 

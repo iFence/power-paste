@@ -4,15 +4,18 @@ import {
   cancelLanScan,
   cancelLanTransfer,
   getLanTransferState,
+  inspectLanSelection,
   listLanSubnets,
   onLanTransferState,
   openLanReceivedFile,
+  readLanClipboard,
   refreshLanDevices,
   removeLanTrustedDevice,
   respondLanRequest,
   revealLanReceivedFile,
   scanLanSubnets,
   sendLanFiles,
+  sendLanItems,
   sendLanText,
   setLanWebMode,
   startLanTransfer,
@@ -153,6 +156,30 @@ export function useLanTransfer() {
     return run(() => sendLanText(fingerprint, text, pin));
   }
 
+  function sendItems(fingerprint, items, pin = null) {
+    return run(() => sendLanItems(fingerprint, items, pin));
+  }
+
+  async function inspectSelection(paths) {
+    lanTransferError.value = "";
+    try {
+      return await inspectLanSelection(paths);
+    } catch (error) {
+      lanTransferError.value = formatError(error);
+      throw error;
+    }
+  }
+
+  async function readClipboard() {
+    lanTransferError.value = "";
+    try {
+      return await readLanClipboard();
+    } catch (error) {
+      lanTransferError.value = formatError(error);
+      throw error;
+    }
+  }
+
   function respond(requestId, decision) {
     return run(() => respondLanRequest(requestId, decision));
   }
@@ -213,7 +240,10 @@ export function useLanTransfer() {
     respond,
     revealReceivedFile,
     scanSubnets,
+    inspectSelection,
+    readClipboard,
     sendFiles,
+    sendItems,
     sendText,
     setWebMode,
     startLanTransferService,

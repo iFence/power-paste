@@ -41,7 +41,7 @@ function formatBytes(size) {
             <pre v-if="isTextMessage" class="lan-incoming-text">{{
                 request.textMessage
             }}</pre>
-            <ul v-else class="lan-incoming-files">
+            <ul v-if="files.length" class="lan-incoming-files">
                 <li v-for="file in files" :key="file.fileName">
                     <span>{{ file.fileName }}</span>
                     <small>{{ formatBytes(file.size) }}</small>

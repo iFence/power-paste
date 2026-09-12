@@ -210,6 +210,18 @@ export function sendLanText(fingerprint, text, pin = null) {
   return invoke("send_lan_text", { fingerprint, text, pin });
 }
 
+export function inspectLanSelection(paths) {
+  return invoke("inspect_lan_selection", { paths });
+}
+
+export function readLanClipboard() {
+  return invoke("read_lan_clipboard");
+}
+
+export function sendLanItems(fingerprint, items, pin = null) {
+  return invoke("send_lan_items", { fingerprint, items, pin });
+}
+
 export function respondLanRequest(requestId, decision) {
   return invoke("respond_lan_request", { requestId, decision });
 }

@@ -18,8 +18,7 @@ use tauri::{AppHandle, Emitter};
 
 use localsend::{
     discovery::{
-        DeviceIdentity, DiscoveryConfig, DiscoveryEvent, DiscoveryHandle,
-        DEFAULT_DISCOVERY_TIMEOUT,
+        DeviceIdentity, DiscoveryConfig, DiscoveryEvent, DiscoveryHandle, DEFAULT_DISCOVERY_TIMEOUT,
     },
     http::server::{
         start_with_port,
@@ -39,14 +38,16 @@ use crate::models::{AppError, AppSettings, LanTrustedDevice, SharedState};
 mod identity;
 mod receive;
 mod scan;
+mod selection;
 mod send;
 mod text_package;
 mod util;
 mod web_link;
 
 use identity::LanIdentity;
-use scan::{ScanScope, ScanState};
 pub(crate) use scan::{list_subnets, LanScanDto, LanSubnetsDto};
+use scan::{ScanScope, ScanState};
+pub(crate) use selection::{inspect_selection, read_clipboard_selection, LanSelectionItemDto};
 pub(crate) use text_package::{is_text_package, TEXT_RESTORE_MAX_BYTES};
 pub(crate) use util::validate_download_dir;
 
@@ -869,6 +870,84 @@ impl LanTransferHandle {
     }
 
     // 回应一次待确认的接收请求。
+    // 把文件、文件夹展开结果与文本消息合并为一次 LocalSend prepare-upload。
+    pub(crate) async fn send_items(
+        self: &Arc<Self>,
+        app: &AppHandle,
+        shared: &Arc<SharedState>,
+        fingerprint: String,
+        items: Vec<LanSelectionItemDto>,
+        pin: Option<String>,
+    ) -> Result<LanStateDto, AppError> {
+        let picked = selection::collect_items(&items)?;
+        let settings = shared.settings.lock().unwrap().clone();
+        let (identity, target) = {
+            let inner = self.inner.lock().unwrap();
+            let identity = inner
+                .identity
+                .clone()
+                .ok_or_else(|| AppError::Message("lan_transfer_not_running".into()))?;
+            let device = inner
+                .device(&fingerprint)
+                .ok_or_else(|| AppError::Message("lan_transfer_device_missing".into()))?;
+            (
+                identity,
+                send::SendTarget {
+                    alias: device.alias.clone(),
+                    host: device.host.clone(),
+                    port: device.port,
+                    protocol: device.protocol,
+                    fingerprint: device.fingerprint.clone(),
+                    pin: resolve_pin(&inner, &fingerprint, pin),
+                },
+            )
+        };
+
+        let transfer_id = uuid::Uuid::new_v4().to_string();
+        let total_bytes = picked.iter().map(|entry| entry.file.size).sum::<u64>();
+        let label = if picked.len() == 1 {
+            if matches!(items.as_slice(), [LanSelectionItemDto::Text { .. }]) {
+                "text".into()
+            } else {
+                picked[0].file.file_name.clone()
+            }
+        } else {
+            format!("{} items", picked.len())
+        };
+
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.push_transfer(TransferEntry {
+                id: transfer_id.clone(),
+                direction: "send",
+                peer_alias: target.alias.clone(),
+                status: "active",
+                label,
+                total_bytes,
+                done_bytes: Arc::new(AtomicU64::new(0)),
+                error: None,
+                session_id: None,
+                peer_host: Some(target.host.clone()),
+                cancel: None,
+            });
+        }
+        emit_state(app, self, &settings);
+
+        let advertised_protocol = self.advertised_protocol();
+        send::spawn_send(
+            app.clone(),
+            self.clone(),
+            shared.clone(),
+            identity,
+            target,
+            advertised_protocol,
+            transfer_id,
+            picked,
+        );
+
+        Ok(self.state(&settings))
+    }
+
     pub(crate) fn respond(
         self: &Arc<Self>,
         app: &AppHandle,

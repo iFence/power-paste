@@ -4,6 +4,8 @@
 //!    接收端无需下载即可拿到文本，官方 LocalSend 客户端同样使用该方式。
 //! 2. power-paste 文本包：以固定前缀命名的 txt 文件，浏览器页面与旧版本使用它承载文本。
 
+use std::collections::{HashMap, HashSet};
+
 use localsend::model::transfer::FileDto;
 
 // power-paste 文本包的文件名前缀。
@@ -14,10 +16,7 @@ pub(crate) const TEXT_RESTORE_MAX_BYTES: usize = 1024 * 1024;
 
 // 判断文件名是否是 power-paste 文本包。
 pub(crate) fn is_text_package(file_name: &str) -> bool {
-    file_name.starts_with(TEXT_FILE_PREFIX)
-        && file_name
-            .to_ascii_lowercase()
-            .ends_with(".txt")
+    file_name.starts_with(TEXT_FILE_PREFIX) && file_name.to_ascii_lowercase().ends_with(".txt")
 }
 
 // 判断文件类型是否属于文本消息。
@@ -26,35 +25,71 @@ pub(crate) fn is_text_file_type(file_type: &str) -> bool {
 }
 
 // 判断是否为协议原生文本消息：单文件、文本类型且带 preview。
-pub(crate) fn protocol_text_message(files: &[&FileDto]) -> Option<String> {
-    if files.len() != 1 {
+// 从混合请求中识别所有协议原生文本项，并返回文本与普通文件的 id 划分。
+pub(crate) fn split_text_messages(
+    files: &HashMap<String, FileDto>,
+) -> (Vec<(String, String)>, HashSet<String>) {
+    let mut messages = files
+        .iter()
+        .filter_map(|(id, file)| {
+            if !is_text_file_type(&file.file_type) {
+                return None;
+            }
+            let text = file
+                .preview
+                .clone()
+                .filter(|value| !value.trim().is_empty())?;
+            Some((id.clone(), text))
+        })
+        .collect::<Vec<_>>();
+    messages.sort_by(|left, right| {
+        let left_name = files
+            .get(&left.0)
+            .map(|file| file.file_name.as_str())
+            .unwrap_or_default();
+        let right_name = files
+            .get(&right.0)
+            .map(|file| file.file_name.as_str())
+            .unwrap_or_default();
+        left_name.cmp(right_name)
+    });
+
+    let text_ids = messages
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<HashSet<_>>();
+    let file_ids = files
+        .keys()
+        .filter(|id| !text_ids.contains(*id))
+        .cloned()
+        .collect::<HashSet<_>>();
+
+    (messages, file_ids)
+}
+
+// 多个文本项在当前接收界面合并展示，写入剪贴板时按原顺序逐条记录。
+pub(crate) fn joined_text_message(messages: &[(String, String)]) -> Option<String> {
+    if messages.is_empty() {
         return None;
     }
-    let file = files[0];
-    if !is_text_file_type(&file.file_type) {
-        return None;
-    }
-    file.preview
-        .clone()
-        .filter(|value| !value.trim().is_empty())
+    Some(
+        messages
+            .iter()
+            .map(|(_, text)| text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_text_file_type, is_text_package, protocol_text_message, TEXT_FILE_PREFIX};
-    use localsend::model::transfer::FileDto;
+    use std::collections::{HashMap, HashSet};
 
-    fn file(file_type: &str, preview: Option<&str>) -> FileDto {
-        FileDto {
-            id: "1".into(),
-            file_name: "message.txt".into(),
-            size: 3,
-            file_type: file_type.into(),
-            sha256: None,
-            preview: preview.map(ToString::to_string),
-            metadata: None,
-        }
-    }
+    use super::{
+        is_text_file_type, is_text_package, joined_text_message, split_text_messages,
+        TEXT_FILE_PREFIX,
+    };
+    use localsend::model::transfer::FileDto;
 
     #[test]
     fn builds_and_detects_text_package_names() {
@@ -73,20 +108,36 @@ mod tests {
     }
 
     #[test]
-    fn detects_protocol_text_messages_only_for_single_previewed_text_files() {
-        let message = file("text", Some("hello"));
-        assert_eq!(
-            protocol_text_message(&[&message]).as_deref(),
-            Some("hello")
+    fn splits_mixed_text_and_file_payloads() {
+        let mut files = HashMap::new();
+        files.insert(
+            "file".into(),
+            FileDto {
+                id: "file".into(),
+                file_name: "photo.png".into(),
+                size: 10,
+                file_type: "image/png".into(),
+                sha256: None,
+                preview: None,
+                metadata: None,
+            },
+        );
+        files.insert(
+            "text".into(),
+            FileDto {
+                id: "text".into(),
+                file_name: "message.txt".into(),
+                size: 5,
+                file_type: "text/plain".into(),
+                sha256: None,
+                preview: Some("hello".into()),
+                metadata: None,
+            },
         );
 
-        let without_preview = file("text/plain", None);
-        assert!(protocol_text_message(&[&without_preview]).is_none());
-
-        let binary = file("application/pdf", Some("hello"));
-        assert!(protocol_text_message(&[&binary]).is_none());
-
-        let plain = file("text/plain", Some("hi"));
-        assert!(protocol_text_message(&[&plain, &plain]).is_none());
+        let (messages, file_ids) = split_text_messages(&files);
+        assert_eq!(messages, vec![("text".into(), "hello".into())]);
+        assert_eq!(file_ids, HashSet::from(["file".to_string()]));
+        assert_eq!(joined_text_message(&messages).as_deref(), Some("hello"));
     }
 }

@@ -6,7 +6,7 @@ import { createPanelSizePersistence } from './usePanelSizePersistence'
 /**
  * 窗口尺寸管理 composable
  * 根据路由自动调整窗口尺寸
- * - 切换到设置面板或 LocalSend 页面：自动调整为固定尺寸（650x500）
+ * - 切换到设置面板或互传页面：自动调整为对应的固定尺寸
  * - 切换回主面板：恢复用户之前调整的尺寸
  */
 export function useWindowSize(route) {

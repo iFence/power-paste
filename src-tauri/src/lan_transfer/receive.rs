@@ -1,7 +1,7 @@
 //! 接收链路：处理协议服务端事件，把收到的文本、图片与文件落到剪贴板、历史与保存目录。
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -87,7 +87,9 @@ pub(crate) fn spawn_server_events(
                     file,
                     target_tx,
                 } => {
-                    handle_file_upload(&app, &handle, &shared, session_id, file_id, file, target_tx);
+                    handle_file_upload(
+                        &app, &handle, &shared, session_id, file_id, file, target_tx,
+                    );
                 }
                 ServerEventV2::SessionEnd { session_id, reason } => {
                     finish_session(&app, &handle, &shared, &session_id, reason);
@@ -132,29 +134,30 @@ fn handle_prepare_upload(
     let settings = shared.settings.lock().unwrap().clone();
 
     // 协议原生文本消息：无需传输文件，文本就在 preview 里。
-    let text_message = {
-        let values: Vec<&FileDto> = files.values().collect();
-        text_package::protocol_text_message(&values)
-    };
-    let ids: HashSet<String> = files.keys().cloned().collect();
+    let (text_messages, file_ids) = text_package::split_text_messages(&files);
+    let text_message = text_package::joined_text_message(&text_messages);
     let trusted = is_trusted(&settings, &fingerprint) || settings.lan_receive_policy == "auto";
 
     // 受信设备（或自动接受）：立刻接受；文本消息只需 204，文件才建立接收会话。
     if trusted {
-        let accepted = match &text_message {
-            Some(_) => HashSet::new(),
-            None => ids,
-        };
+        let accepted = file_ids.clone();
         if decision_tx
             .send(PrepareUploadDecisionV2::Accept(accepted))
             .is_ok()
         {
-            match &text_message {
-                Some(text) => {
-                    record_received_text(app, &shared, &settings, text);
-                    record_text_transfer(handle, &info.alias, text);
+            for (_, text) in &text_messages {
+                record_received_text(app, &shared, &settings, text);
+                record_text_transfer(handle, &info.alias, text);
+            }
+            if !file_ids.is_empty() {
+                let received_files = files
+                    .iter()
+                    .filter(|(id, _)| file_ids.contains(*id))
+                    .map(|(id, file)| (id.clone(), file.clone()))
+                    .collect::<HashMap<_, _>>();
+                if !received_files.is_empty() {
+                    start_receive_session(handle, &session_id, &info.alias, &received_files);
                 }
-                None => start_receive_session(handle, &session_id, &info.alias, &files),
             }
         }
         emit_state_with(app, handle, &Arc::downgrade(&shared));
@@ -163,7 +166,11 @@ fn handle_prepare_upload(
 
     // 未受信设备：文本消息同样需要用户确认，弹窗里直接展示消息正文。
     let request_id = uuid::Uuid::new_v4().to_string();
-    let total_bytes = files.values().map(|file| file.size).sum();
+    let total_bytes = files
+        .iter()
+        .filter(|(id, _)| file_ids.contains(*id))
+        .map(|(_, file)| file.size)
+        .sum();
     let (decision_local_tx, decision_local_rx) = oneshot::channel::<LanDecision>();
     {
         let mut inner = handle.inner.lock().unwrap();
@@ -175,7 +182,11 @@ fn handle_prepare_upload(
             ip: ip.clone(),
             fingerprint: fingerprint.clone(),
             files: match &text_message {
-                Some(_) => Vec::new(),
+                Some(_) => files
+                    .iter()
+                    .filter(|(id, _)| file_ids.contains(*id))
+                    .map(|(_, file)| (file.file_name.clone(), file.size))
+                    .collect(),
                 None => files
                     .values()
                     .map(|file| (file.file_name.clone(), file.size))
@@ -184,9 +195,7 @@ fn handle_prepare_upload(
             total_bytes,
             text_message: text_message.clone(),
         });
-        inner
-            .pending
-            .insert(request_id.clone(), decision_local_tx);
+        inner.pending.insert(request_id.clone(), decision_local_tx);
     }
     emit_state_with(app, handle, &Arc::downgrade(&shared));
 
@@ -209,23 +218,32 @@ fn handle_prepare_upload(
                 let _ = decision_tx.send(PrepareUploadDecisionV2::Decline);
             }
             LanDecision::Accept | LanDecision::AcceptAndTrust => {
-                let accepted = match &text_message {
-                    Some(_) => HashSet::new(),
-                    None => ids,
-                };
+                let accepted = file_ids.clone();
                 if decision_tx
                     .send(PrepareUploadDecisionV2::Accept(accepted))
                     .is_ok()
                 {
-                    match &text_message {
-                        Some(text) => {
-                            if let Some(shared) = shared.upgrade() {
-                                let settings = shared.settings.lock().unwrap().clone();
-                                record_received_text(&app, &shared, &settings, text);
-                                record_text_transfer(&handle, &info.alias, text);
-                            }
+                    if let Some(shared) = shared.upgrade() {
+                        let settings = shared.settings.lock().unwrap().clone();
+                        for (_, text) in &text_messages {
+                            record_received_text(&app, &shared, &settings, text);
+                            record_text_transfer(&handle, &info.alias, text);
                         }
-                        None => start_receive_session(&handle, &session_id, &info.alias, &files),
+                    }
+                    if !file_ids.is_empty() {
+                        let received_files = files
+                            .iter()
+                            .filter(|(id, _)| file_ids.contains(*id))
+                            .map(|(id, file)| (id.clone(), file.clone()))
+                            .collect::<HashMap<_, _>>();
+                        if !received_files.is_empty() {
+                            start_receive_session(
+                                &handle,
+                                &session_id,
+                                &info.alias,
+                                &received_files,
+                            );
+                        }
                     }
                 }
             }
@@ -414,11 +432,11 @@ fn handle_file_upload(
             match outcome {
                 Ok(()) => {
                     let _ = result_tx.send(Ok(()));
-                    handle
-                        .inner
-                        .lock()
-                        .unwrap()
-                        .finish_transfer(&transfer_id_for_task, "done", None);
+                    handle.inner.lock().unwrap().finish_transfer(
+                        &transfer_id_for_task,
+                        "done",
+                        None,
+                    );
                 }
                 Err(error) => {
                     let message = error.to_string();
@@ -490,21 +508,21 @@ fn handle_file_upload(
         .unwrap_or(file_name);
     let peer_alias = session_peer_alias(&handle, &session_id);
     tokio::spawn(async move {
-        let result = result_rx.await.unwrap_or_else(|_| Err("upload aborted".into()));
+        let result = result_rx
+            .await
+            .unwrap_or_else(|_| Err("upload aborted".into()));
         match result {
             Ok(()) => {
-                {
-                    let mut inner = handle.inner.lock().unwrap();
-                    inner.finish_transfer(&transfer_id, "done", None);
-                    inner.push_received(super::ReceivedEntry {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        file_name: stored_name,
-                        path: path_for_task,
-                        size,
-                        from_alias: peer_alias,
-                        received_at_ms: util::now_ms(),
-                    });
-                }
+                let mut inner = handle.inner.lock().unwrap();
+                inner.finish_transfer(&transfer_id, "done", None);
+                inner.push_received(super::ReceivedEntry {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    file_name: stored_name,
+                    path: path_for_task,
+                    size,
+                    from_alias: peer_alias,
+                    received_at_ms: util::now_ms(),
+                });
             }
             Err(error) => {
                 handle
@@ -571,12 +589,7 @@ fn record_received_text(
     }
 
     if let Err(error) = write_text_to_history(app, shared, settings, text) {
-        shared
-            .lan_transfer
-            .inner
-            .lock()
-            .unwrap()
-            .warning = Some(error.to_string());
+        shared.lan_transfer.inner.lock().unwrap().warning = Some(error.to_string());
     }
 }
 
@@ -600,7 +613,12 @@ fn write_text_to_history(
     .context("empty text payload")?;
     let item = {
         let mut store = shared.history_store.lock().unwrap();
-        store_capture_item(&mut store, capture, Some(("LocalSend".into(), None)), settings)?
+        store_capture_item(
+            &mut store,
+            capture,
+            Some(("LocalSend".into(), None)),
+            settings,
+        )?
     };
     let _ = app.emit(HISTORY_UPDATED_EVENT, history_item_to_dto(&item));
     crate::sync::schedule_auto_sync(app.clone(), shared.clone());
@@ -635,7 +653,12 @@ fn record_received_image(
     .context("empty image payload")?;
     let item = {
         let mut store = shared.history_store.lock().unwrap();
-        store_capture_item(&mut store, capture, Some(("LocalSend".into(), None)), settings)?
+        store_capture_item(
+            &mut store,
+            capture,
+            Some(("LocalSend".into(), None)),
+            settings,
+        )?
     };
     let _ = app.emit(HISTORY_UPDATED_EVENT, history_item_to_dto(&item));
     crate::sync::schedule_auto_sync(app.clone(), shared.clone());

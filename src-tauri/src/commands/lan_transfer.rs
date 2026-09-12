@@ -3,7 +3,10 @@ use std::{path::Path, sync::Arc};
 use tauri::{AppHandle, State};
 
 use crate::{
-    lan_transfer::{LanDecision, LanStateDto, LanSubnetsDto},
+    lan_transfer::{
+        inspect_selection, read_clipboard_selection, LanDecision, LanSelectionItemDto, LanStateDto,
+        LanSubnetsDto,
+    },
     models::{AppError, SharedState},
     system_open,
 };
@@ -125,6 +128,42 @@ pub(crate) async fn send_lan_text(
     shared
         .lan_transfer
         .send_text(&app, &shared, fingerprint, text, pin)
+        .await
+}
+
+// 展开前端选择的文件与文件夹，返回统一的选择项元数据。
+#[tauri::command]
+pub(crate) async fn inspect_lan_selection(
+    paths: Vec<String>,
+) -> Result<Vec<LanSelectionItemDto>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || inspect_selection(paths))
+        .await
+        .map_err(|error| AppError::Message(error.to_string()))?
+}
+
+// 读取当前剪贴板内容，按文本、图片、文件列表的顺序返回可发送选择项。
+#[tauri::command]
+pub(crate) async fn read_lan_clipboard(
+    app: AppHandle,
+) -> Result<Vec<LanSelectionItemDto>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || read_clipboard_selection(&app))
+        .await
+        .map_err(|error| AppError::Message(error.to_string()))?
+}
+
+// 向指定设备发送统一的文件/文本选择项集合。
+#[tauri::command]
+pub(crate) async fn send_lan_items(
+    app: AppHandle,
+    state: State<'_, Arc<SharedState>>,
+    fingerprint: String,
+    items: Vec<LanSelectionItemDto>,
+    pin: Option<String>,
+) -> Result<LanStateDto, AppError> {
+    let shared = state.inner().clone();
+    shared
+        .lan_transfer
+        .send_items(&app, &shared, fingerprint, items, pin)
         .await
 }
 

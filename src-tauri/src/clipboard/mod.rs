@@ -3,7 +3,7 @@ mod capabilities;
 mod capture_router;
 mod native_writer;
 mod payload;
-mod plugin_reader;
+pub(crate) mod plugin_reader;
 mod plugin_writer;
 
 use anyhow::Result;
