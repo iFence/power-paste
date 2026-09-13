@@ -389,6 +389,9 @@ fn handle_file_upload(
         let handle = handle.clone();
         let shared_for_task = shared.clone();
         let transfer_id_for_task = transfer_id.clone();
+        // 记录历史时内部会再次获取 settings 锁（自动同步等），必须先取出快照再进入任务，
+        // 否则在同一线程上重复加锁会自锁，进而冻结整个应用。
+        let settings_for_task = settings;
         tokio::spawn(async move {
             let mut buffer: Vec<u8> = Vec::new();
             while let Some(chunk) = binary_rx.recv().await {
@@ -412,18 +415,13 @@ fn handle_file_upload(
 
             let outcome = if is_text_file {
                 let text = String::from_utf8_lossy(&buffer).to_string();
-                record_received_text(
-                    &app,
-                    &shared_for_task,
-                    &shared_for_task.settings.lock().unwrap().clone(),
-                    &text,
-                );
+                record_received_text(&app, &shared_for_task, &settings_for_task, &text);
                 Ok(())
             } else {
                 record_received_image(
                     &app,
                     &shared_for_task,
-                    &shared_for_task.settings.lock().unwrap().clone(),
+                    &settings_for_task,
                     &file.file_type,
                     &buffer,
                 )

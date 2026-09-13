@@ -394,6 +394,8 @@ impl TryFrom<SyncedClipboardItem> for StoredClipboardItem {
     }
 }
 
+// 注意：本函数会获取 settings 锁，调用方不得在持有该锁的情况下调用，
+// 否则同一线程重复加锁会自锁，表现为应用无响应。
 pub(crate) fn schedule_auto_sync(app: AppHandle, shared: Arc<SharedState>) {
     if !shared.settings.lock().unwrap().webdav_sync.auto_sync
         || !shared.settings.lock().unwrap().webdav_sync.enabled
