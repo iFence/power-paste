@@ -81,3 +81,8 @@ objc2 = "0.6.4"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 plist = "1.7"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# 显式依赖同一份 clipboard-rs 并开启 wayland 特性：tauri-plugin-clipboard-next
+# 默认只启用 X11 后端，纯 Wayland 会话下剪贴板会初始化失败。
+clipboard-rs = { version = "0.3", features = ["wayland"] }

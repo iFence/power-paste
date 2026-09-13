@@ -515,7 +515,7 @@ Object.assign(messages["zh-CN"], {
   lanTransferSend: "\u53d1\u9001",
   openAction: "\u6253\u5f00",
   revealInExplorer:
-    "\u5728\u6587\u4ef6\u8d44\u6e90\u7ba1\u7406\u5668\u6253\u5f00",
+    "\u5728\u6587\u4ef6\u7ba1\u7406\u5668\u4e2d\u663e\u793a",
   lanTransferDownloadDirMissing:
     "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u76ee\u5f55\u4e0d\u5b58\u5728",
   lanTransferDownloadDirNotDirectory:
@@ -733,7 +733,7 @@ Object.assign(messages["en-US"], {
   restoreAction: "Restore down",
   lanTransferSend: "Send",
   openAction: "Open",
-  revealInExplorer: "Show in File Explorer",
+  revealInExplorer: "Show in File Manager",
   lanTransferDownloadDirMissing: "The transfer download folder does not exist.",
   lanTransferDownloadDirNotDirectory:
     "The transfer download location is not a folder.",
@@ -886,6 +886,8 @@ Object.assign(messages["zh-CN"], {
   lanErrorSelectionSymlinkUnsupported: "暂不支持发送符号链接。",
   lanErrorClipboardEmpty: "剪贴板中没有可发送的内容。",
   lanErrorClipboardWriteFailed: "无法准备剪贴板中的图片。",
+  lanErrorClipboardUnavailable:
+    "当前会话无法访问系统剪贴板：Linux 需要 X11 / XWayland，或支持 wlr-data-control 的 Wayland 合成器。",
 });
 
 Object.assign(messages["en-US"], {
@@ -921,6 +923,8 @@ Object.assign(messages["en-US"], {
   lanErrorSelectionSymlinkUnsupported: "Sending symbolic links is not supported.",
   lanErrorClipboardEmpty: "There is nothing in the clipboard to send.",
   lanErrorClipboardWriteFailed: "Could not prepare the clipboard image.",
+  lanErrorClipboardUnavailable:
+    "The system clipboard is unavailable in this session: Linux needs X11 / XWayland, or a Wayland compositor that supports wlr-data-control.",
 });
 
 export function translate(locale, key, params = {}) {

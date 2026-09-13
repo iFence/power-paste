@@ -21,6 +21,7 @@ const LAN_ERROR_KEYS = {
   lan_selection_path_unsupported: "lanErrorSelectionPathNotFound",
   lan_transfer_clipboard_empty: "lanErrorClipboardEmpty",
   lan_transfer_clipboard_write_failed: "lanErrorClipboardWriteFailed",
+  lan_transfer_clipboard_unavailable: "lanErrorClipboardUnavailable",
   pin_required: "lanErrorPinRequired",
   declined: "lanErrorDeclined",
   busy: "lanErrorBusy",

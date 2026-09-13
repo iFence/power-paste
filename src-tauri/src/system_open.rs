@@ -116,8 +116,7 @@ pub(crate) fn reveal_path(path: &Path) -> Result<()> {
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let parent = path.parent().unwrap_or(path);
-        return spawn_linux_open_path_with_fallback(parent);
+        return reveal_linux_path_with_fallback(path);
     }
 
     #[allow(unreachable_code)]
@@ -127,6 +126,112 @@ pub(crate) fn reveal_path(path: &Path) -> Result<()> {
 #[cfg(all(unix, not(target_os = "macos")))]
 fn spawn_linux_open_path_with_fallback(target: &Path) -> Result<()> {
     spawn_linux_open_candidates(target.as_os_str(), "path")
+}
+
+// 一条定位文件的候选命令；D-Bus 客户端会立即退出，必须等待退出码才能判断
+// 桌面文件管理器是否实现了该接口，文件管理器本体则只需成功拉起。
+#[cfg(all(unix, not(target_os = "macos")))]
+struct RevealCandidate {
+    program: String,
+    args: Vec<String>,
+    wait_for_status: bool,
+}
+
+// 在文件管理器中选中指定文件：优先使用桌面标准的 FileManager1 接口（指向默认
+// 文件管理器），其次按文件管理器自身的 --select 参数，最后回退到打开所在目录。
+#[cfg(all(unix, not(target_os = "macos")))]
+fn reveal_linux_path_with_fallback(path: &Path) -> Result<()> {
+    if let Some(uri) = file_uri_from_path(path) {
+        for candidate in linux_reveal_candidates(&uri, path) {
+            if spawn_reveal_candidate(&candidate) {
+                return Ok(());
+            }
+        }
+    }
+
+    let parent = path.parent().unwrap_or(path);
+    spawn_linux_open_path_with_fallback(parent)
+}
+
+// 按优先级列出定位候选：D-Bus 接口 → nautilus / dolphin 的 --select。
+#[cfg(all(unix, not(target_os = "macos")))]
+fn linux_reveal_candidates(uri: &str, path: &Path) -> Vec<RevealCandidate> {
+    let path_arg = path.to_string_lossy().to_string();
+    vec![
+        RevealCandidate {
+            program: "gdbus".into(),
+            args: vec![
+                "call".into(),
+                "--session".into(),
+                "--dest".into(),
+                "org.freedesktop.FileManager1".into(),
+                "--object-path".into(),
+                "/org/freedesktop/FileManager1".into(),
+                "--method".into(),
+                "org.freedesktop.FileManager1.ShowItems".into(),
+                format!("['{uri}']"),
+                "''".into(),
+            ],
+            wait_for_status: true,
+        },
+        RevealCandidate {
+            program: "dbus-send".into(),
+            args: vec![
+                "--session".into(),
+                "--dest=org.freedesktop.FileManager1".into(),
+                "/org/freedesktop/FileManager1".into(),
+                "org.freedesktop.FileManager1.ShowItems".into(),
+                format!("array:string:{uri}"),
+                "string:".into(),
+            ],
+            wait_for_status: true,
+        },
+        RevealCandidate {
+            program: "nautilus".into(),
+            args: vec!["--select".into(), path_arg.clone()],
+            wait_for_status: false,
+        },
+        RevealCandidate {
+            program: "dolphin".into(),
+            args: vec!["--select".into(), path_arg],
+            wait_for_status: false,
+        },
+    ]
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn spawn_reveal_candidate(candidate: &RevealCandidate) -> bool {
+    let mut command = std::process::Command::new(&candidate.program);
+    command.args(&candidate.args);
+
+    if candidate.wait_for_status {
+        return matches!(command.output(), Ok(output) if output.status.success());
+    }
+
+    command.spawn().is_ok()
+}
+
+// 把绝对路径转换成百分号编码的 file:// URI，供 D-Bus 接口使用；
+// 非绝对路径返回 None（对端无法定位）。
+#[cfg(all(unix, not(target_os = "macos")))]
+fn file_uri_from_path(path: &Path) -> Option<String> {
+    if !path.is_absolute() {
+        return None;
+    }
+
+    let text = path.to_str()?;
+    let mut uri = String::from("file://");
+    for byte in text.as_bytes() {
+        let character = *byte as char;
+        if character.is_ascii_alphanumeric()
+            || matches!(character, '/' | '-' | '_' | '.' | '~')
+        {
+            uri.push(character);
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    Some(uri)
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -162,5 +267,41 @@ fn spawn_linux_open_candidates(target: &std::ffi::OsStr, target_kind: &str) -> R
         )))
     } else {
         anyhow::bail!("failed to find a desktop opener for linux {target_kind}")
+    }
+}
+
+#[cfg(all(test, unix, not(target_os = "macos")))]
+mod tests {
+    use std::path::Path;
+
+    use super::{file_uri_from_path, linux_reveal_candidates};
+
+    #[test]
+    fn builds_percent_encoded_file_uris() {
+        assert_eq!(
+            file_uri_from_path(Path::new("/tmp/photo.png")).as_deref(),
+            Some("file:///tmp/photo.png")
+        );
+        // 空格、中文与 # 都必须编码，否则 D-Bus 接口拿到的是无效 URI。
+        assert_eq!(
+            file_uri_from_path(Path::new("/tmp/我的 照片#1.png")).as_deref(),
+            Some("file:///tmp/%E6%88%91%E7%9A%84%20%E7%85%A7%E7%89%87%231.png")
+        );
+        assert_eq!(file_uri_from_path(Path::new("relative.txt")), None);
+    }
+
+    #[test]
+    fn prefers_the_desktop_file_manager_interface_before_fallbacks() {
+        let candidates = linux_reveal_candidates("file:///tmp/a.txt", Path::new("/tmp/a.txt"));
+
+        assert_eq!(candidates[0].program, "gdbus");
+        assert!(candidates[0].wait_for_status);
+        assert_eq!(candidates[1].program, "dbus-send");
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.program == "nautilus" && !candidate.wait_for_status));
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.program == "dolphin"));
     }
 }

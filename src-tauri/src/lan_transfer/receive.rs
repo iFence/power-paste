@@ -670,6 +670,12 @@ fn write_received_item_to_clipboard(
     app: &AppHandle,
     item: &crate::models::StoredClipboardItem,
 ) -> Result<()> {
+    // 系统剪贴板后端不可用时（Linux 纯 Wayland 且无 XWayland 等）只提示不中断：
+    // 内容仍已写入历史，用户可以在面板里手动复制。
+    if !crate::clipboard::clipboard_backend_usable(app) {
+        anyhow::bail!("lan_transfer_clipboard_unavailable");
+    }
+
     #[cfg(windows)]
     {
         if item.kind == "image" {

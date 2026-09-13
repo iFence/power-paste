@@ -1,4 +1,5 @@
-import { computed, onUnmounted, ref } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { computed, onUnmounted, ref, watch } from "vue";
 import {
   addLanDevice,
   cancelLanScan,
@@ -120,6 +121,46 @@ export function useLanTransfer() {
   function refreshState() {
     return run(getLanTransferState);
   }
+
+  // 应用启动即订阅互传状态：服务可能在后台运行，用户还没进过互传页时
+  // 也要能感知待确认请求并唤起面板。这里只订阅与取状态，不启动服务。
+  async function startLanStateSync() {
+    try {
+      await setupListener();
+      lanTransferState.value = applyState(await getLanTransferState());
+    } catch (error) {
+      lanTransferError.value = formatError(error);
+    }
+  }
+
+  // 后端只在需要用户确认时才写入 incoming，而确认窗口只有 45 秒；
+  // 面板被隐藏（托盘应用中很常见）时用户看不到弹窗，请求会超时被自动拒绝，
+  // 因此新请求出现时统一把面板带到前台。
+  async function surfacePanelForIncomingRequest() {
+    try {
+      const appWindow = getCurrentWindow();
+      await appWindow.show();
+      // 未最小化时部分平台会报错，这里忽略：唤起失败不应影响其它步骤。
+      await Promise.resolve(appWindow.unminimize()).catch(() => {});
+      await appWindow.setFocus();
+    } catch (error) {
+      console.error("Failed to surface the panel for an incoming request", error);
+    }
+  }
+
+  let surfacedRequestId = "";
+
+  watch(
+    () => lanTransferState.value.incoming?.requestId || "",
+    (requestId) => {
+      if (!requestId || requestId === surfacedRequestId) {
+        return;
+      }
+      surfacedRequestId = requestId;
+      void surfacePanelForIncomingRequest();
+    },
+    { immediate: true },
+  );
 
   function refreshDevices() {
     return run(refreshLanDevices);
@@ -246,6 +287,7 @@ export function useLanTransfer() {
     sendItems,
     sendText,
     setWebMode,
+    startLanStateSync,
     startLanTransferService,
     stopLanTransferService,
   };

@@ -121,13 +121,17 @@ const directPasteUnavailableMessage = computed(() =>
     ),
 );
 
+// 主面板常驻托盘、不需要任务栏图标；设置页与互传页是全页面板，
+// 保留任务栏图标用户才能找回窗口（互传页收到请求时会自动弹出）。
+const TASKBAR_ROUTES = ["settings", "lanTransfer"];
+
 async function syncTaskbarVisibilityForRoute(routeName, platform) {
     if (platform !== "windows") {
         return;
     }
 
     try {
-        await getCurrentWindow().setSkipTaskbar(routeName !== "settings");
+        await getCurrentWindow().setSkipTaskbar(!TASKBAR_ROUTES.includes(routeName));
     } catch (error) {
         console.error("Failed to update taskbar visibility", error);
     }
@@ -358,6 +362,8 @@ async function initializeApp() {
         await updaterState.refreshUpdateState();
         await settingsState.refreshWebdavSyncState();
         await historyState.refreshHistory();
+        // 互传服务可能在后台运行：启动即订阅，收到请求时才能自动唤起面板。
+        await lanTransferState.startLanStateSync();
         document.documentElement.lang = settingsState.currentLocale.value;
         unlistenHistory = await onHistoryUpdated(async (event) => {
             if (event?.payload?.id) {

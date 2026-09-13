@@ -97,6 +97,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Speaks the LocalSend protocol, so official LocalSend clients discover Power Paste and both sides can send files
 - Uses LocalSend-style Receive and Send pages: Receive shows the device identity, online state, link entry, and advanced network details; Send prepares content first and sends it by clicking a nearby device
 - Supports files, folders, text, and clipboard content. Folders are expanded recursively, text can be sent together with files, and clipboard content prefers text before images or file lists
+- Files and folders can be dropped onto the transfer page to send them; an incoming request brings the panel to the front so the confirmation is not missed
 - Refreshing follows official LocalSend: one subnet refreshes directly, several subnets are offered in a list to scan one of them, while the refresh button spins and can be clicked again to cancel
 - Nearby-device list with manual IP entry, file/folder sending, text sending (shown as a message on the peer), clipboard sending, and transfer progress
 - Incoming requests can be accepted, declined, or accepted-and-trusted; trusted devices skip the prompt
@@ -108,6 +109,9 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - LAN transfer shares port 53317 with official LocalSend, so both cannot run on the same machine at the same time; the page reports the port conflict and one of them can be stopped
 - On macOS, allow Power Paste under System Settings → Privacy & Security → Local Network; while the permission is denied, multicast discovery cannot work
 - On Linux, make sure the firewall (ufw / firewalld) allows TCP 53317 and UDP multicast 224.0.0.167:53317 on the active LAN interface; when discovery fails the page shows the platform-specific fix
+- All three desktop platforms share one transfer page implementation (no platform-specific forks besides troubleshooting copy), so the pages and UI match the Windows build
+- On Linux "Show in File Manager" selects the exact file: it uses the desktop-standard FileManager1 interface first, then the `--select` flag of nautilus / dolphin, and only falls back to opening the containing folder
+- The Linux clipboard works with X11 / XWayland and with Wayland compositors that support wlr-data-control (KDE, Sway, ...); GNOME on Wayland keeps using X11 via XWayland, and when neither backend is usable the transfer page reports that the clipboard is unavailable
 
 ### WebDAV Sync
 

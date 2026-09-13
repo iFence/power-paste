@@ -392,21 +392,30 @@ async function closeLink() {
   }
 }
 
+// 拖拽载荷里的真实路径：纯文本等不带路径的拖拽不应该显示“松开以发送文件”。
+function draggedPaths(payload) {
+  return Array.isArray(payload?.paths) ? payload.paths.filter(Boolean) : [];
+}
+
 async function handleDrop(event) {
   const { payload } = event;
   if (payload.type === "leave") {
     isFileDragOver.value = false;
     return;
   }
-  if (payload.type === "over") {
-    isFileDragOver.value = true;
+  if (payload.type === "enter" || payload.type === "over") {
+    isFileDragOver.value = draggedPaths(payload).length > 0;
     return;
   }
   isFileDragOver.value = false;
-  if (payload.type !== "drop" || !payload.paths?.length) {
+  if (payload.type !== "drop") {
     return;
   }
-  const added = await addSelectionPaths(payload.paths);
+  const paths = draggedPaths(payload);
+  if (!paths.length) {
+    return;
+  }
+  const added = await addSelectionPaths(paths);
   if (added) {
     activeTab.value = "send";
   }

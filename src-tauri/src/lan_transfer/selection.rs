@@ -138,6 +138,12 @@ pub(crate) fn inspect_selection(paths: Vec<String>) -> Result<Vec<LanSelectionIt
 pub(crate) fn read_clipboard_selection(
     app: &AppHandle,
 ) -> Result<Vec<LanSelectionItemDto>, AppError> {
+    if !crate::clipboard::clipboard_backend_usable(app) {
+        return Err(AppError::Message(
+            "lan_transfer_clipboard_unavailable".into(),
+        ));
+    }
+
     let snapshot = crate::clipboard::plugin_reader::read_snapshot(app, true);
 
     if let Some(text) = snapshot.text.filter(|value| !value.trim().is_empty()) {

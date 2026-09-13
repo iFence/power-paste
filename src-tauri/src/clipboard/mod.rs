@@ -8,6 +8,8 @@ mod plugin_writer;
 
 use anyhow::Result;
 use tauri::AppHandle;
+#[cfg(target_os = "linux")]
+use tauri_plugin_clipboard_next::ClipboardNextExt;
 
 use crate::{models::StoredClipboardItem, paste_target::TargetProfile};
 
@@ -46,6 +48,43 @@ pub(crate) fn write_item_to_clipboard_with_profile(
                 .or_else(|_| plugin_writer::write_payload(app, &plugin_fallback_payload(payload)))
         }
     }
+}
+
+// 判断当前会话是否真的具备可用的系统剪贴板后端。
+//
+// Linux 上 tauri-plugin-clipboard-next 用 clipboard-rs 的 X11 / Wayland 两种后端，
+// 两者都不可用时插件内部 `ClipboardContext::new().unwrap()` 会直接 panic；
+// 局域网互传在“从剪贴板选择发送”和“收到的内容写入剪贴板”两处会调用插件，
+// 因此先探测一次并缓存结果，不可用时由调用方给出稳定错误码而不是崩溃。
+pub(crate) fn clipboard_backend_usable(app: &AppHandle) -> bool {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = app;
+        true
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        static USABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+        *USABLE.get_or_init(|| {
+            if !display_env_present("DISPLAY") && !display_env_present("WAYLAND_DISPLAY") {
+                return false;
+            }
+
+            // 后端初始化失败时插件会 panic，这里把 panic 归为“不可用”，
+            // 让互传链路退化为提示而不是中断整个接收流程。
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                app.clipboard_next().has_text().is_ok()
+            }))
+            .unwrap_or(false)
+        })
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn display_env_present(key: &str) -> bool {
+    std::env::var_os(key).is_some_and(|value| !value.is_empty())
 }
 
 #[cfg(target_os = "macos")]
