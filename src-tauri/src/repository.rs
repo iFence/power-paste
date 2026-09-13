@@ -614,6 +614,29 @@ impl SqliteHistoryStore {
         self.query_items(&HistoryQueryPayload::default(), None, 0)
     }
 
+    // 仅查询同步版本比较所需的轻量字段，避免全表读取 BLOB 与富文本解析。
+    // apply_remote_changes 只比较 id / sync_updated_at / sync_device_id，
+    // 无需加载 image_png / html_text 等大字段。
+    pub(crate) fn list_sync_item_versions(
+        &self,
+    ) -> Result<std::collections::HashMap<String, (String, String)>> {
+        let mut statement = self.connection.prepare(
+            r#"
+            SELECT id, sync_updated_at, sync_device_id
+            FROM clipboard_items
+            "#,
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+        })?;
+        let mut versions = std::collections::HashMap::new();
+        for row in rows {
+            let (id, updated_at, device_id) = row?;
+            versions.insert(id, (updated_at, device_id));
+        }
+        Ok(versions)
+    }
+
     pub(crate) fn list_deleted_sync_items(&self) -> Result<Vec<DeletedClipboardItem>> {
         let mut statement = self.connection.prepare(
             r#"

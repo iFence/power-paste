@@ -222,7 +222,12 @@ pub fn run() {
         )
         .setup(|app| {
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            {
+                // 使用 Regular 激活策略保证窗口能成为 key window 并正常接收鼠标点击。
+                // 注意：不能用 set_dock_visibility(false)，其底层 TransformProcessType
+                // 会把应用变回 UIElement（等价 Accessory），导致窗口无法接收点击。
+                app.set_activation_policy(tauri::ActivationPolicy::Regular);
+            }
 
             let root = app.path().app_local_data_dir()?;
             let paths = StoragePaths::new(root)?;

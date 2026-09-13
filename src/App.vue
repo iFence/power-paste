@@ -278,6 +278,12 @@ async function toggleWindowMaximized() {
     await syncWindowMaximized();
 }
 
+// macOS 为菜单栏托盘应用（无 Dock 图标），最小化/最大化没有可见效果。
+// 设置面板左上角的红黄绿按钮统一映射为「隐藏窗口到托盘」。
+async function handleMacosTrafficLightAction() {
+    await getCurrentWindow().hide();
+}
+
 function handleDocumentVisibilityChange() {
     if (document.visibilityState === "visible") {
         flushCopySoundIfEnabled();
@@ -518,7 +524,7 @@ function openResetSettingsConfirm() {
                     class="traffic-light close"
                     type="button"
                     :aria-label="settingsState.t('closeAction')"
-                    @click="handleWindowAction('close')"
+                    @click="handleMacosTrafficLightAction"
                 >
                     <span class="traffic-light-icon" aria-hidden="true">
                         <svg
@@ -549,7 +555,7 @@ function openResetSettingsConfirm() {
                     class="traffic-light minimize"
                     type="button"
                     :aria-label="settingsState.t('minimizeAction')"
-                    @click="handleWindowAction('minimize')"
+                    @click="handleMacosTrafficLightAction"
                 >
                     <span class="traffic-light-icon" aria-hidden="true">
                         <svg
@@ -580,7 +586,7 @@ function openResetSettingsConfirm() {
                     class="traffic-light maximize"
                     type="button"
                     :aria-label="settingsState.t('maximizeAction')"
-                    @click="handleWindowAction('maximize')"
+                    @click="handleMacosTrafficLightAction"
                 >
                     <span class="traffic-light-icon" aria-hidden="true">
                         <svg

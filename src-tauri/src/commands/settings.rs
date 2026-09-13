@@ -35,9 +35,15 @@ pub(crate) fn get_platform_capabilities() -> Result<PlatformCapabilities, AppErr
     Ok(platform_capabilities())
 }
 // 枚举当前系统已安装应用，供剪贴板忽略应用选择器使用。
+// 扫描 /Applications 等目录并逐个读取 Info.plist 属于重 IO，需放入阻塞线程，
+// 避免同步阻塞主线程导致设置页卡顿（Mac 端尤其明显）。
 #[tauri::command]
-pub(crate) fn list_installed_apps() -> Result<Vec<InstalledAppDto>, AppError> {
-    Ok(installed_apps::list_installed_apps()?)
+pub(crate) async fn list_installed_apps() -> Result<Vec<InstalledAppDto>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        installed_apps::list_installed_apps().map_err(|error| AppError::Message(error.to_string()))
+    })
+    .await
+    .map_err(|error| AppError::Message(error.to_string()))?
 }
 
 // 获取已安装应用图标，用于添加忽略应用规则时按需补充图标。
@@ -56,13 +62,20 @@ pub(crate) async fn get_installed_app_icon(
 }
 
 // 更新设置，并同步快捷键、开机启动和调试模式等运行时副作用。
+// 内部包含 launchctl 子进程与历史 trim 等重 IO，改为 async 放入阻塞线程，
+// 避免同步 command 阻塞主线程导致按钮响应慢。
 #[tauri::command]
-pub(crate) fn update_settings(
+pub(crate) async fn update_settings(
     app: AppHandle,
     state: State<'_, Arc<SharedState>>,
     payload: AppSettings,
 ) -> Result<(), AppError> {
-    execute_update_settings(app, state.inner().clone(), payload)
+    let shared = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        execute_update_settings(app, shared, payload)
+    })
+    .await
+    .map_err(|error| AppError::Message(error.to_string()))?
 }
 
 // 重新尝试注册当前设置中的全局快捷键。
@@ -76,11 +89,16 @@ pub(crate) fn retry_shortcut_registration(
 
 // 重置设置页可见配置，并保留窗口位置与尺寸。
 #[tauri::command]
-pub(crate) fn reset_settings(
+pub(crate) async fn reset_settings(
     app: AppHandle,
     state: State<'_, Arc<SharedState>>,
 ) -> Result<AppSettings, AppError> {
-    execute_reset_settings(app, state.inner().clone())
+    let shared = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        execute_reset_settings(app, shared)
+    })
+    .await
+    .map_err(|error| AppError::Message(error.to_string()))?
 }
 
 // 获取系统默认下载目录，用于互传文件保存位置的默认展示。
