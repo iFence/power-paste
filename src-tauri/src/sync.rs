@@ -591,11 +591,13 @@ async fn apply_remote_changes(
         }
     }
 
-    let local_items = shared.history_store.lock().unwrap().list_sync_items()?;
-    let local_items = local_items
-        .into_iter()
-        .map(|item| (item.id.clone(), item))
-        .collect::<HashMap<_, _>>();
+    // 远程变更比对只需 id / sync_updated_at / sync_device_id，
+    // 使用轻量查询避免全表读取 BLOB 与富文本解析。
+    let local_items = shared
+        .history_store
+        .lock()
+        .unwrap()
+        .list_sync_item_versions()?;
     let local_deletions = shared
         .history_store
         .lock()
@@ -617,12 +619,12 @@ async fn apply_remote_changes(
         }) {
             continue;
         }
-        if local_items.get(id).is_some_and(|item| {
+        if local_items.get(id).is_some_and(|(updated_at, device_id)| {
             !is_remote_newer(
                 &entry.sync_updated_at,
                 &entry.sync_device_id,
-                &item.sync_updated_at,
-                &item.sync_device_id,
+                updated_at,
+                device_id,
             )
         }) {
             continue;

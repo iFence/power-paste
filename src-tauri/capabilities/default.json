@@ -21,6 +21,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-center",
     "core:window:allow-set-size",
+    "core:window:allow-set-min-size",
     "core:window:allow-set-position",
     "core:window:allow-set-skip-taskbar",
     "core:window:allow-start-dragging",
