@@ -60,6 +60,8 @@ pub(crate) const INCOMING_TIMEOUT: Duration = Duration::from_secs(45);
 // 传输记录与已接收文件在内存中的上限，避免长时间运行后无限增长（磁盘文件不删除）。
 const MAX_TRANSFER_ENTRIES: usize = 50;
 const MAX_RECEIVED_ENTRIES: usize = 200;
+// 已知对端上限：会话列表只用于最近联系过 / 见过的设备。
+const MAX_PEER_ENTRIES: usize = 100;
 
 // 服务自愈：监听器或组播永久失败后在 60 秒窗口内最多重建 3 次。
 const RECOVERY_WINDOW_MS: u64 = 60_000;
@@ -107,6 +109,8 @@ pub(crate) struct LanStateDto {
     pub(crate) port: u16,
     pub(crate) fingerprint: Option<String>,
     pub(crate) devices: Vec<LanDeviceDto>,
+    // 已知对端（含当前离线的历史设备），会话列表按它渲染。
+    pub(crate) peers: Vec<LanDeviceDto>,
     pub(crate) transfers: Vec<LanTransferDto>,
     pub(crate) incoming: Option<LanIncomingRequestDto>,
     pub(crate) received_files: Vec<LanReceivedFileDto>,
@@ -128,7 +132,19 @@ pub(crate) struct LanDeviceDto {
     pub(crate) port: u16,
     pub(crate) protocol: String,
     pub(crate) trusted: bool,
+    // 是否存在于当前离线发现列表：会话列表据此区分在线与离线。
+    pub(crate) online: bool,
     pub(crate) last_seen_ms: u64,
+}
+
+// 一次传输涉及的文件元数据，供会话气泡展示文件名与体积。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LanFileDto {
+    pub(crate) file_name: String,
+    // MIME 类型：会话气泡据此决定展示图片预览还是文件名。
+    pub(crate) mime_type: String,
+    pub(crate) size: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,19 +152,22 @@ pub(crate) struct LanDeviceDto {
 pub(crate) struct LanTransferDto {
     pub(crate) id: String,
     pub(crate) direction: String,
+    pub(crate) peer_fingerprint: String,
     pub(crate) peer_alias: String,
     pub(crate) status: String,
+    // text / files：文本消息与文件传输在会话里渲染成不同气泡。
+    pub(crate) kind: String,
     pub(crate) label: String,
+    pub(crate) text: Option<String>,
+    pub(crate) files: Vec<LanFileDto>,
     pub(crate) total_bytes: u64,
     pub(crate) done_bytes: u64,
     pub(crate) error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LanIncomingFileDto {
-    pub(crate) file_name: String,
-    pub(crate) size: u64,
+    pub(crate) created_at_ms: u64,
+    // 仅发送方向且在内存里保留了原始选择项时才可重新发送。
+    pub(crate) resendable: bool,
+    // 是否持有图片预览（通过 read_lan_transfer_preview 按需取回）。
+    pub(crate) has_preview: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -160,7 +179,7 @@ pub(crate) struct LanIncomingRequestDto {
     pub(crate) ip: String,
     pub(crate) fingerprint: String,
     pub(crate) trusted: bool,
-    pub(crate) files: Vec<LanIncomingFileDto>,
+    pub(crate) files: Vec<LanFileDto>,
     pub(crate) total_bytes: u64,
     pub(crate) text_message: Option<String>,
 }
@@ -173,6 +192,9 @@ pub(crate) struct LanReceivedFileDto {
     pub(crate) path: String,
     pub(crate) size: u64,
     pub(crate) from_alias: String,
+    pub(crate) from_fingerprint: String,
+    // 归属的传输记录，会话里据此把文件挂到对应气泡上。
+    pub(crate) transfer_id: String,
     pub(crate) received_at_ms: u64,
 }
 
@@ -195,15 +217,42 @@ struct DeviceEntry {
     last_seen_ms: u64,
 }
 
+// 传输内容类型：文本消息不落文件，单独标记以便会话气泡还原正文。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TransferKind {
+    Text,
+    Files,
+}
+
+impl TransferKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            TransferKind::Text => "text",
+            TransferKind::Files => "files",
+        }
+    }
+}
+
 struct TransferEntry {
     id: String,
     direction: &'static str,
+    peer_fingerprint: String,
     peer_alias: String,
     status: &'static str,
+    kind: TransferKind,
     label: String,
+    // 文本消息正文；文件传输为 None。
+    text: Option<String>,
+    // 本次传输涉及的文件清单，供会话气泡展示。
+    files: Vec<LanFileDto>,
+    // 发送时的原始选择项，用于失败/取消后重新发送；接收方向为空。
+    items: Vec<LanSelectionItemDto>,
+    // 图片预览（缩略 PNG）：按需通过命令返回，不进入状态快照。
+    preview_png: Option<Vec<u8>>,
     total_bytes: u64,
     done_bytes: Arc<AtomicU64>,
     error: Option<String>,
+    created_at_ms: u64,
     // 发送时的会话 ID、对端地址与取消令牌，接收时为 None。
     session_id: Option<String>,
     peer_host: Option<String>,
@@ -218,7 +267,8 @@ struct IncomingEntry {
     device_model: Option<String>,
     ip: String,
     fingerprint: String,
-    files: Vec<(String, u64)>,
+    // 待确认的文件名、体积与类型；确认弹窗据此展示文件清单。
+    files: Vec<(String, u64, String)>,
     total_bytes: u64,
     text_message: Option<String>,
 }
@@ -229,6 +279,8 @@ struct ReceivedEntry {
     path: PathBuf,
     size: u64,
     from_alias: String,
+    from_fingerprint: String,
+    transfer_id: String,
     received_at_ms: u64,
 }
 
@@ -256,6 +308,8 @@ struct Inner {
     warning: Option<String>,
     identity: Option<Arc<LanIdentity>>,
     devices: Vec<DeviceEntry>,
+    // 会话列表数据源：记录见过的对端，服务停止后仍保留，因此离线设备也留有会话入口。
+    peers: Vec<DeviceEntry>,
     // 对端要求的 PIN，按指纹缓存在内存中，避免同一设备每次发送都重新输入。
     device_pins: HashMap<String, String>,
     transfers: Vec<TransferEntry>,
@@ -278,6 +332,7 @@ impl Inner {
             warning: None,
             identity: None,
             devices: Vec::new(),
+            peers: Vec::new(),
             device_pins: HashMap::new(),
             transfers: Vec::new(),
             incoming: None,
@@ -308,6 +363,17 @@ impl Inner {
         protocol: ProtocolType,
     ) {
         let now = util::now_ms();
+        // 会话列表要保留历史对端，因此除在线列表外再维护一份去重的已知设备表。
+        self.upsert_peer(
+            fingerprint.clone(),
+            alias.clone(),
+            device_model.clone(),
+            device_type.clone(),
+            host.clone(),
+            port,
+            protocol,
+            now,
+        );
         if let Some(existing) = self
             .devices
             .iter_mut()
@@ -333,6 +399,52 @@ impl Inner {
             protocol,
             last_seen_ms: now,
         });
+    }
+
+    // 记录或更新一个已知对端；超出上限时丢弃最久未见的记录。
+    #[allow(clippy::too_many_arguments)]
+    fn upsert_peer(
+        &mut self,
+        fingerprint: String,
+        alias: String,
+        device_model: Option<String>,
+        device_type: Option<String>,
+        host: String,
+        port: u16,
+        protocol: ProtocolType,
+        now: u64,
+    ) {
+        if let Some(existing) = self
+            .peers
+            .iter_mut()
+            .find(|peer| peer.fingerprint == fingerprint)
+        {
+            existing.alias = alias;
+            existing.device_model = device_model;
+            existing.device_type = device_type;
+            existing.host = host;
+            existing.port = port;
+            existing.protocol = protocol;
+            existing.last_seen_ms = now;
+            return;
+        }
+
+        self.peers.push(DeviceEntry {
+            fingerprint,
+            alias,
+            device_model,
+            device_type,
+            host,
+            port,
+            protocol,
+            last_seen_ms: now,
+        });
+        let overflow = self.peers.len().saturating_sub(MAX_PEER_ENTRIES);
+        if overflow > 0 {
+            // 先按最近可见时间排序，再丢弃最旧的部分，避免把活跃设备挤掉。
+            self.peers.sort_by_key(|peer| peer.last_seen_ms);
+            self.peers.drain(0..overflow);
+        }
     }
 
     fn device(&self, fingerprint: &str) -> Option<&DeviceEntry> {
@@ -371,6 +483,27 @@ impl Inner {
             if status == "done" {
                 let total = entry.total_bytes;
                 entry.done_bytes.store(total, Ordering::Relaxed);
+            }
+        }
+    }
+
+    // 挂上图片预览，供会话气泡按需取回。
+    fn set_transfer_preview(&mut self, id: &str, preview: Option<Vec<u8>>) {
+        if let Some(preview) = preview {
+            if let Some(entry) = self.transfer(id) {
+                entry.preview_png = Some(preview);
+            }
+        }
+    }
+
+    // 整条传输只有一条文本时把它折叠成文本消息：气泡直接显示正文，不再显示 txt 文件名。
+    fn mark_transfer_as_text(&mut self, id: &str, text: &str) {
+        if let Some(entry) = self.transfer(id) {
+            if entry.files.len() == 1 {
+                entry.kind = TransferKind::Text;
+                entry.text = Some(text.to_string());
+                entry.files.clear();
+                entry.label = "text".into();
             }
         }
     }
@@ -431,6 +564,11 @@ impl LanTransferHandle {
         let alias = identity
             .map(|value| value.alias.clone())
             .unwrap_or_else(|| resolve_alias(settings));
+        let online: Vec<&str> = inner
+            .devices
+            .iter()
+            .map(|device| device.fingerprint.as_str())
+            .collect();
 
         LanStateDto {
             status: inner.status.clone(),
@@ -444,19 +582,14 @@ impl LanTransferHandle {
             devices: inner
                 .devices
                 .iter()
-                .map(|device| LanDeviceDto {
-                    fingerprint: device.fingerprint.clone(),
-                    alias: device.alias.clone(),
-                    device_model: device.device_model.clone(),
-                    device_type: device.device_type.clone(),
-                    host: device.host.clone(),
-                    port: device.port,
-                    protocol: device.protocol.as_str().to_string(),
-                    trusted: settings
-                        .lan_trusted_devices
-                        .iter()
-                        .any(|entry| entry.fingerprint == device.fingerprint),
-                    last_seen_ms: device.last_seen_ms,
+                .map(|device| device_dto(device, settings, true))
+                .collect(),
+            peers: inner
+                .peers
+                .iter()
+                .map(|peer| {
+                    let online = online.contains(&peer.fingerprint.as_str());
+                    device_dto(peer, settings, online)
                 })
                 .collect(),
             transfers: inner
@@ -465,12 +598,19 @@ impl LanTransferHandle {
                 .map(|entry| LanTransferDto {
                     id: entry.id.clone(),
                     direction: entry.direction.to_string(),
+                    peer_fingerprint: entry.peer_fingerprint.clone(),
                     peer_alias: entry.peer_alias.clone(),
                     status: entry.status.to_string(),
+                    kind: entry.kind.as_str().to_string(),
                     label: entry.label.clone(),
+                    text: entry.text.clone(),
+                    files: entry.files.clone(),
                     total_bytes: entry.total_bytes,
                     done_bytes: entry.done_bytes.load(Ordering::Relaxed),
                     error: entry.error.clone(),
+                    created_at_ms: entry.created_at_ms,
+                    resendable: entry.direction == "send" && !entry.items.is_empty(),
+                    has_preview: entry.preview_png.is_some(),
                 })
                 .collect(),
             incoming: inner.incoming.as_ref().map(|entry| LanIncomingRequestDto {
@@ -486,8 +626,9 @@ impl LanTransferHandle {
                 files: entry
                     .files
                     .iter()
-                    .map(|(file_name, size)| LanIncomingFileDto {
+                    .map(|(file_name, size, mime_type)| LanFileDto {
                         file_name: file_name.clone(),
+                        mime_type: mime_type.clone(),
                         size: *size,
                     })
                     .collect(),
@@ -504,6 +645,8 @@ impl LanTransferHandle {
                     path: entry.path.to_string_lossy().to_string(),
                     size: entry.size,
                     from_alias: entry.from_alias.clone(),
+                    from_fingerprint: entry.from_fingerprint.clone(),
+                    transfer_id: entry.transfer_id.clone(),
                     received_at_ms: entry.received_at_ms,
                 })
                 .collect(),
@@ -761,18 +904,52 @@ impl LanTransferHandle {
         } else {
             format!("{} files", picked.len())
         };
+        // 保留原始选择项：失败或取消后可以按同一份内容重新发送。
+        let items = picked
+            .iter()
+            .filter_map(|picked| match &picked.source {
+                send::SendSource::Path(path) => Some(LanSelectionItemDto::File {
+                    path: path.to_string_lossy().to_string(),
+                    name: picked.file.file_name.clone(),
+                    size: picked.file.size,
+                    mime_type: picked.file.file_type.clone(),
+                }),
+                send::SendSource::Bytes(_) => None,
+            })
+            .collect::<Vec<_>>();
+        let files = picked
+            .iter()
+            .map(|picked| LanFileDto {
+                file_name: picked.file.file_name.clone(),
+                mime_type: picked.file.file_type.clone(),
+                size: picked.file.size,
+            })
+            .collect::<Vec<_>>();
+        let preview_png = picked.iter().find_map(|picked| match &picked.source {
+            send::SendSource::Path(path) if picked.file.file_type.starts_with("image/") => {
+                util::image_preview_from_path(path)
+            }
+            _ => None,
+        });
 
         {
             let mut inner = self.inner.lock().unwrap();
             inner.push_transfer(TransferEntry {
                 id: transfer_id.clone(),
                 direction: "send",
+                peer_fingerprint: target.fingerprint.clone(),
                 peer_alias: target.alias.clone(),
                 status: "active",
+                kind: TransferKind::Files,
                 label,
+                text: None,
+                files,
+                items,
+                preview_png,
                 total_bytes,
                 done_bytes: Arc::new(AtomicU64::new(0)),
                 error: None,
+                created_at_ms: util::now_ms(),
                 session_id: None,
                 peer_host: Some(target.host.clone()),
                 cancel: None,
@@ -839,12 +1016,19 @@ impl LanTransferHandle {
             inner.push_transfer(TransferEntry {
                 id: transfer_id.clone(),
                 direction: "send",
+                peer_fingerprint: target.fingerprint.clone(),
                 peer_alias: target.alias.clone(),
                 status: "active",
+                kind: TransferKind::Text,
                 label: "text".into(),
+                text: Some(text.clone()),
+                files: Vec::new(),
+                items: vec![LanSelectionItemDto::text(text.clone())],
+                preview_png: None,
                 total_bytes: message.file.size,
                 done_bytes: Arc::new(AtomicU64::new(text.len() as u64)),
                 error: None,
+                created_at_ms: util::now_ms(),
                 session_id: None,
                 peer_host: Some(target.host.clone()),
                 cancel: None,
@@ -914,18 +1098,59 @@ impl LanTransferHandle {
         } else {
             format!("{} items", picked.len())
         };
+        // 文本与附件合并成同一次传输；协议原生文本只是承载方式，不算作文件。
+        let text = match items.as_slice() {
+            [LanSelectionItemDto::Text { text }] => Some(text.clone()),
+            _ => None,
+        };
+        let files = items
+            .iter()
+            .zip(picked.iter())
+            .filter_map(|(item, picked)| match item {
+                LanSelectionItemDto::File { .. } => Some(LanFileDto {
+                    file_name: picked.file.file_name.clone(),
+                    mime_type: picked.file.file_type.clone(),
+                    size: picked.file.size,
+                }),
+                LanSelectionItemDto::Text { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        let preview_png = items
+            .iter()
+            .zip(picked.iter())
+            .find_map(|(item, picked)| match (item, &picked.source) {
+                (LanSelectionItemDto::File { .. }, send::SendSource::Path(path))
+                    if picked.file.file_type.starts_with("image/") =>
+                {
+                    util::image_preview_from_path(path)
+                }
+                _ => None,
+            });
+        let kind = if text.is_some() && files.is_empty() {
+            TransferKind::Text
+        } else {
+            TransferKind::Files
+        };
+        let items = items.clone();
 
         {
             let mut inner = self.inner.lock().unwrap();
             inner.push_transfer(TransferEntry {
                 id: transfer_id.clone(),
                 direction: "send",
+                peer_fingerprint: target.fingerprint.clone(),
                 peer_alias: target.alias.clone(),
                 status: "active",
+                kind,
                 label,
+                text,
+                files,
+                items,
+                preview_png,
                 total_bytes,
                 done_bytes: Arc::new(AtomicU64::new(0)),
                 error: None,
+                created_at_ms: util::now_ms(),
                 session_id: None,
                 peer_host: Some(target.host.clone()),
                 cancel: None,
@@ -946,6 +1171,32 @@ impl LanTransferHandle {
         );
 
         Ok(self.state(&settings))
+    }
+
+    // 重新发送一条失败或取消的发送记录：复用记录里保留的原始选择项。
+    pub(crate) async fn resend_transfer(
+        self: &Arc<Self>,
+        app: &AppHandle,
+        shared: &Arc<SharedState>,
+        transfer_id: &str,
+        pin: Option<String>,
+    ) -> Result<LanStateDto, AppError> {
+        let (fingerprint, items) = {
+            let inner = self.inner.lock().unwrap();
+            let entry = inner
+                .transfers
+                .iter()
+                .find(|entry| entry.id == transfer_id)
+                .ok_or_else(|| AppError::Message("lan_transfer_request_missing".into()))?;
+            if entry.direction != "send" || entry.items.is_empty() {
+                return Err(AppError::Message(
+                    "lan_transfer_resend_unavailable".into(),
+                ));
+            }
+            (entry.peer_fingerprint.clone(), entry.items.clone())
+        };
+
+        self.send_items(app, shared, fingerprint, items, pin).await
     }
 
     pub(crate) fn respond(
@@ -1166,6 +1417,17 @@ impl LanTransferHandle {
             .ok_or_else(|| AppError::Message("lan_transfer_file_not_found".into()))
     }
 
+    // 取回一次图片传输的预览（缩略 PNG）；没有预览时返回 None。
+    pub(crate) fn transfer_preview(&self, id: &str) -> Option<Vec<u8>> {
+        self.inner
+            .lock()
+            .unwrap()
+            .transfers
+            .iter()
+            .find(|entry| entry.id == id)
+            .and_then(|entry| entry.preview_png.clone())
+    }
+
     pub(crate) fn is_running(&self) -> bool {
         self.inner.lock().unwrap().service.is_some()
     }
@@ -1238,6 +1500,25 @@ fn resolve_alias(settings: &AppSettings) -> String {
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(default_alias)
+}
+
+// 把内部设备记录转换成前端 DTO，online 由调用方按当前发现列表判定。
+fn device_dto(device: &DeviceEntry, settings: &AppSettings, online: bool) -> LanDeviceDto {
+    LanDeviceDto {
+        fingerprint: device.fingerprint.clone(),
+        alias: device.alias.clone(),
+        device_model: device.device_model.clone(),
+        device_type: device.device_type.clone(),
+        host: device.host.clone(),
+        port: device.port,
+        protocol: device.protocol.as_str().to_string(),
+        trusted: settings
+            .lan_trusted_devices
+            .iter()
+            .any(|entry| entry.fingerprint == device.fingerprint),
+        online,
+        last_seen_ms: device.last_seen_ms,
+    }
 }
 
 fn default_alias() -> String {
@@ -1627,8 +1908,51 @@ pub(crate) fn apply_settings_change(
 
 #[cfg(test)]
 mod tests {
-    use super::{advertised_device, client_timeout_for, normalize_hostname, ClientPurpose};
+    use super::{
+        advertised_device, client_timeout_for, normalize_hostname, ClientPurpose, DeviceEntry,
+        LanSelectionItemDto, LanTransferHandle, TransferEntry, TransferKind,
+    };
+    use crate::models::AppSettings;
     use localsend::model::discovery::ProtocolType;
+    use std::sync::{atomic::AtomicU64, Arc};
+
+    // 造一条测试用设备记录。
+    fn device_entry(fingerprint: &str) -> DeviceEntry {
+        DeviceEntry {
+            fingerprint: fingerprint.to_string(),
+            alias: "Peer".into(),
+            device_model: Some("Model".into()),
+            device_type: Some("desktop".into()),
+            host: "192.168.1.20".into(),
+            port: 53317,
+            protocol: ProtocolType::Https,
+            last_seen_ms: 1,
+        }
+    }
+
+    // 造一条测试用传输记录。
+    fn transfer_entry(kind: TransferKind, direction: &'static str) -> TransferEntry {
+        TransferEntry {
+            id: "transfer-1".into(),
+            direction,
+            peer_fingerprint: "peer-1".into(),
+            peer_alias: "Peer".into(),
+            status: "active",
+            kind,
+            label: "text".into(),
+            text: (kind == TransferKind::Text).then(|| "hello".to_string()),
+            files: Vec::new(),
+            items: Vec::new(),
+            preview_png: None,
+            total_bytes: 5,
+            done_bytes: Arc::new(AtomicU64::new(0)),
+            error: None,
+            created_at_ms: 1_700_000_000_000,
+            session_id: None,
+            peer_host: None,
+            cancel: None,
+        }
+    }
 
     #[test]
     fn advertises_the_protocol_the_server_actually_serves() {
@@ -1667,5 +1991,157 @@ mod tests {
     fn always_resolves_a_default_device_name() {
         // 任何平台上都不能出现空设备名，否则对端列表里会出现无名设备。
         assert!(!super::default_alias().is_empty());
+    }
+
+    #[test]
+    fn keeps_known_peers_after_the_service_stops() {
+        // 会话列表需要保留离线对端：服务停止清空在线设备后，peers 仍应可用且标记为离线。
+        let handle = LanTransferHandle::new();
+        handle.upsert_device(
+            "peer-1".into(),
+            "Peer".into(),
+            None,
+            None,
+            "192.168.1.20".into(),
+            53317,
+            ProtocolType::Https,
+        );
+        handle.inner.lock().unwrap().devices.clear();
+
+        let state = handle.state(&AppSettings::default());
+        assert!(state.devices.is_empty());
+        assert_eq!(state.peers.len(), 1);
+        assert!(!state.peers[0].online);
+
+        handle
+            .inner
+            .lock()
+            .unwrap()
+            .devices
+            .push(device_entry("peer-1"));
+        let state = handle.state(&AppSettings::default());
+        assert!(state.peers[0].online);
+    }
+
+    #[test]
+    fn exposes_chat_metadata_on_transfer_records() {
+        // 会话气泡依赖时间戳、对端指纹与文本正文，缺失会让历史消息退化成一行状态。
+        let handle = LanTransferHandle::new();
+        handle
+            .inner
+            .lock()
+            .unwrap()
+            .transfers
+            .push(transfer_entry(TransferKind::Text, "receive"));
+
+        let state = handle.state(&AppSettings::default());
+        let transfer = &state.transfers[0];
+        assert_eq!(transfer.kind, "text");
+        assert_eq!(transfer.peer_fingerprint, "peer-1");
+        assert_eq!(transfer.created_at_ms, 1_700_000_000_000);
+        assert_eq!(transfer.text.as_deref(), Some("hello"));
+        assert!(!transfer.resendable);
+    }
+
+    #[test]
+    fn only_send_records_with_stored_items_can_be_resent() {
+        // 接收方向没有本地内容，或发送时没有保留选择项，都不允许重发。
+        let handle = LanTransferHandle::new();
+        {
+            let mut inner = handle.inner.lock().unwrap();
+            let mut without_items = transfer_entry(TransferKind::Text, "send");
+            without_items.id = "transfer-without-items".into();
+            inner.transfers.push(without_items);
+
+            let mut resentable = transfer_entry(TransferKind::Text, "send");
+            resentable.id = "transfer-resentable".into();
+            resentable.items = vec![LanSelectionItemDto::text("hello".into())];
+            inner.transfers.push(resentable);
+        }
+
+        let state = handle.state(&AppSettings::default());
+        let resentable = state
+            .transfers
+            .iter()
+            .find(|entry| entry.id == "transfer-resentable")
+            .expect("resentable transfer missing");
+        let plain = state
+            .transfers
+            .iter()
+            .find(|entry| entry.id == "transfer-without-items")
+            .expect("plain transfer missing");
+        assert!(resentable.resendable);
+        assert!(!plain.resendable);
+    }
+
+    #[test]
+    fn folds_single_text_transfers_into_messages() {
+        // 单文件文本传输折叠成消息气泡：显示正文而不是 txt 文件名。
+        let handle = LanTransferHandle::new();
+        {
+            let mut inner = handle.inner.lock().unwrap();
+            let mut text_package = transfer_entry(TransferKind::Files, "receive");
+            text_package.files = vec![super::LanFileDto {
+                file_name: "PowerPaste-Text-1.txt".into(),
+                mime_type: "text/plain".into(),
+                size: 5,
+            }];
+            text_package.text = None;
+            inner.transfers.push(text_package);
+            inner.mark_transfer_as_text("transfer-1", "hello");
+        }
+
+        let state = handle.state(&AppSettings::default());
+        let transfer = &state.transfers[0];
+        assert_eq!(transfer.kind, "text");
+        assert_eq!(transfer.text.as_deref(), Some("hello"));
+        assert!(transfer.files.is_empty());
+    }
+
+    #[test]
+    fn keeps_mixed_transfers_as_file_lists() {
+        // 一条传输里还有其它文件时不能折叠，否则用户会看不到文件清单。
+        let handle = LanTransferHandle::new();
+        {
+            let mut inner = handle.inner.lock().unwrap();
+            let mut mixed = transfer_entry(TransferKind::Files, "receive");
+            mixed.files = vec![
+                super::LanFileDto {
+                    file_name: "message.txt".into(),
+                    mime_type: "text/plain".into(),
+                    size: 5,
+                },
+                super::LanFileDto {
+                    file_name: "report.pdf".into(),
+                    mime_type: "application/pdf".into(),
+                    size: 10,
+                },
+            ];
+            inner.transfers.push(mixed);
+            inner.mark_transfer_as_text("transfer-1", "hello");
+        }
+
+        let state = handle.state(&AppSettings::default());
+        assert_eq!(state.transfers[0].kind, "files");
+        assert_eq!(state.transfers[0].files.len(), 2);
+        assert!(state.transfers[0].text.is_none());
+    }
+
+    #[test]
+    fn exposes_image_previews_on_demand() {
+        // 预览不进状态快照，只通过 transfer_preview 按需取回。
+        let handle = LanTransferHandle::new();
+        {
+            let mut inner = handle.inner.lock().unwrap();
+            inner
+                .transfers
+                .push(transfer_entry(TransferKind::Files, "send"));
+            inner.set_transfer_preview("transfer-1", Some(vec![1, 2, 3]));
+        }
+
+        let state = handle.state(&AppSettings::default());
+        assert!(state.transfers[0].has_preview);
+        assert_eq!(handle.transfer_preview("transfer-1"), Some(vec![1, 2, 3]));
+        assert_eq!(handle.transfer_preview("missing"), None);
     }
 }

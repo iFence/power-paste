@@ -1,10 +1,9 @@
 <script setup>
-// 浏览器互传弹窗：展示二维码、链接与复制入口。
+// 浏览器互传弹窗：手机扫码打开页面，把文件或文字传回本机。
 import { computed } from "vue";
 
 const props = defineProps({
   busy: { type: Boolean, default: false },
-  mode: { type: String, required: true },
   state: { type: Object, required: true },
   t: { type: Function, required: true },
 });
@@ -12,16 +11,6 @@ const props = defineProps({
 const emit = defineEmits(["close"]);
 
 const webUrl = computed(() => props.state.webUrl || "");
-const title = computed(() =>
-  props.mode === "share"
-    ? props.t("lanTransferWebShare")
-    : props.t("lanTransferWebReceive"),
-);
-const hint = computed(() =>
-  props.mode === "share"
-    ? props.t("lanTransferWebShareHint")
-    : props.t("lanTransferWebReceiveHint"),
-);
 
 async function copyUrl() {
   if (webUrl.value) {
@@ -34,7 +23,7 @@ async function copyUrl() {
   <div class="lan-link-backdrop" @click.self="emit('close')">
     <section class="lan-link-card" role="dialog" aria-modal="true">
       <header class="lan-link-head">
-        <strong>{{ title }}</strong>
+        <strong>{{ t("lanTransferWebReceive") }}</strong>
         <button
           class="toolbar-icon-button"
           type="button"
@@ -60,7 +49,7 @@ async function copyUrl() {
           <a class="lan-link-url" :href="webUrl" target="_blank" rel="noreferrer">
             {{ webUrl }}
           </a>
-          <p>{{ hint }}</p>
+          <p>{{ t("lanTransferWebReceiveHint") }}</p>
           <div class="lan-link-actions">
             <button class="ghost compact" type="button" @click="copyUrl">
               {{ t("copy") }}

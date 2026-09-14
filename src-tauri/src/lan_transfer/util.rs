@@ -8,7 +8,64 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use image::{
+    codecs::png::{CompressionType, FilterType, PngEncoder},
+    imageops::FilterType as ResizeFilterType,
+    ColorType, DynamicImage, GenericImageView, ImageEncoder,
+};
 use uuid::Uuid;
+
+// 会话气泡预览图的最长边与源文件体积上限：超出上限的图片只按文件名展示。
+// 预览图会铺满整个气泡，因此取略大于气泡宽度的尺寸，避免放大后发虚。
+const PREVIEW_MAX_SIDE: u32 = 384;
+const PREVIEW_MAX_SOURCE_BYTES: u64 = 32 * 1024 * 1024;
+
+// 生成会话气泡用的图片预览；任何解码/编码失败都只表示没有预览，不影响传输本身。
+pub(crate) fn image_preview_from_path(path: &Path) -> Option<Vec<u8>> {
+    let metadata = fs::metadata(path).ok()?;
+    if !metadata.is_file() || metadata.len() > PREVIEW_MAX_SOURCE_BYTES {
+        return None;
+    }
+    encode_preview(image::open(path).ok()?)
+}
+
+// 与按路径生成预览一致，但源数据已在内存中（小图接收链路不会落盘）。
+pub(crate) fn image_preview_from_bytes(bytes: &[u8]) -> Option<Vec<u8>> {
+    if bytes.len() as u64 > PREVIEW_MAX_SOURCE_BYTES {
+        return None;
+    }
+    encode_preview(image::load_from_memory(bytes).ok()?)
+}
+
+// 等比缩放到气泡可用的尺寸后编码为 PNG。
+fn encode_preview(image: DynamicImage) -> Option<Vec<u8>> {
+    let (width, height) = image.dimensions();
+    let longest = width.max(height).max(1);
+    let resized = if longest > PREVIEW_MAX_SIDE {
+        let scale = PREVIEW_MAX_SIDE as f32 / longest as f32;
+        image.resize(
+            ((width as f32 * scale).round() as u32).max(1),
+            ((height as f32 * scale).round() as u32).max(1),
+            ResizeFilterType::Triangle,
+        )
+    } else {
+        image
+    };
+
+    let rgba = resized.to_rgba8();
+    let mut bytes = Vec::new();
+    let encoder =
+        PngEncoder::new_with_quality(&mut bytes, CompressionType::Fast, FilterType::NoFilter);
+    encoder
+        .write_image(
+            rgba.as_raw(),
+            rgba.width(),
+            rgba.height(),
+            ColorType::Rgba8.into(),
+        )
+        .ok()?;
+    Some(bytes)
+}
 
 // 虚拟网卡名称前缀：容器、虚拟机、隧道与点对点接口的地址不适合作为扫码页地址。
 const VIRTUAL_INTERFACE_PREFIXES: &[&str] = &[
@@ -205,9 +262,45 @@ mod tests {
     };
 
     use super::{
-        infer_mime_type, is_virtual_interface, preferred_lan_address_with, sanitize_file_name,
-        unique_file_path,
+        image_preview_from_bytes, infer_mime_type, is_virtual_interface,
+        preferred_lan_address_with, sanitize_file_name, unique_file_path, PREVIEW_MAX_SIDE,
     };
+    use image::{ColorType, ImageEncoder};
+
+    // 造一张可控尺寸的 PNG，用于验证预览生成。
+    fn png_bytes(width: u32, height: u32) -> Vec<u8> {
+        let image = image::DynamicImage::new_rgba8(width, height);
+        let mut bytes = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut bytes)
+            .write_image(
+                image.to_rgba8().as_raw(),
+                width,
+                height,
+                ColorType::Rgba8.into(),
+            )
+            .expect("encode png");
+        bytes
+    }
+
+    #[test]
+    fn previews_images_at_bubble_scale() {
+        // 大图缩到气泡尺寸，小图保持原样；两者都必须是可解码的 PNG。
+        let large = image_preview_from_bytes(&png_bytes(1024, 512)).expect("large preview");
+        let large_image = image::load_from_memory(&large).expect("decode large preview");
+        assert_eq!(large_image.width(), PREVIEW_MAX_SIDE);
+        assert_eq!(large_image.height(), PREVIEW_MAX_SIDE / 2);
+
+        let small = image_preview_from_bytes(&png_bytes(32, 24)).expect("small preview");
+        let small_image = image::load_from_memory(&small).expect("decode small preview");
+        assert_eq!(small_image.width(), 32);
+        assert_eq!(small_image.height(), 24);
+    }
+
+    #[test]
+    fn skips_previews_for_unreadable_payloads() {
+        // 非图片内容不应产生预览，气泡会回退为文件清单。
+        assert!(image_preview_from_bytes(b"not an image").is_none());
+    }
 
     #[test]
     fn sanitizes_file_names() {

@@ -1,5 +1,6 @@
 use std::{path::Path, sync::Arc};
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use tauri::{AppHandle, State};
 
 use crate::{
@@ -200,6 +201,21 @@ pub(crate) async fn cancel_lan_transfer(
         .await
 }
 
+// 重新发送一条失败或取消的发送记录，内容取自发消息时保留的选择项。
+#[tauri::command]
+pub(crate) async fn resend_lan_transfer(
+    app: AppHandle,
+    state: State<'_, Arc<SharedState>>,
+    transfer_id: String,
+    pin: Option<String>,
+) -> Result<LanStateDto, AppError> {
+    let shared = state.inner().clone();
+    shared
+        .lan_transfer
+        .resend_transfer(&app, &shared, &transfer_id, pin)
+        .await
+}
+
 // 切换浏览器扫码页模式：none / share / receive。
 #[tauri::command]
 pub(crate) async fn set_lan_web_mode(
@@ -233,6 +249,18 @@ pub(crate) fn reveal_lan_received_file(
 ) -> Result<(), AppError> {
     let path = state.lan_transfer.received_path(&id)?;
     reveal_received_path(&path)
+}
+
+// 取回一次图片传输的缩略预览（data URL）；没有预览时返回 null。
+#[tauri::command]
+pub(crate) fn read_lan_transfer_preview(
+    state: State<'_, Arc<SharedState>>,
+    transfer_id: String,
+) -> Option<String> {
+    state
+        .lan_transfer
+        .transfer_preview(&transfer_id)
+        .map(|bytes| format!("data:image/png;base64,{}", BASE64.encode(bytes)))
 }
 
 // 移除一个已信任设备。

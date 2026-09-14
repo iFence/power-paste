@@ -238,6 +238,10 @@ export function cancelLanTransfer(transferId) {
   return invoke("cancel_lan_transfer", { transferId });
 }
 
+export function resendLanTransfer(transferId, pin = null) {
+  return invoke("resend_lan_transfer", { transferId, pin });
+}
+
 export function setLanWebMode(mode, paths = []) {
   return invoke("set_lan_web_mode", { mode, paths });
 }
@@ -248,6 +252,11 @@ export function openLanReceivedFile(id) {
 
 export function revealLanReceivedFile(id) {
   return invoke("reveal_lan_received_file", { id });
+}
+
+// 取回一次图片传输的缩略预览（data URL），没有预览时返回 null。
+export function readLanTransferPreview(transferId) {
+  return invoke("read_lan_transfer_preview", { transferId });
 }
 
 export function removeLanTrustedDevice(fingerprint) {

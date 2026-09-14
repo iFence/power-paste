@@ -10,8 +10,10 @@ import {
   onLanTransferState,
   openLanReceivedFile,
   readLanClipboard,
+  readLanTransferPreview,
   refreshLanDevices,
   removeLanTrustedDevice,
+  resendLanTransfer,
   respondLanRequest,
   revealLanReceivedFile,
   scanLanSubnets,
@@ -35,6 +37,7 @@ function emptyState() {
     port: 53317,
     fingerprint: null,
     devices: [],
+    peers: [],
     transfers: [],
     incoming: null,
     receivedFiles: [],
@@ -229,6 +232,15 @@ export function useLanTransfer() {
     return run(() => cancelLanTransfer(transferId));
   }
 
+  function resendTransfer(transferId, pin = null) {
+    return run(() => resendLanTransfer(transferId, pin));
+  }
+
+  // 会话气泡按需取回图片预览；返回 data URL，不进入状态快照。
+  function readTransferPreview(transferId) {
+    return readLanTransferPreview(transferId);
+  }
+
   function setWebMode(mode, paths = []) {
     return run(() => setLanWebMode(mode, paths));
   }
@@ -277,12 +289,14 @@ export function useLanTransfer() {
     openReceivedFile,
     refreshDevices,
     refreshState,
+    resendTransfer,
     removeTrustedDevice,
     respond,
     revealReceivedFile,
     scanSubnets,
     inspectSelection,
     readClipboard,
+    readTransferPreview,
     sendFiles,
     sendItems,
     sendText,

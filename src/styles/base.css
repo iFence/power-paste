@@ -34,64 +34,8 @@
     font-weight: 400;
 }
 
-.lan-transfer-page {
-    position: relative;
-    display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
-    height: 100%;
-    min-height: 0;
-    color: var(--app-text);
-}
-
-.lan-transfer-topbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px 6px;
-}
-
 .lan-transfer-back {
     flex: 0 0 auto;
-}
-
-.lan-transfer-service-button {
-    flex: 0 0 auto;
-}
-
-/* 服务按钮只改变图标颜色：不加底色方框，也没有悬浮位移。 */
-.lan-transfer-service-button,
-.lan-transfer-service-button:hover {
-    background: transparent;
-    box-shadow: none;
-    transform: none;
-}
-
-/* 运行中：主题色，点击即停止服务。 */
-.lan-transfer-service-button.running,
-.lan-transfer-service-button.running:hover {
-    color: var(--accent-primary);
-}
-
-/* 已停止：灰色，点击即启动服务。 */
-.lan-transfer-service-button:not(.running) {
-    color: var(--app-muted);
-}
-
-.lan-transfer-service-button:not(.running):hover {
-    color: var(--app-text);
-}
-
-.lan-transfer-title {
-    display: grid;
-    flex: 1;
-    min-width: 0;
-}
-
-.lan-transfer-topbar h1 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-    line-height: 1.2;
 }
 
 .lan-transfer-status {
@@ -104,14 +48,6 @@
     border-radius: 10px;
     background: color-mix(in srgb, var(--app-panel-bg) 74%, transparent);
     font-size: 0.76rem;
-}
-
-.lan-transfer-status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--app-text);
-    font-weight: 600;
 }
 
 .lan-transfer-status-meta {
@@ -189,31 +125,6 @@
     width: 30px;
     height: 30px;
     flex: 0 0 auto;
-}
-
-.lan-transfer-drop-overlay {
-    position: absolute;
-    inset: 8px 10px;
-    z-index: 4;
-    display: grid;
-    align-content: center;
-    justify-items: center;
-    gap: 8px;
-    border: 1px dashed var(--accent-primary);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--app-panel-strong-bg) 82%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 22%, transparent);
-    color: var(--accent-primary);
-    pointer-events: none;
-}
-
-.lan-transfer-drop-overlay svg {
-    width: 28px;
-    height: 28px;
-}
-
-.lan-transfer-drop-overlay strong {
-    font-size: 0.86rem;
 }
 
 .lan-transfer-empty {
@@ -707,29 +618,37 @@
 }
 
 /* 互传页滚动区域：统一用主题化细滚动条，避免出现系统默认滚动条。
-   纵向滚动区（发送页、传输历史、文本与文件弹窗）统一 10px 轨道宽。 */
+   纵向滚动区（会话列表、会话消息流、传输历史、文本与文件弹窗）统一 10px 轨道宽。 */
+.lan-conversation-scroll,
+.lan-conversation-stream,
 .lan-send-scroll,
 .lan-history-list,
 .lan-incoming-card,
 .lan-incoming-text,
 .lan-incoming-files,
+.lan-composer-input textarea,
 .lan-transfer-text-card textarea {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--app-muted) 44%, transparent)
         transparent;
 }
 
+.lan-conversation-scroll,
+.lan-conversation-stream,
 .lan-send-scroll,
 .lan-history-list {
     /* 内容变化导致滚动条出现/消失时不再让内容左右跳动。 */
     scrollbar-gutter: stable;
 }
 
+.lan-conversation-scroll::-webkit-scrollbar,
+.lan-conversation-stream::-webkit-scrollbar,
 .lan-send-scroll::-webkit-scrollbar,
 .lan-history-list::-webkit-scrollbar,
 .lan-incoming-card::-webkit-scrollbar,
 .lan-incoming-text::-webkit-scrollbar,
 .lan-incoming-files::-webkit-scrollbar,
+.lan-composer-input textarea::-webkit-scrollbar,
 .lan-transfer-text-card textarea::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -747,23 +666,29 @@
     height: 8px;
 }
 
+.lan-conversation-scroll::-webkit-scrollbar-track,
+.lan-conversation-stream::-webkit-scrollbar-track,
 .lan-send-scroll::-webkit-scrollbar-track,
 .lan-selection-list::-webkit-scrollbar-track,
 .lan-history-list::-webkit-scrollbar-track,
 .lan-incoming-card::-webkit-scrollbar-track,
 .lan-incoming-text::-webkit-scrollbar-track,
 .lan-incoming-files::-webkit-scrollbar-track,
+.lan-composer-input textarea::-webkit-scrollbar-track,
 .lan-transfer-text-card textarea::-webkit-scrollbar-track {
     background: transparent;
 }
 
 /* 透明边框 + content-box 裁剪，让滑块比轨道窄一圈，观感更轻。 */
+.lan-conversation-scroll::-webkit-scrollbar-thumb,
+.lan-conversation-stream::-webkit-scrollbar-thumb,
 .lan-send-scroll::-webkit-scrollbar-thumb,
 .lan-selection-list::-webkit-scrollbar-thumb,
 .lan-history-list::-webkit-scrollbar-thumb,
 .lan-incoming-card::-webkit-scrollbar-thumb,
 .lan-incoming-text::-webkit-scrollbar-thumb,
 .lan-incoming-files::-webkit-scrollbar-thumb,
+.lan-composer-input textarea::-webkit-scrollbar-thumb,
 .lan-transfer-text-card textarea::-webkit-scrollbar-thumb {
     border: 3px solid transparent;
     border-radius: 999px;
@@ -771,12 +696,15 @@
     background-clip: content-box;
 }
 
+.lan-conversation-scroll:hover::-webkit-scrollbar-thumb,
+.lan-conversation-stream:hover::-webkit-scrollbar-thumb,
 .lan-send-scroll:hover::-webkit-scrollbar-thumb,
 .lan-selection-list:hover::-webkit-scrollbar-thumb,
 .lan-history-list:hover::-webkit-scrollbar-thumb,
 .lan-incoming-card:hover::-webkit-scrollbar-thumb,
 .lan-incoming-text:hover::-webkit-scrollbar-thumb,
 .lan-incoming-files:hover::-webkit-scrollbar-thumb,
+.lan-composer-input textarea:hover::-webkit-scrollbar-thumb,
 .lan-transfer-text-card textarea:hover::-webkit-scrollbar-thumb {
     background: color-mix(in srgb, var(--accent-primary) 52%, transparent);
     background-clip: content-box;
@@ -787,24 +715,30 @@
     border-width: 2px;
 }
 
+.lan-conversation-scroll::-webkit-scrollbar-button,
+.lan-conversation-stream::-webkit-scrollbar-button,
 .lan-send-scroll::-webkit-scrollbar-button,
 .lan-selection-list::-webkit-scrollbar-button,
 .lan-history-list::-webkit-scrollbar-button,
 .lan-incoming-card::-webkit-scrollbar-button,
 .lan-incoming-text::-webkit-scrollbar-button,
 .lan-incoming-files::-webkit-scrollbar-button,
+.lan-composer-input textarea::-webkit-scrollbar-button,
 .lan-transfer-text-card textarea::-webkit-scrollbar-button {
     display: none;
     width: 0;
     height: 0;
 }
 
+.lan-conversation-scroll::-webkit-scrollbar-corner,
+.lan-conversation-stream::-webkit-scrollbar-corner,
 .lan-send-scroll::-webkit-scrollbar-corner,
 .lan-selection-list::-webkit-scrollbar-corner,
 .lan-history-list::-webkit-scrollbar-corner,
 .lan-incoming-card::-webkit-scrollbar-corner,
 .lan-incoming-text::-webkit-scrollbar-corner,
 .lan-incoming-files::-webkit-scrollbar-corner,
+.lan-composer-input textarea::-webkit-scrollbar-corner,
 .lan-transfer-text-card textarea::-webkit-scrollbar-corner {
     background: transparent;
 }

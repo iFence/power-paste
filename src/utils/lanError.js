@@ -22,6 +22,8 @@ const LAN_ERROR_KEYS = {
   lan_transfer_clipboard_empty: "lanErrorClipboardEmpty",
   lan_transfer_clipboard_write_failed: "lanErrorClipboardWriteFailed",
   lan_transfer_clipboard_unavailable: "lanErrorClipboardUnavailable",
+  // 该发送记录没有保留可重发的原始内容。
+  lan_transfer_resend_unavailable: "lanErrorResendUnavailable",
   pin_required: "lanErrorPinRequired",
   declined: "lanErrorDeclined",
   busy: "lanErrorBusy",

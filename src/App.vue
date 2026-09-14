@@ -761,7 +761,9 @@ function openResetSettingsConfirm() {
                     :on-list-subnets="lanTransferState.listSubnets"
                     :on-open-file="lanTransferState.openReceivedFile"
                     :on-read-clipboard="lanTransferState.readClipboard"
+                    :on-read-transfer-preview="lanTransferState.readTransferPreview"
                     :on-refresh-devices="lanTransferState.refreshDevices"
+                    :on-resend-transfer="lanTransferState.resendTransfer"
                     :on-reveal-file="lanTransferState.revealReceivedFile"
                     :on-scan-subnets="lanTransferState.scanSubnets"
                     :on-send-items="lanTransferState.sendItems"
@@ -770,6 +772,7 @@ function openResetSettingsConfirm() {
                     :on-start-service="lanTransferState.startLanTransferService"
                     :on-stop-service="lanTransferState.stopLanTransferService"
                     :platform="settingsState.platformCapabilities.value.platform"
+                    :locale="settingsState.currentLocale.value"
                     :state="lanTransferState.lanTransferState.value"
                     :t="settingsState.t"
                 />

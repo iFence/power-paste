@@ -29,7 +29,8 @@ use tokio::sync::{mpsc, oneshot};
 
 use super::{
     confirm_device, emit_state_with, is_text_package, is_trusted, text_package, util, LanDecision,
-    LanTransferHandle, TransferEntry, INCOMING_TIMEOUT, TEXT_RESTORE_MAX_BYTES,
+    LanFileDto, LanTransferHandle, TransferEntry, TransferKind, INCOMING_TIMEOUT,
+    TEXT_RESTORE_MAX_BYTES,
 };
 use crate::{
     clipboard::write_item_to_clipboard_with_profile,
@@ -147,7 +148,7 @@ fn handle_prepare_upload(
         {
             for (_, text) in &text_messages {
                 record_received_text(app, &shared, &settings, text);
-                record_text_transfer(handle, &info.alias, text);
+                record_text_transfer(handle, &fingerprint, &info.alias, text);
             }
             if !file_ids.is_empty() {
                 let received_files = files
@@ -156,7 +157,13 @@ fn handle_prepare_upload(
                     .map(|(id, file)| (id.clone(), file.clone()))
                     .collect::<HashMap<_, _>>();
                 if !received_files.is_empty() {
-                    start_receive_session(handle, &session_id, &info.alias, &received_files);
+                    start_receive_session(
+                        handle,
+                        &session_id,
+                        &fingerprint,
+                        &info.alias,
+                        &received_files,
+                    );
                 }
             }
         }
@@ -185,11 +192,13 @@ fn handle_prepare_upload(
                 Some(_) => files
                     .iter()
                     .filter(|(id, _)| file_ids.contains(*id))
-                    .map(|(_, file)| (file.file_name.clone(), file.size))
+                    .map(|(_, file)| {
+                        (file.file_name.clone(), file.size, file.file_type.clone())
+                    })
                     .collect(),
                 None => files
                     .values()
-                    .map(|file| (file.file_name.clone(), file.size))
+                    .map(|file| (file.file_name.clone(), file.size, file.file_type.clone()))
                     .collect(),
             },
             total_bytes,
@@ -227,7 +236,7 @@ fn handle_prepare_upload(
                         let settings = shared.settings.lock().unwrap().clone();
                         for (_, text) in &text_messages {
                             record_received_text(&app, &shared, &settings, text);
-                            record_text_transfer(&handle, &info.alias, text);
+                            record_text_transfer(&handle, &fingerprint, &info.alias, text);
                         }
                     }
                     if !file_ids.is_empty() {
@@ -240,6 +249,7 @@ fn handle_prepare_upload(
                             start_receive_session(
                                 &handle,
                                 &session_id,
+                                &fingerprint,
                                 &info.alias,
                                 &received_files,
                             );
@@ -252,17 +262,29 @@ fn handle_prepare_upload(
     });
 }
 
-// 文本消息不传输文件，但仍记一条传输记录，便于界面反馈。
-fn record_text_transfer(handle: &Arc<LanTransferHandle>, peer_alias: &str, text: &str) {
+// 文本消息不传输文件，但仍记一条带正文的传输记录，会话里据此渲染消息气泡。
+fn record_text_transfer(
+    handle: &Arc<LanTransferHandle>,
+    peer_fingerprint: &str,
+    peer_alias: &str,
+    text: &str,
+) {
     handle.inner.lock().unwrap().push_transfer(TransferEntry {
         id: uuid::Uuid::new_v4().to_string(),
         direction: "receive",
+        peer_fingerprint: peer_fingerprint.to_string(),
         peer_alias: peer_alias.to_string(),
         status: "done",
+        kind: TransferKind::Text,
         label: "text".into(),
+        text: Some(text.to_string()),
+        files: Vec::new(),
+        items: Vec::new(),
+        preview_png: None,
         total_bytes: text.len() as u64,
         done_bytes: Arc::new(AtomicU64::new(text.len() as u64)),
         error: None,
+        created_at_ms: util::now_ms(),
         session_id: None,
         peer_host: None,
         cancel: None,
@@ -273,6 +295,7 @@ fn record_text_transfer(handle: &Arc<LanTransferHandle>, peer_alias: &str, text:
 fn start_receive_session(
     handle: &Arc<LanTransferHandle>,
     session_id: &str,
+    peer_fingerprint: &str,
     peer_alias: &str,
     files: &HashMap<String, FileDto>,
 ) {
@@ -287,17 +310,32 @@ fn start_receive_session(
     } else {
         format!("{} files", files.len())
     };
+    let file_list = files
+        .values()
+        .map(|file| LanFileDto {
+            file_name: file.file_name.clone(),
+            mime_type: file.file_type.clone(),
+            size: file.size,
+        })
+        .collect::<Vec<_>>();
 
     let mut inner = handle.inner.lock().unwrap();
     inner.push_transfer(TransferEntry {
         id: transfer_id.clone(),
         direction: "receive",
+        peer_fingerprint: peer_fingerprint.to_string(),
         peer_alias: peer_alias.to_string(),
         status: "active",
+        kind: TransferKind::Files,
         label,
+        text: None,
+        files: file_list,
+        items: Vec::new(),
+        preview_png: None,
         total_bytes,
         done_bytes: Arc::new(AtomicU64::new(0)),
         error: None,
+        created_at_ms: util::now_ms(),
         session_id: Some(session_id.to_string()),
         peer_host: None,
         cancel: None,
@@ -413,22 +451,40 @@ fn handle_file_upload(
                 return;
             }
 
-            let outcome = if is_text_file {
-                let text = String::from_utf8_lossy(&buffer).to_string();
-                record_received_text(&app, &shared_for_task, &settings_for_task, &text);
-                Ok(())
-            } else {
-                record_received_image(
+            // 文本包与图片都在内存里还原：文本折叠成消息，图片额外留一张缩略预览。
+            let text_payload =
+                is_text_file.then(|| String::from_utf8_lossy(&buffer).to_string());
+            let outcome = match &text_payload {
+                Some(text) => {
+                    record_received_text(&app, &shared_for_task, &settings_for_task, text);
+                    Ok(())
+                }
+                None => record_received_image(
                     &app,
                     &shared_for_task,
                     &settings_for_task,
                     &file.file_type,
                     &buffer,
-                )
+                ),
             };
 
             match outcome {
                 Ok(()) => {
+                    match &text_payload {
+                        Some(text) => handle
+                            .inner
+                            .lock()
+                            .unwrap()
+                            .mark_transfer_as_text(&transfer_id_for_task, text),
+                        None => {
+                            let preview = util::image_preview_from_bytes(&buffer);
+                            handle
+                                .inner
+                                .lock()
+                                .unwrap()
+                                .set_transfer_preview(&transfer_id_for_task, preview);
+                        }
+                    }
                     let _ = result_tx.send(Ok(()));
                     handle.inner.lock().unwrap().finish_transfer(
                         &transfer_id_for_task,
@@ -504,14 +560,22 @@ fn handle_file_upload(
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or(file_name);
-    let peer_alias = session_peer_alias(&handle, &session_id);
+    let (peer_alias, peer_fingerprint) = session_peer(&handle, &session_id);
+    let transfer_id_for_record = transfer_id.clone();
     tokio::spawn(async move {
         let result = result_rx
             .await
             .unwrap_or_else(|_| Err("upload aborted".into()));
         match result {
             Ok(()) => {
+                // 落盘的图片额外生成一张缩略预览，会话里可以直接看到图片。
+                let preview = if is_image {
+                    util::image_preview_from_path(&path_for_task)
+                } else {
+                    None
+                };
                 let mut inner = handle.inner.lock().unwrap();
+                inner.set_transfer_preview(&transfer_id, preview);
                 inner.finish_transfer(&transfer_id, "done", None);
                 inner.push_received(super::ReceivedEntry {
                     id: uuid::Uuid::new_v4().to_string(),
@@ -519,6 +583,8 @@ fn handle_file_upload(
                     path: path_for_task,
                     size,
                     from_alias: peer_alias,
+                    from_fingerprint: peer_fingerprint,
+                    transfer_id: transfer_id_for_record,
                     received_at_ms: util::now_ms(),
                 });
             }
@@ -540,8 +606,8 @@ fn handle_file_upload(
     });
 }
 
-// 通过会话 ID 取回发送方别名，用于接收记录展示。
-fn session_peer_alias(handle: &Arc<LanTransferHandle>, session_id: &str) -> String {
+// 通过会话 ID 取回发送方指纹与别名，用于接收记录归入对应会话。
+fn session_peer(handle: &Arc<LanTransferHandle>, session_id: &str) -> (String, String) {
     let inner = handle.inner.lock().unwrap();
     inner
         .sessions
@@ -552,7 +618,7 @@ fn session_peer_alias(handle: &Arc<LanTransferHandle>, session_id: &str) -> Stri
                 .iter()
                 .find(|entry| entry.id == session.transfer_id)
         })
-        .map(|entry| entry.peer_alias.clone())
+        .map(|entry| (entry.peer_alias.clone(), entry.peer_fingerprint.clone()))
         .unwrap_or_default()
 }
 
@@ -724,4 +790,64 @@ fn encode_png_bytes(image: DynamicImage) -> Result<Vec<u8>> {
         ColorType::Rgba8.into(),
     )?;
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{record_text_transfer, session_peer, start_receive_session};
+    use crate::lan_transfer::LanTransferHandle;
+    use crate::models::AppSettings;
+    use localsend::model::transfer::FileDto;
+    use std::{collections::HashMap, sync::Arc};
+
+    fn file_dto(id: &str, file_name: &str, size: u64) -> FileDto {
+        FileDto {
+            id: id.to_string(),
+            file_name: file_name.to_string(),
+            size,
+            file_type: "application/octet-stream".into(),
+            sha256: None,
+            preview: None,
+            metadata: None,
+        }
+    }
+
+    #[test]
+    fn records_received_text_with_its_author() {
+        // 收到的文本消息要带正文与发送方指纹，否则会话里只剩一条无内容提示。
+        let handle = Arc::new(LanTransferHandle::new());
+        record_text_transfer(&handle, "peer-1", "Peer", "hello");
+
+        let state = handle.state(&AppSettings::default());
+        let transfer = &state.transfers[0];
+        assert_eq!(transfer.direction, "receive");
+        assert_eq!(transfer.peer_fingerprint, "peer-1");
+        assert_eq!(transfer.text.as_deref(), Some("hello"));
+        assert_eq!(transfer.kind, "text");
+        assert_eq!(transfer.status, "done");
+    }
+
+    #[test]
+    fn links_received_files_to_their_transfers_and_peers() {
+        // 文件传输记录要同时带上文件清单与发送方指纹，接收文件才能挂到对应会话气泡上。
+        let handle = Arc::new(LanTransferHandle::new());
+        let mut files = HashMap::new();
+        files.insert("file-1".to_string(), file_dto("file-1", "report.pdf", 2048));
+        start_receive_session(&handle, "session-1", "peer-1", "Peer", &files);
+
+        let state = handle.state(&AppSettings::default());
+        let transfer = &state.transfers[0];
+        assert_eq!(transfer.direction, "receive");
+        assert_eq!(transfer.peer_fingerprint, "peer-1");
+        assert_eq!(transfer.kind, "files");
+        assert_eq!(transfer.files.len(), 1);
+        assert_eq!(transfer.files[0].file_name, "report.pdf");
+        assert_eq!(transfer.files[0].size, 2048);
+
+        // 接收文件落盘时按会话取回发送方，用同一指纹归入会话。
+        assert_eq!(
+            session_peer(&handle, "session-1"),
+            ("Peer".to_string(), "peer-1".to_string())
+        );
+    }
 }

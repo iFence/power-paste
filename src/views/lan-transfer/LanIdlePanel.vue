@@ -1,84 +1,42 @@
 <script setup>
-// 接收主页面：设备身份、在线状态、链接入口与高级网络信息。
+// 未选择设备时的右栏空态：保留本机身份、在线状态、扫码互传入口与高级网络信息。
 import { computed, ref } from "vue";
 
 const props = defineProps({
   busy: { type: Boolean, default: false },
-  historyCount: { type: Number, default: 0 },
   localIps: { type: Array, default: () => [] },
   running: { type: Boolean, required: true },
   state: { type: Object, required: true },
   t: { type: Function, required: true },
 });
 
-const emit = defineEmits([
-  "open-history",
-  "open-link",
-  "start-service",
-  "toggle-advanced",
-]);
+const emit = defineEmits(["open-link", "start-service"]);
 
 const advanced = ref(false);
 
-const displayAlias = computed(() => props.state.alias || props.t("lanUnknownDevice"));
-const statusText = computed(() =>
-  props.running ? props.t("lanTransferStatusRunning") : props.t("lanTransferStatusStopped"),
+const displayAlias = computed(
+  () => props.state.alias || props.t("lanUnknownDevice"),
 );
-
-function toggleAdvanced() {
-  advanced.value = !advanced.value;
-  emit("toggle-advanced", advanced.value);
-}
+const statusText = computed(() =>
+  props.running
+    ? props.t("lanTransferStatusRunning")
+    : props.t("lanTransferStatusStopped"),
+);
 </script>
 
 <template>
-  <section class="lan-receive-tab">
-    <div class="lan-receive-corner">
-      <button
-        class="toolbar-icon-button"
-        type="button"
-        :title="t('lanTransferHistory')"
-        :aria-label="t('lanTransferHistory')"
-        @click="emit('open-history')"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 7v5l3 2M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4 9.4M4 5v4.4h4.4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <span v-if="historyCount" class="lan-receive-badge">{{ historyCount }}</span>
-      </button>
-      <button
-        class="toolbar-icon-button"
-        :class="{ active: advanced }"
-        type="button"
-        :title="t('lanTransferAdvanced')"
-        :aria-label="t('lanTransferAdvanced')"
-        @click="toggleAdvanced"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8" />
-          <path d="M12 10.5v6M12 7.4v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      </button>
-    </div>
-
-    <div class="lan-receive-center">
-      <div class="lan-receive-logo">
+  <section class="lan-idle-panel">
+    <div class="lan-idle-center">
+      <div class="lan-idle-logo">
         <img src="/localsend.png" alt="" />
       </div>
       <h2>{{ displayAlias }}</h2>
-      <p class="lan-receive-status">
+      <p class="lan-idle-status">
         <i :class="{ online: running }"></i>
         {{ statusText }}
       </p>
       <button
-        class="lan-receive-link"
+        class="lan-idle-link"
         type="button"
         :disabled="busy || !running"
         @click="emit('open-link')"
@@ -94,6 +52,7 @@ function toggleAdvanced() {
         </svg>
         {{ t("lanTransferReceiveLink") }}
       </button>
+      <small class="lan-idle-hint">{{ t("lanConversationSelectHint") }}</small>
       <button
         v-if="!running && state.enabled !== false"
         class="primary compact"
@@ -103,12 +62,26 @@ function toggleAdvanced() {
       >
         {{ t("lanTransferStartService") }}
       </button>
-      <small v-if="state.enabled === false" class="lan-receive-disabled">
+      <small v-if="state.enabled === false" class="lan-idle-disabled">
         {{ t("lanTransferDisabledHint") }}
       </small>
     </div>
 
-    <aside v-if="advanced" class="lan-receive-advanced">
+    <button
+      class="toolbar-icon-button lan-idle-advanced-button"
+      :class="{ active: advanced }"
+      type="button"
+      :title="t('lanTransferAdvanced')"
+      :aria-label="t('lanTransferAdvanced')"
+      @click="advanced = !advanced"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8" />
+        <path d="M12 10.5v6M12 7.4v.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+    </button>
+
+    <aside v-if="advanced" class="lan-idle-advanced">
       <div>
         <span>{{ t("lanTransferDeviceName") }}</span>
         <strong>{{ displayAlias }}</strong>
@@ -127,103 +100,71 @@ function toggleAdvanced() {
 </template>
 
 <style scoped>
-.lan-receive-tab {
+.lan-idle-panel {
   position: relative;
   display: grid;
+  place-items: center;
   height: 100%;
   min-height: 0;
-  padding: 26px 30px 30px;
 }
 
-.lan-receive-corner {
-  position: absolute;
-  top: 16px;
-  right: 18px;
-  display: flex;
-  gap: 8px;
-  z-index: 2;
-}
-
-.lan-receive-corner .toolbar-icon-button {
-  position: relative;
-}
-
-.lan-receive-corner .toolbar-icon-button.active {
-  color: var(--accent-primary);
-}
-
-.lan-receive-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--accent-primary-strong);
-  color: var(--accent-primary-text);
-  font-size: 0.6rem;
-  line-height: 15px;
-  text-align: center;
-}
-
-.lan-receive-center {
+.lan-idle-center {
   display: grid;
   align-content: center;
   justify-items: center;
-  gap: 13px;
-  min-height: 0;
+  gap: 12px;
+  padding: 20px;
 }
 
-.lan-receive-logo {
+.lan-idle-logo {
   display: grid;
   place-items: center;
-  width: 128px;
-  height: 128px;
+  width: 108px;
+  height: 108px;
 }
 
-.lan-receive-logo img {
+.lan-idle-logo img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.lan-receive-center h2 {
+.lan-idle-center h2 {
   max-width: 100%;
   overflow: hidden;
   margin: 0;
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-size: clamp(1.5rem, 4vw, 2.3rem);
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.lan-receive-status {
+.lan-idle-status {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   margin: 0;
   color: var(--app-muted);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
 }
 
-.lan-receive-status i {
+.lan-idle-status i {
   width: 9px;
   height: 9px;
   border-radius: 999px;
   background: #f55656;
 }
 
-.lan-receive-status i.online {
+.lan-idle-status i.online {
   background: #44d17f;
   box-shadow: 0 0 10px rgba(68, 209, 127, 0.7);
 }
 
-.lan-receive-link {
+.lan-idle-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 4px;
   padding: 9px 16px;
   border: 1px solid color-mix(in srgb, var(--accent-primary) 56%, var(--app-panel-border));
   border-radius: 999px;
@@ -235,62 +176,63 @@ function toggleAdvanced() {
   cursor: pointer;
 }
 
-.lan-receive-link svg {
+.lan-idle-link svg {
   width: 17px;
   height: 17px;
 }
 
-.lan-receive-link:disabled {
+.lan-idle-link:disabled {
   cursor: default;
   opacity: 0.45;
 }
 
-.lan-receive-disabled {
+.lan-idle-hint,
+.lan-idle-disabled {
   color: var(--app-muted);
   font-size: 0.74rem;
 }
 
-.lan-receive-advanced {
+.lan-idle-advanced-button {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  top: 14px;
+  right: 16px;
+}
+
+.lan-idle-advanced-button.active {
+  color: var(--accent-primary);
+}
+
+.lan-idle-advanced {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
   display: grid;
   gap: 8px;
-  width: min(330px, calc(100% - 36px));
+  width: min(320px, calc(100% - 32px));
   padding: 12px;
   border: 1px solid var(--app-panel-border);
   border-radius: 13px;
   background: var(--app-select-menu-bg);
+  color: var(--app-select-menu-text);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
 }
 
-.lan-receive-advanced div {
+.lan-idle-advanced div {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
 }
 
-.lan-receive-advanced span {
+.lan-idle-advanced span {
   color: var(--app-muted);
   font-size: 0.7rem;
 }
 
-.lan-receive-advanced strong {
+.lan-idle-advanced strong {
   overflow: hidden;
   font-size: 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (max-width: 699px) {
-  .lan-receive-tab {
-    padding: 22px 18px 84px;
-  }
-
-  .lan-receive-advanced {
-    right: 14px;
-    bottom: 78px;
-  }
 }
 </style>
