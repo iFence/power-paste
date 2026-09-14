@@ -165,6 +165,11 @@ English version: [README.md](./README.md)。
 - 如果当前是 `X11` 会话，需要安装 `xdotool` 才能启用直接粘贴。
 - 如果当前是 `Wayland` 会话，需要安装 `wtype` 才能启用直接粘贴。
 - 当缺少对应工具时，Power Paste 仍可正常执行“复制回系统剪贴板”，并会根据当前会话类型给出明确安装提示。
+- `Wayland` 会话下全局快捷键改由桌面环境的 `GlobalShortcuts` 门户（`org.freedesktop.portal.GlobalShortcuts`）托管：首次启动会弹出系统确认窗口，快捷键由桌面保存，之后重启无需再次确认。若桌面没有实现该门户（例如部分精简的 wlroots 合成器），应用会退回 X11 抓键并在设置页提示，此时可按提示改用 X11 会话或在系统设置里手动绑定快捷键。
+- 由于按键由桌面托管，如果在系统确认窗口里改过按键，应用内的快捷键设置不会同步显示该改动；重新录制一次即可让两边一致。
+- Wayland 下任务切换器（Alt+Tab）与应用列表的应用图标来自按窗口 app-id / `WM_CLASS` 匹配到的 `.desktop` 文件，而不是窗口自身。安装包会自带该桌面项，`pnpm tauri dev` 也会自动写入开发用桌面项；如果直接在终端运行构建产物，先执行一次 `pnpm desktop:install`。
+- Wayland 下全局快捷键门户按调用进程的 `app-*.scope` 判定应用标识（app id），并要求存在同名桌面项，因此从终端直接启动的进程没有应用标识。`pnpm tauri dev` 会把 dev 进程树放进 `app-dev-power-paste-*.scope`（通过 `systemd-run`）并补齐开发用桌面项；桌面仍然识别不到应用时，设置页会直接说明原因，而不再只报“绑定失败”。
+- 面板主题跟随桌面深浅色设置。GNOME 的深色模式不会写进 WebKitGTK 唯一读取的 `gtk-theme-name`，因此应用改为从桌面门户读取 `org.freedesktop.appearance` 并同步给 GTK；在系统设置里切换深色 / 浅色，面板会立即跟随。
 
 ### macOS 升级后重新授权
 

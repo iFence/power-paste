@@ -167,6 +167,11 @@ Update checks are not configured as a regular setting. The app checks for update
 - In `X11` sessions, install `xdotool` to enable direct paste.
 - In `Wayland` sessions, install `wtype` to enable direct paste.
 - If the required tool is missing, Power Paste will keep copy-back available and show a targeted installation hint for the current session type.
+- In `Wayland` sessions the global shortcuts are bound through the desktop `GlobalShortcuts` portal (`org.freedesktop.portal.GlobalShortcuts`): the desktop asks for confirmation once, keeps the bindings, and restores them on later launches. When the desktop does not implement that portal (some minimal wlroots compositors), Power Paste falls back to X11 key grabs, says so in Settings, and you can bind a shortcut manually in the system settings instead.
+- Because the desktop owns the binding, a shortcut changed inside the confirmation dialog is not reflected in the in-app shortcut field until you record it again.
+- On Wayland the app switcher (Alt+Tab) and the app grid take the icon from a `.desktop` file matched by the window app id / `WM_CLASS`, not from the window itself. Installed packages ship that desktop entry, and `pnpm tauri dev` writes a development one automatically; run `pnpm desktop:install` when you launch a built binary straight from the terminal.
+- The global shortcuts portal derives the app id of the caller from its `app-*.scope` cgroup and requires a matching desktop entry, so a process started straight from a terminal has no app id. `pnpm tauri dev` therefore starts the dev process tree inside `app-dev-power-paste-*.scope` (via `systemd-run`) and ensures the development desktop entry exists. When the desktop still cannot identify the app, Settings now says so instead of reporting a generic binding failure.
+- The panel follows the desktop light / dark setting. On GNOME the dark mode preference is not written into `gtk-theme-name`, which is the only thing WebKitGTK looks at, so the app reads `org.freedesktop.appearance` from the desktop portal and mirrors it into GTK. Toggling dark mode in the system settings updates the panel right away.
 
 ### macOS Permission Reset After Upgrade
 

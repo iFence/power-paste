@@ -414,6 +414,16 @@ Object.assign(messages["zh-CN"], {
     "\u5feb\u6377\u952e\u672a\u751f\u6548\uff0c\u53ef\u80fd\u5df2\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528",
   shortcutConflictMessage:
     "{name}\uff08{shortcut}\uff09\u672a\u751f\u6548\uff0c\u53ef\u80fd\u5df2\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528\u3002\u8bf7\u5173\u95ed\u5360\u7528\u7a0b\u5e8f\u540e\u91cd\u8bd5\uff0c\u6216\u5728\u8bbe\u7f6e\u4e2d\u66f4\u6362\u5feb\u6377\u952e\u3002",
+  waylandPortalUnavailable:
+    "\u5f53\u524d Wayland \u684c\u9762\u6ca1\u6709\u63d0\u4f9b\u5168\u5c40\u5feb\u6377\u952e\u95e8\u6237\uff08GlobalShortcuts\uff09\uff0c\u65e0\u6cd5\u81ea\u52a8\u7ed1\u5b9a\u5feb\u6377\u952e\u3002\u53ef\u5728\u7cfb\u7edf\u8bbe\u7f6e\u91cc\u4e3a Power Paste \u624b\u52a8\u6307\u5b9a\u5feb\u6377\u952e\uff0c\u6216\u6539\u7528 X11 \u4f1a\u8bdd\u3002",
+  waylandPortalDenied:
+    "\u684c\u9762\u73af\u5883\u672a\u7ed1\u5b9a\u8be5\u5feb\u6377\u952e\uff1a\u53ef\u80fd\u662f\u7cfb\u7edf\u5f39\u7a97\u88ab\u53d6\u6d88\uff0c\u6216\u8be5\u5feb\u6377\u952e\u4e0e\u7cfb\u7edf\u5feb\u6377\u952e\u51b2\u7a81\u3002\u8bf7\u91cd\u8bd5\u5e76\u5728\u5f39\u7a97\u4e2d\u786e\u8ba4\uff0c\u6216\u6539\u7528\u5176\u5b83\u6309\u952e\u3002",
+  waylandPortalFailed:
+    "\u684c\u9762\u73af\u5883\u7ed1\u5b9a\u5168\u5c40\u5feb\u6377\u952e\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002\u82e5\u6301\u7eed\u5931\u8d25\uff0c\u53ef\u5728\u7cfb\u7edf\u8bbe\u7f6e\u91cc\u624b\u52a8\u4e3a Power Paste \u6307\u5b9a\u5feb\u6377\u952e\u3002",
+  waylandPortalClosed:
+    "\u684c\u9762\u73af\u5883\u5df2\u91ca\u653e\u5feb\u6377\u952e\u7ed1\u5b9a\uff08\u4f8b\u5982\u684c\u9762\u4f1a\u8bdd\u91cd\u542f\uff09\uff0c\u8bf7\u91cd\u8bd5\u4ee5\u91cd\u65b0\u7ed1\u5b9a\u3002",
+  waylandPortalNoAppId:
+    "\u684c\u9762\u65e0\u6cd5\u8bc6\u522b\u5f53\u524d\u8fdb\u7a0b\u7684\u5e94\u7528\u6807\u8bc6\uff0c\u56e0\u6b64\u62d2\u7edd\u7ed1\u5b9a\u5feb\u6377\u952e\u3002\u8bf7\u4ece\u5e94\u7528\u5217\u8868\u542f\u52a8 Power Paste\uff08\u672c\u5730\u6784\u5efa\u5148\u6267\u884c pnpm desktop:install\uff09\uff0c\u6216\u5728\u9879\u76ee\u76ee\u5f55\u7528 pnpm tauri dev \u542f\u52a8\u3002",
   checkForUpdates: "\u68c0\u67e5\u66f4\u65b0",
   downloadAndInstall: "\u4e0b\u8f7d\u5e76\u5b89\u88c5",
   updateIdle: "\u5c1a\u672a\u6267\u884c\u66f4\u65b0\u68c0\u67e5",
@@ -635,6 +645,16 @@ Object.assign(messages["en-US"], {
     "The shortcut is not active. It may already be used by another app.",
   shortcutConflictMessage:
     "{name} ({shortcut}) is not active. It may already be used by another app. Close the conflicting app and retry, or choose a different shortcut in Settings.",
+  waylandPortalUnavailable:
+    "This Wayland desktop does not provide the GlobalShortcuts portal, so shortcuts cannot be bound automatically. Assign a shortcut to Power Paste in your system settings, or use an X11 session.",
+  waylandPortalDenied:
+    "The desktop did not bind this shortcut: the confirmation dialog may have been dismissed, or the shortcut conflicts with a system shortcut. Retry and confirm in the dialog, or choose another key.",
+  waylandPortalFailed:
+    "The desktop failed to bind the global shortcut. Retry; if it keeps failing, assign a shortcut to Power Paste in your system settings.",
+  waylandPortalClosed:
+    "The desktop released the shortcut binding (for example after a session restart). Retry to bind it again.",
+  waylandPortalNoAppId:
+    "The desktop could not identify the app id of this process, so it refused to bind shortcuts. Launch Power Paste from your app list (run pnpm desktop:install first for a local build), or start it with pnpm tauri dev from the project directory.",
   checkForUpdates: "Check for Updates",
   downloadAndInstall: "Download and Install",
   updateIdle: "No update check has been run yet.",

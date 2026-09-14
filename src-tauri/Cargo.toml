@@ -86,3 +86,10 @@ plist = "1.7"
 # 显式依赖同一份 clipboard-rs 并开启 wayland 特性：tauri-plugin-clipboard-next
 # 默认只启用 X11 后端，纯 Wayland 会话下剪贴板会初始化失败。
 clipboard-rs = { version = "0.3", features = ["wayland"] }
+# GNOME 深色模式不会写进 gtk-theme-name，WebKitGTK 因此把 prefers-color-scheme
+# 判成浅色；这里直接读写 GTK 的深色设置来修正（gtk 已由 tao / wry 引入依赖树）。
+gtk = "0.18"
+# Wayland 会话下通过 XDG Desktop Portal 的 GlobalShortcuts 接口托管全局快捷键
+# （tauri-plugin-global-shortcut 底层 global-hotkey 只支持 X11）。zbus 已被
+# tauri-plugin-single-instance 引入依赖树，这里显式声明为直接依赖。
+zbus = "5"

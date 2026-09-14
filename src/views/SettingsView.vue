@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { getInstalledAppIcon, listInstalledApps, openExternalUrl } from '../services/tauriApi'
-import { normalizeShortcutKey } from '../utils/shortcut'
+import { normalizeShortcutKey, shortcutIssueMessage } from '../utils/shortcut'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 import checkIcon from '../assets/check.svg'
 
@@ -164,6 +164,10 @@ const shortcutIssuesByKey = computed(() => {
     return acc
   }, {})
 })
+const shortcutWarningText = computed(() => {
+  const issue = (props.shortcutStatus?.issues || [])[0]
+  return shortcutIssueMessage(issue?.error, props.t) || props.t('shortcutRegistrationFailed')
+})
 
 const updateNotes = computed(() => {
   const body = props.updateState?.body
@@ -254,6 +258,12 @@ function shortcutIssueText(key) {
   const issue = shortcutIssuesByKey.value[key]
   if (!issue) {
     return ''
+  }
+
+  // Wayland 会话下的门户绑定失败有专门的提示文案，不再套用快捷键冲突的说明。
+  const portalMessage = shortcutIssueMessage(issue.error, props.t)
+  if (portalMessage) {
+    return portalMessage
   }
 
   const labelMap = {
@@ -1815,7 +1825,7 @@ watch(
 
         <div v-if="activeCategory === 'shortcuts'" class="settings-grid settings-section-grid">
           <section v-if="shortcutStatus?.issues?.length" class="shortcut-settings-warning">
-            <p>{{ t('shortcutRegistrationFailed') }}</p>
+            <p>{{ shortcutWarningText }}</p>
             <button
               class="ghost compact"
               type="button"

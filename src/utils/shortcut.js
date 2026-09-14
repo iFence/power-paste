@@ -66,3 +66,30 @@ export function normalizeShortcutValue(shortcut, platform = 'unknown') {
     .filter(Boolean)
     .join('+');
 }
+
+// Wayland 会话下全局快捷键由桌面门户托管，绑定结果以错误码形式回传，
+// 这里把错误码映射成可操作的提示文案；非门户错误返回空串，由调用方
+// 继续按“快捷键冲突”处理。
+export function shortcutIssueMessage(code, t) {
+  if (!code) {
+    return '';
+  }
+
+  if (code.startsWith('wayland_portal_unavailable')) {
+    return t('waylandPortalUnavailable');
+  }
+  if (code.startsWith('wayland_portal_denied')) {
+    return t('waylandPortalDenied');
+  }
+  if (code.startsWith('wayland_portal_closed')) {
+    return t('waylandPortalClosed');
+  }
+  if (code.startsWith('wayland_portal_no_app_id')) {
+    return t('waylandPortalNoAppId');
+  }
+  if (code.startsWith('wayland_portal_failed')) {
+    return t('waylandPortalFailed');
+  }
+
+  return '';
+}

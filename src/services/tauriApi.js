@@ -31,8 +31,16 @@ export function onQuickPasteStarted(handler) {
   return listen("quick-paste-started", handler);
 }
 
+export function onQuickPasteFinished(handler) {
+  return listen("quick-paste-finished", handler);
+}
+
 export function onOpenSettings(handler) {
   return listen("open-settings", handler);
+}
+
+export function onOpenLanTransfer(handler) {
+  return listen("open-lan-transfer", handler);
 }
 
 export function onPanelShown(handler) {

@@ -19,7 +19,7 @@ use crate::{
     save_settings,
     shortcuts::{
         register_shortcuts_nonfatal, register_shortcuts_strict, store_and_emit_shortcut_status,
-        unregister_configured_shortcuts,
+        unregister_configured_shortcuts, uses_wayland_portal,
     },
     startup::set_launch_on_startup,
 };
@@ -93,7 +93,10 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
                 Err(error) => {
                     unregister_configured_shortcuts(app, &settings);
                     let restored_status = register_shortcuts_nonfatal(app, &previous_settings);
-                    store_and_emit_shortcut_status(app, state, restored_status);
+                    // Wayland 门户异步写状态，这里不再覆盖它已经写入的结果。
+                    if !uses_wayland_portal() {
+                        store_and_emit_shortcut_status(app, state, restored_status);
+                    }
                     return Err(error);
                 }
             }
@@ -130,7 +133,9 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         }
         *state.settings.lock().unwrap() = settings.clone();
         if let Some(status) = next_shortcut_status {
-            store_and_emit_shortcut_status(app, state, status);
+            if !uses_wayland_portal() {
+                store_and_emit_shortcut_status(app, state, status);
+            }
         }
         crate::lan_transfer::apply_settings_change(
             app.clone(),
@@ -150,7 +155,9 @@ pub(crate) fn execute_retry_shortcut_registration(
     let settings = state.settings.lock().unwrap().clone();
     unregister_configured_shortcuts(&app, &settings);
     let status = register_shortcuts_nonfatal(&app, &settings);
-    store_and_emit_shortcut_status(&app, &state, status.clone());
+    if !uses_wayland_portal() {
+        store_and_emit_shortcut_status(&app, &state, status.clone());
+    }
     Ok(status)
 }
 

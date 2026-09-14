@@ -18,7 +18,10 @@ use webview2_com::{
 use windows_core::Interface;
 
 use crate::{
-    models::{SharedState, OPEN_SETTINGS_EVENT, PANEL_LABEL, PANEL_SHOWN_EVENT, QUICK_PASTE_STARTED_EVENT},
+    models::{
+        SharedState, OPEN_LAN_TRANSFER_EVENT, OPEN_SETTINGS_EVENT, PANEL_LABEL, PANEL_SHOWN_EVENT,
+        QUICK_PASTE_STARTED_EVENT,
+    },
     paste_target::remember_last_target_window,
     save_settings,
     update::spawn_manual_check,
@@ -185,6 +188,16 @@ pub(crate) fn show_quick_paste_panel(app: &AppHandle) -> Result<()> {
 
 // 显示主窗口并通知前端进入设置面板。
 fn show_settings_panel(app: &AppHandle) -> Result<()> {
+    show_panel_and_notify(app, OPEN_SETTINGS_EVENT)
+}
+
+// 显示主窗口并通知前端进入互传页面。
+fn show_lan_transfer_panel(app: &AppHandle) -> Result<()> {
+    show_panel_and_notify(app, OPEN_LAN_TRANSFER_EVENT)
+}
+
+// 把主面板带到前台，并广播一个“切换到指定页面”的事件。
+fn show_panel_and_notify(app: &AppHandle, event: &str) -> Result<()> {
     let window = app
         .get_webview_window(PANEL_LABEL)
         .context("main window not found")?;
@@ -197,7 +210,7 @@ fn show_settings_panel(app: &AppHandle) -> Result<()> {
         show_panel_near_cursor(app, &window)?;
     }
 
-    app.emit(OPEN_SETTINGS_EVENT, ())?;
+    app.emit(event, ())?;
     Ok(())
 }
 
@@ -346,6 +359,7 @@ fn tray_label(locale: &str, key: &str) -> &'static str {
     if locale == "zh-CN" {
         match key {
             "settings" => "设置",
+            "lan_transfer" => "互传",
             "check_updates" => "检查更新",
             "quit" => "退出",
             _ => "",
@@ -353,6 +367,7 @@ fn tray_label(locale: &str, key: &str) -> &'static str {
     } else {
         match key {
             "settings" => "Settings",
+            "lan_transfer" => "LAN Transfer",
             "check_updates" => "Check for Updates",
             "quit" => "Quit",
             _ => "",
@@ -382,6 +397,13 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
         true,
         None::<&str>,
     )?;
+    let lan_transfer = MenuItem::with_id(
+        app,
+        "lan_transfer",
+        tray_label(locale, "lan_transfer"),
+        true,
+        None::<&str>,
+    )?;
     let check_updates = MenuItem::with_id(
         app,
         "check_updates",
@@ -390,7 +412,10 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", tray_label(locale, "quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&settings, &check_updates, &quit, &version])?;
+    let menu = Menu::with_items(
+        app,
+        &[&settings, &lan_transfer, &check_updates, &quit, &version],
+    )?;
 
     let mut builder = TrayIconBuilder::with_id("power-paste-tray")
         .menu(&menu)
@@ -399,6 +424,9 @@ pub(crate) fn build_tray(app: &AppHandle, locale: &str) -> Result<()> {
         .on_menu_event(|app, event| match event.id().0.as_str() {
             "settings" => {
                 let _ = show_settings_panel(app);
+            }
+            "lan_transfer" => {
+                let _ = show_lan_transfer_panel(app);
             }
             "check_updates" => {
                 let shared = app.state::<Arc<SharedState>>().inner().clone();

@@ -4375,6 +4375,7 @@ dependencies = [
  "chrono",
  "clipboard-rs",
  "futures-util",
+ "gtk",
  "if-addrs",
  "image",
  "keyring",
@@ -4410,6 +4411,7 @@ dependencies = [
  "webview2-com",
  "windows-core 0.61.2",
  "windows-sys 0.61.2",
+ "zbus 5.14.0",
 ]
 
 [[package]]

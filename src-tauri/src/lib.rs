@@ -30,6 +30,7 @@ mod startup;
 mod storage;
 mod sync;
 mod system_open;
+mod system_theme;
 mod update;
 mod usecases;
 
@@ -260,6 +261,11 @@ pub fn run() {
             });
 
             app.manage(shared.clone());
+
+            // 先把桌面外观同步给 GTK，WebView 首次加载面板时就能拿到正确的
+            // prefers-color-scheme。
+            system_theme::start(app.handle());
+
             create_main_window(app, &shared.paths, &settings.lock().unwrap())?;
 
             let launch_on_startup = settings.lock().unwrap().launch_on_startup;
@@ -273,7 +279,11 @@ pub fn run() {
 
             let shortcut_status =
                 shortcuts::register_shortcuts_nonfatal(app.handle(), &settings.lock().unwrap());
-            *shared.shortcut_status.lock().unwrap() = shortcut_status;
+            // Wayland 会话下快捷键由桌面门户托管，绑定结果由门户线程异步写入，
+            // 这里不能覆盖它。
+            if !shortcuts::uses_wayland_portal() {
+                *shared.shortcut_status.lock().unwrap() = shortcut_status;
+            }
 
             capture::start_clipboard_monitor(app.handle().clone(), shared.clone());
             update::spawn_startup_check(

@@ -6,8 +6,10 @@ import { useRoute, useRouter } from "vue-router";
 import {
     onCopySound,
     onHistoryUpdated,
+    onOpenLanTransfer,
     onOpenSettings,
     onPanelShown,
+    onQuickPasteFinished,
     onQuickPasteStarted,
     onShortcutStatusUpdated,
     onUpdateStatus,
@@ -97,7 +99,9 @@ let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
 let unlistenWindowResize = null;
 let unlistenQuickPaste = null;
+let unlistenQuickPasteFinished = null;
 let unlistenOpenSettings = null;
+let unlistenOpenLanTransfer = null;
 let unlistenPanelShown = null;
 let unlistenShortcutStatus = null;
 const startupBusy = ref(false);
@@ -145,7 +149,9 @@ function cleanupListeners() {
     unlistenWindowFocus?.();
     unlistenWindowResize?.();
     unlistenQuickPaste?.();
+    unlistenQuickPasteFinished?.();
     unlistenOpenSettings?.();
+    unlistenOpenLanTransfer?.();
     unlistenPanelShown?.();
     unlistenShortcutStatus?.();
     unlistenHistory = null;
@@ -155,7 +161,9 @@ function cleanupListeners() {
     unlistenWindowFocus = null;
     unlistenWindowResize = null;
     unlistenQuickPaste = null;
+    unlistenQuickPasteFinished = null;
     unlistenOpenSettings = null;
+    unlistenOpenLanTransfer = null;
     unlistenPanelShown = null;
     unlistenShortcutStatus = null;
 }
@@ -392,8 +400,16 @@ async function initializeApp() {
             }
             void startQuickPasteMode();
         });
+        // Wayland 会话下快捷键由桌面环境托管，按键不会进入面板，
+        // 松开快捷键由后端转发这个事件来触发“松手即粘贴”。
+        unlistenQuickPasteFinished = await onQuickPasteFinished(() => {
+            void commitQuickPaste();
+        });
         unlistenOpenSettings = await onOpenSettings(() => {
             void openSettingsRoute();
+        });
+        unlistenOpenLanTransfer = await onOpenLanTransfer(() => {
+            void openLanTransferRoute();
         });
         unlistenPanelShown = await onPanelShown(() => {
             void historyState.resetPanelToDefault();

@@ -16,7 +16,7 @@ import {
   updateWebdavCredential as saveWebdavCredential,
   updateSettings as persistSettings,
 } from "../services/tauriApi";
-import { normalizeShortcutValue } from "../utils/shortcut";
+import { normalizeShortcutValue, shortcutIssueMessage } from "../utils/shortcut";
 import { createEmptyTagLabels, normalizeTagLabels } from "../utils/constants";
 
 function detectClientPlatform() {
@@ -183,6 +183,11 @@ export function useSettings() {
       return "";
     }
 
+    const portalMessage = shortcutIssueMessage(issue.error, t);
+    if (portalMessage) {
+      return portalMessage;
+    }
+
     const label =
       issue.key === "quickPasteShortcut" ? t("quickPasteShortcut") : t("globalShortcut");
     return t("shortcutConflictMessage", {
@@ -251,6 +256,10 @@ export function useSettings() {
     }
     if (code.startsWith("shortcut_registration_failed")) {
       return t("shortcutRegistrationFailed");
+    }
+    const portalMessage = shortcutIssueMessage(code, t);
+    if (portalMessage) {
+      return portalMessage;
     }
     if (code === "webdav_settings_incomplete") {
       return t("webdavSettingsIncomplete");
