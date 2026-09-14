@@ -6,16 +6,16 @@
     --app-text: #f4efe8;
     --app-muted: rgba(244, 239, 232, 0.68);
     --app-soft-text: rgba(244, 239, 232, 0.52);
-    --app-panel-bg: rgba(20, 24, 30, 0.54);
-    --app-panel-strong-bg: rgba(30, 35, 43, 0.66);
+    --app-panel-bg: rgba(34, 39, 48, 0.54);
+    --app-panel-strong-bg: rgba(45, 51, 61, 0.66);
     --app-panel-border: rgba(255, 255, 255, 0.08);
     --app-list-border: rgba(255, 255, 255, 0.06);
     --app-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
-    --modal-panel-bg: rgba(18, 22, 28, 0.64);
-    --modal-panel-strong-bg: rgba(28, 33, 41, 0.76);
+    --modal-panel-bg: rgba(32, 37, 45, 0.64);
+    --modal-panel-strong-bg: rgba(43, 49, 58, 0.76);
     --app-glass-blur: 22px;
     --app-glass-saturate: 114%;
-    --app-bg: linear-gradient(180deg, #131519 0%, #0d0f13 52%, #12151a 100%);
+    --app-bg: linear-gradient(180deg, #1e2128 0%, #171a1f 52%, #1c1f25 100%);
     --accent-primary: #f0b35f;
     --accent-primary-strong: #dd8648;
     --accent-primary-soft: rgba(240, 179, 95, 0.2);
@@ -25,7 +25,7 @@
     --action-cluster-bg: transparent;
     --action-button-bg: transparent;
     --action-button-hover-bg: rgba(255, 255, 255, 0.08);
-    --settings-sidebar-bg: rgba(30, 36, 44, 0.72);
+    --settings-sidebar-bg: rgba(45, 52, 62, 0.72);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -1046,7 +1046,7 @@
     --app-button-hover-bg: rgba(255, 255, 255, 0.12);
     --app-input-bg: rgba(255, 255, 255, 0.06);
     --app-select-arrow: rgba(244, 239, 232, 0.54);
-    --app-select-menu-bg: #181b21;
+    --app-select-menu-bg: #232730;
     --app-select-menu-text: #f4efe8;
 }
 
