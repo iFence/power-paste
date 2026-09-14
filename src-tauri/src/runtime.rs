@@ -78,6 +78,48 @@ fn ensure_panel_min_size(window: &WebviewWindow, scale_factor: f64) -> Result<()
     Ok(())
 }
 
+// 光标与面板之间的间距，保证面板不会盖住光标本身。
+const CURSOR_PANEL_GAP: i32 = 18;
+// 面板左边相对光标的偏移，让光标落在面板左侧边缘附近。
+const CURSOR_PANEL_OFFSET_X: i32 = -32;
+// 面板与屏幕边缘保留的最小边距。
+const PANEL_SCREEN_MARGIN: i32 = 16;
+
+// 计算面板贴近光标时的位置：水平方向贴着光标左侧并限制在屏幕内；
+// 垂直方向优先放在光标下方，下方放不下（光标太靠下）时翻到光标上方，
+// 避免面板被顶到贴住屏幕底边、把光标和周围内容一起盖住。
+fn panel_origin_near_cursor(
+    cursor: PhysicalPosition<f64>,
+    panel_size: PhysicalSize<u32>,
+    screen_origin: PhysicalPosition<i32>,
+    screen_size: PhysicalSize<u32>,
+) -> PhysicalPosition<i32> {
+    let cursor_x = cursor.x.round() as i32;
+    let cursor_y = cursor.y.round() as i32;
+    let panel_width = panel_size.width as i32;
+    let panel_height = panel_size.height as i32;
+
+    let min_x = screen_origin.x + PANEL_SCREEN_MARGIN;
+    let min_y = screen_origin.y + PANEL_SCREEN_MARGIN;
+    let max_x = screen_origin.x + screen_size.width as i32 - panel_width - PANEL_SCREEN_MARGIN;
+    let max_y = screen_origin.y + screen_size.height as i32 - panel_height - PANEL_SCREEN_MARGIN;
+
+    let x = (cursor_x + CURSOR_PANEL_OFFSET_X).clamp(min_x, max_x.max(min_x));
+
+    let below_y = cursor_y + CURSOR_PANEL_GAP;
+    let above_y = cursor_y - panel_height - CURSOR_PANEL_GAP;
+    let y = if below_y <= max_y {
+        below_y
+    } else if above_y >= min_y {
+        above_y
+    } else {
+        // 面板比可用高度还高：贴顶显示，至少保证顶部完整可见。
+        below_y.clamp(min_y, max_y.max(min_y))
+    };
+
+    PhysicalPosition::new(x, y)
+}
+
 fn show_panel_near_cursor(app: &AppHandle, window: &WebviewWindow) -> Result<()> {
     remember_last_target_window(app);
     let cursor = app.cursor_position()?;
@@ -112,24 +154,13 @@ fn show_panel_near_cursor(app: &AppHandle, window: &WebviewWindow) -> Result<()>
         } else {
             ensure_panel_min_size(window, target_scale_factor)?;
         }
-        let size = window.outer_size()?;
-        let screen_origin = monitor.position();
-        let screen_size = monitor.size();
-        let margin = 16i32;
-
-        let mut target_x = cursor.x.round() as i32 - 32;
-        let mut target_y = cursor.y.round() as i32 + 18;
-        let min_x = screen_origin.x + margin;
-        let min_y = screen_origin.y + margin;
-        let max_x = screen_origin.x + screen_size.width as i32 - size.width as i32 - margin;
-        let max_y = screen_origin.y + screen_size.height as i32 - size.height as i32 - margin;
-
-        target_x = target_x.clamp(min_x, max_x.max(min_x));
-        target_y = target_y.clamp(min_y, max_y.max(min_y));
-
-        window.set_position(Position::Physical(PhysicalPosition::new(
-            target_x, target_y,
-        )))?;
+        let target = panel_origin_near_cursor(
+            cursor,
+            window.outer_size()?,
+            *monitor.position(),
+            *monitor.size(),
+        );
+        window.set_position(Position::Physical(target))?;
     }
 
     window.show()?;
@@ -352,6 +383,94 @@ mod tests {
 
         assert_eq!(size.width, PANEL_MIN_WIDTH);
         assert_eq!(size.height, PANEL_MIN_HEIGHT);
+    }
+
+    fn screen_1080p() -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+        (PhysicalPosition::new(0, 0), PhysicalSize::new(1920, 1080))
+    }
+
+    #[test]
+    fn panel_opens_below_a_cursor_that_has_room_below() {
+        let (origin, screen) = screen_1080p();
+
+        let position = panel_origin_near_cursor(
+            PhysicalPosition::new(600.0, 200.0),
+            PhysicalSize::new(380, 760),
+            origin,
+            screen,
+        );
+
+        assert_eq!(position.x, 600 - 32);
+        assert_eq!(position.y, 200 + CURSOR_PANEL_GAP);
+    }
+
+    #[test]
+    fn panel_flips_above_a_cursor_near_the_bottom_edge() {
+        let (origin, screen) = screen_1080p();
+
+        let position = panel_origin_near_cursor(
+            PhysicalPosition::new(600.0, 1000.0),
+            PhysicalSize::new(380, 760),
+            origin,
+            screen,
+        );
+
+        // 下方放不下时改为整个面板落在光标上方，不再盖住光标。
+        assert_eq!(position.y, 1000 - 760 - CURSOR_PANEL_GAP);
+        assert!(position.y + 760 <= 1000);
+    }
+
+    #[test]
+    fn panel_stays_on_screen_when_it_is_taller_than_the_screen() {
+        let (origin, screen) = screen_1080p();
+
+        let position = panel_origin_near_cursor(
+            PhysicalPosition::new(600.0, 900.0),
+            PhysicalSize::new(380, 1200),
+            origin,
+            screen,
+        );
+
+        assert_eq!(position.y, PANEL_SCREEN_MARGIN);
+    }
+
+    #[test]
+    fn panel_clamps_horizontally_inside_the_screen() {
+        let (origin, screen) = screen_1080p();
+
+        let near_right = panel_origin_near_cursor(
+            PhysicalPosition::new(1910.0, 100.0),
+            PhysicalSize::new(380, 760),
+            origin,
+            screen,
+        );
+        let near_left = panel_origin_near_cursor(
+            PhysicalPosition::new(2.0, 100.0),
+            PhysicalSize::new(380, 760),
+            origin,
+            screen,
+        );
+
+        assert_eq!(near_right.x, 1920 - 380 - PANEL_SCREEN_MARGIN);
+        assert_eq!(near_left.x, PANEL_SCREEN_MARGIN);
+    }
+
+    #[test]
+    fn panel_stays_inside_a_monitor_left_of_the_primary_one() {
+        let origin = PhysicalPosition::new(-1920, 0);
+        let screen = PhysicalSize::new(1920, 1080);
+
+        let position = panel_origin_near_cursor(
+            PhysicalPosition::new(-300.0, 1040.0),
+            PhysicalSize::new(380, 760),
+            origin,
+            screen,
+        );
+
+        // 面板整体落在左侧显示器内，右边缘不会溢出到主显示器。
+        assert_eq!(position.x, -380 - PANEL_SCREEN_MARGIN);
+        assert!(position.y >= PANEL_SCREEN_MARGIN);
+        assert!(position.y + 760 <= 1080);
     }
 }
 
