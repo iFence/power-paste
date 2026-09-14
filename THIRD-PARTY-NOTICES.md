@@ -14,3 +14,10 @@ Power Paste 包含以下第三方开源组件。完整许可证文本随对应�
 
 Power Paste 通过该库实现 LocalSend 协议，使安装了 power-paste 的设备可以与官方 LocalSend
 客户端互相发现与传输文件；power-paste 自身的界面、剪贴板历史与设置项均为本项目实现。
+
+## LocalSend 应用图标
+
+- 项目：LocalSend（https://github.com/localsend/localsend）
+- 资源：官方应用图标（`org.localsend.localsend_app`）
+- 位置：`public/localsend.png`
+- 版权归 LocalSend 项目所有，本项目只用于在历史记录中标识「内容来自 LocalSend 传输」

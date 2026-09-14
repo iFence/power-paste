@@ -91,6 +91,8 @@ const previewColorValue = computed(() => {
   return resolvePreviewColor(textPreviewValue.value)
 })
 const isMobileSource = computed(() => props.item?.sourceApp === 'Mobile')
+// 局域网互传收到的内容由后端标记为 LocalSend，用官方图标替代首字母占位。
+const isLocalSendSource = computed(() => props.item?.sourceApp === 'LocalSend')
 const sourceAppInitials = computed(() => {
   const sourceApp = typeof props.item?.sourceApp === 'string' ? props.item.sourceApp.trim() : ''
   if (!sourceApp) {
@@ -508,6 +510,12 @@ onBeforeUnmount(() => {
               stroke-linecap="round"
             />
           </svg>
+          <img
+            v-else-if="isLocalSendSource"
+            src="/localsend.png"
+            alt=""
+            class="source-app-icon-image"
+          />
           <img
             v-else-if="item.sourceIconDataUrl"
             :src="item.sourceIconDataUrl"
