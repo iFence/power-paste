@@ -6,10 +6,11 @@ const WINDOW_SIZES = {
     height: 500,
   },
   // 互传页使用宽屏桌面布局，窄窗时由页面内部切换为底部导航。
-  // 宽度保持在 800 以上，避免默认尺寸就落到页面内部 799px 的紧凑布局。
+  // 宽度不能再低于 800，否则默认尺寸就会落到页面内部 799px 的紧凑布局
+  // （图标导航 + 两列选择按钮）。
   lanTransfer: {
-    width: 840,
-    height: 560,
+    width: 800,
+    height: 520,
   },
 }
 
@@ -58,6 +59,15 @@ export function createPanelRouteSizing({ appWindow, persistence, isResizingRef }
     }
   }
 
+  // 按当前尺寸把窗口移到所在显示器中央；失败不阻断路由切换。
+  async function centerWindow() {
+    try {
+      await appWindow.center()
+    } catch (error) {
+      console.error('Failed to center window:', error)
+    }
+  }
+
   async function applyRouteSize(routeName, oldRouteName) {
     if (isResizingRef.value || routeName === persistence.currentRoute()) {
       return
@@ -80,6 +90,10 @@ export function createPanelRouteSizing({ appWindow, persistence, isResizingRef }
       if (fixedSize) {
         await relaxMinSizeForFixedRoute(fixedSize)
         await setSize(fixedSize)
+        // 设置页与互传页都是固定尺寸的整页面板，无论从托盘菜单还是主面板
+        // 图标进入，都统一落在显示器中央，而不是停留在光标附近。尺寸生效后
+        // 再居中，保证按新尺寸计算位置。
+        await centerWindow()
         persistence.setCurrentRouteName(routeName)
         return
       }
