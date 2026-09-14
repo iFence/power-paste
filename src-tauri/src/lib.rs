@@ -19,6 +19,8 @@ mod history;
 mod history_preview;
 mod installed_apps;
 mod lan_transfer;
+#[cfg(target_os = "linux")]
+mod linux_app;
 mod models;
 mod paste_target;
 mod ports;

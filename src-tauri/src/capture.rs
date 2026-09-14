@@ -169,7 +169,7 @@ fn hydrate_source_icon_async(
         .unwrap_or_default()
         .is_empty()
         && source_app
-            .icon_png_base64
+            .icon_base64
             .as_deref()
             .unwrap_or_default()
             .is_empty()

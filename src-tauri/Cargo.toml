@@ -93,3 +93,6 @@ gtk = "0.18"
 # （tauri-plugin-global-shortcut 底层 global-hotkey 只支持 X11）。zbus 已被
 # tauri-plugin-single-instance 引入依赖树，这里显式声明为直接依赖。
 zbus = "5"
+# X11 会话（以及 Wayland 下的 Xwayland 应用）用纯 Rust 客户端读剪贴板 owner /
+# 活动窗口的 WM_CLASS 与 _NET_WM_PID，据此识别来源应用并取图标。
+x11rb = "0.13"

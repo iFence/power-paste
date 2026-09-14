@@ -52,7 +52,8 @@ pub(crate) fn installed_app_icon_data_url(
     source_app_icon_data_url(&ForegroundAppResult {
         process_name: process_name.clone(),
         display_name: display_name.clone(),
-        icon_png_base64: None,
+        icon_base64: None,
+        icon_media_type: None,
         app_path: app_path.clone(),
         bundle_id: bundle_id.clone(),
     })

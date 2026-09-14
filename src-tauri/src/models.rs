@@ -764,7 +764,10 @@ pub(crate) enum CapturedClipboard {
 pub(crate) struct ForegroundAppResult {
     pub(crate) process_name: String,
     pub(crate) display_name: String,
-    pub(crate) icon_png_base64: Option<String>,
+    // 图标内容（base64），与 icon_media_type 一起组成写库用的 data URL。
+    pub(crate) icon_base64: Option<String>,
+    // 图标 MIME 类型；Windows / macOS 只产出 PNG，缺省即按 PNG 处理。
+    pub(crate) icon_media_type: Option<String>,
     pub(crate) app_path: Option<String>,
     pub(crate) bundle_id: Option<String>,
 }

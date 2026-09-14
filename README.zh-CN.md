@@ -169,6 +169,7 @@ English version: [README.md](./README.md)。
 - 由于按键由桌面托管，如果在系统确认窗口里改过按键，应用内的快捷键设置不会同步显示该改动；重新录制一次即可让两边一致。
 - Wayland 下任务切换器（Alt+Tab）与应用列表的应用图标来自按窗口 app-id / `WM_CLASS` 匹配到的 `.desktop` 文件，而不是窗口自身。安装包会自带该桌面项，`pnpm tauri dev` 也会自动写入开发用桌面项；如果直接在终端运行构建产物，先执行一次 `pnpm desktop:install`。
 - Wayland 下全局快捷键门户按调用进程的 `app-*.scope` 判定应用标识（app id），并要求存在同名桌面项，因此从终端直接启动的进程没有应用标识。`pnpm tauri dev` 会把 dev 进程树放进 `app-dev-power-paste-*.scope`（通过 `systemd-run`）并补齐开发用桌面项；桌面仍然识别不到应用时，设置页会直接说明原因，而不再只报“绑定失败”。
+- 历史记录左上角的来源应用图标在 Linux 上依赖窗口归属：X11（Xorg）会话，以及 Wayland 会话里通过 Xwayland 运行的应用，可以从剪贴板归属窗口或活动窗口读出 `WM_CLASS` 与 `_NET_WM_PID`，据此匹配 `.desktop` 并显示应用图标；Wayland 原生应用（GNOME 终端、多数 GNOME 应用）不会出现在 X 服务器里，GNOME 也没有向普通应用开放前台窗口查询，因此这类来源仍显示占位图标。
 - 面板主题跟随桌面深浅色设置。GNOME 的深色模式不会写进 WebKitGTK 唯一读取的 `gtk-theme-name`，因此应用改为从桌面门户读取 `org.freedesktop.appearance` 并同步给 GTK；在系统设置里切换深色 / 浅色，面板会立即跟随。
 
 ### macOS 升级后重新授权

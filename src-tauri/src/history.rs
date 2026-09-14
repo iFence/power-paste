@@ -4,8 +4,6 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use std::collections::HashMap;
 #[cfg(windows)]
 use std::ffi::c_void;
-#[cfg(target_os = "linux")]
-use std::fs;
 #[cfg(any(target_os = "macos", windows))]
 use std::sync::{Mutex, OnceLock};
 
@@ -21,36 +19,6 @@ use crate::{
     rich_text::{first_html_image_src, html_contains_image_content, normalize_rich_text_payload},
     storage::{image_hash_from_png_bytes, mixed_hash, text_hash},
 };
-
-#[cfg(target_os = "linux")]
-fn run_linux_command(program: &str, args: &[&str]) -> Result<Option<String>> {
-    let output = std::process::Command::new(program).args(args).output()?;
-    if !output.status.success() {
-        return Ok(None);
-    }
-
-    let stdout = String::from_utf8(output.stdout)?;
-    let trimmed = stdout.trim_end_matches(['\r', '\n']);
-    if trimmed.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(trimmed.to_string()))
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn linux_window_display_name(window_id: &str) -> Option<String> {
-    run_linux_command("xdotool", &["getwindowclassname", window_id])
-        .ok()
-        .flatten()
-        .or_else(|| {
-            run_linux_command("xdotool", &["getwindowname", window_id])
-                .ok()
-                .flatten()
-        })
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
 
 #[cfg(target_os = "macos")]
 static MACOS_APP_ICON_CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
@@ -284,7 +252,7 @@ fn windows_app_icon_base64_uncached(app_path: &str) -> Option<String> {
 
 pub(crate) fn source_app_icon_data_url(app: &ForegroundAppResult) -> Option<String> {
     let icon_base64 = app
-        .icon_png_base64
+        .icon_base64
         .clone()
         .filter(|value| !value.is_empty())
         .or_else(|| {
@@ -302,7 +270,19 @@ pub(crate) fn source_app_icon_data_url(app: &ForegroundAppResult) -> Option<Stri
             }
         })?;
 
-    Some(format!("data:image/png;base64,{icon_base64}"))
+    Some(format_icon_data_url(
+        &icon_base64,
+        app.icon_media_type.as_deref(),
+    ))
+}
+
+/// 图标统一按 data URL 存库：Linux 侧可能给出 SVG，其余平台都是 PNG。
+fn format_icon_data_url(icon_base64: &str, media_type: Option<&str>) -> String {
+    let media_type = media_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("image/png");
+    format!("data:{media_type};base64,{icon_base64}")
 }
 
 fn friendly_process_name(name: &str) -> String {
@@ -373,14 +353,15 @@ pub(crate) fn source_app_info(app: ForegroundAppResult) -> Option<(String, Optio
     let label = source_app_label(ForegroundAppResult {
         process_name: app.process_name.clone(),
         display_name: app.display_name.clone(),
-        icon_png_base64: app.icon_png_base64.clone(),
+        icon_base64: app.icon_base64.clone(),
+        icon_media_type: app.icon_media_type.clone(),
         app_path: app.app_path.clone(),
         bundle_id: app.bundle_id.clone(),
     })?;
     let icon = app
-        .icon_png_base64
+        .icon_base64
         .filter(|value| !value.is_empty())
-        .map(|value| format!("data:image/png;base64,{value}"));
+        .map(|value| format_icon_data_url(&value, app.icon_media_type.as_deref()));
     Some((label, icon))
 }
 
@@ -438,88 +419,55 @@ pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
     Ok(Some(ForegroundAppResult {
         display_name: friendly_process_name(&process_name),
         process_name,
-        icon_png_base64: None,
+        icon_base64: None,
+        icon_media_type: None,
         app_path: path,
         bundle_id: None,
     }))
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
-    #[cfg(target_os = "macos")]
-    {
-        // 使用 NSWorkspace 直接获取前台应用，避免 fork 两次 lsappinfo 子进程
-        // 阻塞剪贴板监听线程（Mac 端复制的核心卡顿来源之一）。
-        let workspace = NSWorkspace::sharedWorkspace();
-        let Some(app) = workspace.frontmostApplication() else {
-            return Ok(None);
-        };
-        let display_name = app.localizedName().map(|name| name.to_string()).unwrap_or_default();
-        let bundle_id = app.bundleIdentifier().map(|id| id.to_string());
-        let app_path = app.bundleURL().and_then(|url| url.path().map(|p| p.to_string()));
-        let process_name = app_path
-            .as_deref()
-            .and_then(|path| std::path::Path::new(path).file_stem())
-            .and_then(|stem| stem.to_str())
-            .unwrap_or(display_name.as_str())
-            .to_string();
+    // 使用 NSWorkspace 直接获取前台应用，避免 fork 两次 lsappinfo 子进程
+    // 阻塞剪贴板监听线程（Mac 端复制的核心卡顿来源之一）。
+    let workspace = NSWorkspace::sharedWorkspace();
+    let Some(app) = workspace.frontmostApplication() else {
+        return Ok(None);
+    };
+    let display_name = app
+        .localizedName()
+        .map(|name| name.to_string())
+        .unwrap_or_default();
+    let bundle_id = app.bundleIdentifier().map(|id| id.to_string());
+    let app_path = app.bundleURL().and_then(|url| url.path().map(|p| p.to_string()));
+    let process_name = app_path
+        .as_deref()
+        .and_then(|path| std::path::Path::new(path).file_stem())
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(display_name.as_str())
+        .to_string();
 
-        if !display_name.is_empty() || !process_name.is_empty() {
-            return Ok(Some(ForegroundAppResult {
-                process_name,
-                display_name,
-                icon_png_base64: None,
-                app_path,
-                bundle_id,
-            }));
-        }
+    if display_name.is_empty() && process_name.is_empty() {
+        return Ok(None);
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        if crate::clipboard::linux_session_backend() != "x11"
-            || !crate::clipboard::linux_x11_tooling_available()
-        {
-            return Ok(None);
-        }
+    Ok(Some(ForegroundAppResult {
+        process_name,
+        display_name,
+        icon_base64: None,
+        icon_media_type: None,
+        app_path,
+        bundle_id,
+    }))
+}
 
-        let Some(window_id) = run_linux_command("xdotool", &["getactivewindow"])? else {
-            return Ok(None);
-        };
-        let pid = run_linux_command("xdotool", &["getwindowpid", window_id.as_str()])?;
-        let app_path = pid.as_deref().and_then(|value| {
-            fs::read_link(format!("/proc/{value}/exe"))
-                .ok()
-                .map(|path| path.to_string_lossy().to_string())
-        });
-        let process_name = pid
-            .as_deref()
-            .and_then(|value| fs::read_to_string(format!("/proc/{value}/comm")).ok())
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                app_path
-                    .as_deref()
-                    .and_then(|path| std::path::Path::new(path).file_stem())
-                    .and_then(|stem| stem.to_str())
-                    .map(ToString::to_string)
-            })
-            .or_else(|| linux_window_display_name(window_id.as_str()))
-            .unwrap_or_default();
-        let display_name =
-            linux_window_display_name(window_id.as_str()).unwrap_or_else(|| process_name.clone());
+#[cfg(target_os = "linux")]
+pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
+    Ok(crate::linux_app::capture_foreground_app())
+}
 
-        if !display_name.is_empty() || !process_name.is_empty() {
-            return Ok(Some(ForegroundAppResult {
-                process_name,
-                display_name,
-                icon_png_base64: None,
-                app_path,
-                bundle_id: None,
-            }));
-        }
-    }
-
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+pub(crate) fn capture_foreground_app() -> Result<Option<ForegroundAppResult>> {
     Ok(None)
 }
 
@@ -875,7 +823,8 @@ mod tests {
         let label = source_app_label(ForegroundAppResult {
             process_name: "pixpin".into(),
             display_name: "PixPin".into(),
-            icon_png_base64: None,
+            icon_base64: None,
+            icon_media_type: None,
             app_path: Some("C:\\Program Files\\PixPin\\PixPin.exe".into()),
             bundle_id: None,
         });
@@ -888,7 +837,8 @@ mod tests {
         let label = source_app_label(ForegroundAppResult {
             process_name: "dingtalk".into(),
             display_name: "Program Manager".into(),
-            icon_png_base64: None,
+            icon_base64: None,
+            icon_media_type: None,
             app_path: None,
             bundle_id: None,
         });
@@ -911,7 +861,8 @@ mod tests {
         ForegroundAppResult {
             process_name: "Code".into(),
             display_name: "VS Code".into(),
-            icon_png_base64: None,
+            icon_base64: None,
+            icon_media_type: None,
             app_path: Some("C:\\Program Files\\Microsoft VS Code\\Code.exe".into()),
             bundle_id: Some("com.microsoft.VSCode".into()),
         }
