@@ -515,7 +515,7 @@ onUnmounted(() => {
     <div class="lan-transfer-shell">
       <nav class="lan-transfer-rail" :aria-label="t('lanTransferTitle')">
         <div class="lan-transfer-brand">
-          <img :src="'/app-icon-512.png'" alt="" />
+          <img src="/localsend.png" alt="" />
           <strong>{{ t("lanTransferTitle") }}</strong>
         </div>
         <button

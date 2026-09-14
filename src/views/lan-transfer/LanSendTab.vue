@@ -405,7 +405,8 @@ function runPicker(action) {
   height: 100%;
   min-height: 0;
   overflow: auto;
-  padding: 24px 26px 90px;
+  /* 底部留白只按内容需要给出；移动端底部导航的避让在窄屏媒体查询里单独设置。 */
+  padding: 24px 26px 26px;
 }
 
 .lan-selection-section,

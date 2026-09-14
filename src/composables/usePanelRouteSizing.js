@@ -6,9 +6,10 @@ const WINDOW_SIZES = {
     height: 500,
   },
   // 互传页使用宽屏桌面布局，窄窗时由页面内部切换为底部导航。
+  // 宽度保持在 800 以上，避免默认尺寸就落到页面内部 799px 的紧凑布局。
   lanTransfer: {
-    width: 900,
-    height: 600,
+    width: 840,
+    height: 560,
   },
 }
 

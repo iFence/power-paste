@@ -706,6 +706,109 @@
     gap: 8px;
 }
 
+/* 互传页滚动区域：统一用主题化细滚动条，避免出现系统默认滚动条。
+   纵向滚动区（发送页、传输历史、文本与文件弹窗）统一 10px 轨道宽。 */
+.lan-send-scroll,
+.lan-history-list,
+.lan-incoming-card,
+.lan-incoming-text,
+.lan-incoming-files,
+.lan-transfer-text-card textarea {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--app-muted) 44%, transparent)
+        transparent;
+}
+
+.lan-send-scroll,
+.lan-history-list {
+    /* 内容变化导致滚动条出现/消失时不再让内容左右跳动。 */
+    scrollbar-gutter: stable;
+}
+
+.lan-send-scroll::-webkit-scrollbar,
+.lan-history-list::-webkit-scrollbar,
+.lan-incoming-card::-webkit-scrollbar,
+.lan-incoming-text::-webkit-scrollbar,
+.lan-incoming-files::-webkit-scrollbar,
+.lan-transfer-text-card textarea::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+/* 选择项列表是横向滚动，用更矮的滑块，避免占掉过多高度。 */
+.lan-selection-list {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--app-muted) 44%, transparent)
+        transparent;
+}
+
+.lan-selection-list::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.lan-send-scroll::-webkit-scrollbar-track,
+.lan-selection-list::-webkit-scrollbar-track,
+.lan-history-list::-webkit-scrollbar-track,
+.lan-incoming-card::-webkit-scrollbar-track,
+.lan-incoming-text::-webkit-scrollbar-track,
+.lan-incoming-files::-webkit-scrollbar-track,
+.lan-transfer-text-card textarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* 透明边框 + content-box 裁剪，让滑块比轨道窄一圈，观感更轻。 */
+.lan-send-scroll::-webkit-scrollbar-thumb,
+.lan-selection-list::-webkit-scrollbar-thumb,
+.lan-history-list::-webkit-scrollbar-thumb,
+.lan-incoming-card::-webkit-scrollbar-thumb,
+.lan-incoming-text::-webkit-scrollbar-thumb,
+.lan-incoming-files::-webkit-scrollbar-thumb,
+.lan-transfer-text-card textarea::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-muted) 44%, transparent);
+    background-clip: content-box;
+}
+
+.lan-send-scroll:hover::-webkit-scrollbar-thumb,
+.lan-selection-list:hover::-webkit-scrollbar-thumb,
+.lan-history-list:hover::-webkit-scrollbar-thumb,
+.lan-incoming-card:hover::-webkit-scrollbar-thumb,
+.lan-incoming-text:hover::-webkit-scrollbar-thumb,
+.lan-incoming-files:hover::-webkit-scrollbar-thumb,
+.lan-transfer-text-card textarea:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent-primary) 52%, transparent);
+    background-clip: content-box;
+}
+
+.lan-selection-list::-webkit-scrollbar-thumb {
+    /* 横向轨道只有 8px，收窄边框让滑块不至于细到看不清。 */
+    border-width: 2px;
+}
+
+.lan-send-scroll::-webkit-scrollbar-button,
+.lan-selection-list::-webkit-scrollbar-button,
+.lan-history-list::-webkit-scrollbar-button,
+.lan-incoming-card::-webkit-scrollbar-button,
+.lan-incoming-text::-webkit-scrollbar-button,
+.lan-incoming-files::-webkit-scrollbar-button,
+.lan-transfer-text-card textarea::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.lan-send-scroll::-webkit-scrollbar-corner,
+.lan-selection-list::-webkit-scrollbar-corner,
+.lan-history-list::-webkit-scrollbar-corner,
+.lan-incoming-card::-webkit-scrollbar-corner,
+.lan-incoming-text::-webkit-scrollbar-corner,
+.lan-incoming-files::-webkit-scrollbar-corner,
+.lan-transfer-text-card textarea::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
 /* 设置页：已信任设备列表。 */
 .lan-trusted-list {
     display: grid;

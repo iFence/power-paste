@@ -70,7 +70,7 @@ function toggleAdvanced() {
 
     <div class="lan-receive-center">
       <div class="lan-receive-logo">
-        <img :src="'/app-icon-512.png'" alt="" />
+        <img src="/localsend.png" alt="" />
       </div>
       <h2>{{ displayAlias }}</h2>
       <p class="lan-receive-status">
