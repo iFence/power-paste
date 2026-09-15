@@ -159,18 +159,21 @@ Update checks are not configured as a regular setting. The app checks for update
 
 - Windows: primary target platform, and currently the strongest platform for mixed clipboard replay and target-aware direct paste
 - macOS: direct paste depends on system Accessibility / Automation permission
-- Linux: direct paste depends on `X11 + xdotool` or `Wayland + wtype`; when the required tool is missing, the UI now shows an explicit install hint instead of a generic unsupported message; mixed replay still degrades to a single preferred payload
+- Linux: direct paste uses `xdotool` on X11, and on Wayland it picks whichever input channel the desktop allows (`ydotool`, `wtype`, or the desktop's RemoteDesktop portal); when none of them is available the UI shows an explicit install hint instead of a generic unsupported message; mixed replay still degrades to a single preferred payload
 
 ### Linux Notes
 
 - `xdotool` and `wtype` are optional runtime dependencies. They are only required for direct paste back into the previous target app.
 - In `X11` sessions, install `xdotool` to enable direct paste.
-- In `Wayland` sessions, install `wtype` to enable direct paste.
+- In `Wayland` sessions, install `wtype` when the compositor implements the virtual keyboard protocol (wlroots: Sway, Hyprland, river, ...).
+- GNOME and KDE compositors deliberately do not implement that protocol (`wtype` reports “Compositor does not support the virtual keyboard protocol”). Power Paste then asks the desktop through the `RemoteDesktop` portal (`org.freedesktop.portal.RemoteDesktop`): the first paste opens a “Remote Desktop” dialog where you turn on “Remote Interaction” and confirm, and the granted session is reused for the rest of the run.
+- If you prefer a completely silent channel, configure `ydotool` (kernel `uinput`: `ydotoold` plus access to `/dev/uinput`, e.g. a udev rule adding your user to the `input` group). Power Paste prefers `ydotool` whenever it works.
 - If the required tool is missing, Power Paste will keep copy-back available and show a targeted installation hint for the current session type.
 - In `Wayland` sessions the global shortcuts are bound through the desktop `GlobalShortcuts` portal (`org.freedesktop.portal.GlobalShortcuts`): the desktop asks for confirmation once, keeps the bindings, and restores them on later launches. When the desktop does not implement that portal (some minimal wlroots compositors), Power Paste falls back to X11 key grabs, says so in Settings, and you can bind a shortcut manually in the system settings instead.
 - Because the desktop owns the binding, a shortcut changed inside the confirmation dialog is not reflected in the in-app shortcut field until you record it again.
 - On Wayland the app switcher (Alt+Tab) and the app grid take the icon from a `.desktop` file matched by the window app id / `WM_CLASS`, not from the window itself. Installed packages ship that desktop entry, and `pnpm tauri dev` writes a development one automatically; run `pnpm desktop:install` when you launch a built binary straight from the terminal.
-- The global shortcuts portal derives the app id of the caller from its `app-*.scope` cgroup and requires a matching desktop entry, so a process started straight from a terminal has no app id. `pnpm tauri dev` therefore starts the dev process tree inside `app-dev-power-paste-*.scope` (via `systemd-run`) and ensures the development desktop entry exists. When the desktop still cannot identify the app, Settings now says so instead of reporting a generic binding failure.
+- The global shortcuts portal derives the app id of the caller from its `app-*.scope` cgroup and requires a desktop entry with that exact name, so a process started straight from a terminal has no app id. `pnpm tauri dev` therefore starts the dev process tree inside `app-dev-com.yulei.powerpaste-*.scope` (via `systemd-run`) and ensures the development desktop entry exists.
+- The app id must be in reverse DNS form (`com.yulei.powerpaste`, matching the Tauri identifier), because GNOME validates it with `g_application_id_is_valid()`; an id without a dot is discarded before the confirmation dialog appears. That is why the desktop entry is named after the identifier while `StartupWMClass` keeps the executable name, and why Settings reports the app id itself when the desktop still refuses to bind: such a rejection never opens a dialog, and the portal cannot turn it into a retryable error.
 - The source app icon in the history list relies on window ownership, which Linux only exposes for X11: on Xorg sessions, and for apps running through Xwayland on a Wayland session, the clipboard owner (or the active window) provides `WM_CLASS` and `_NET_WM_PID`, which we map to a `.desktop` entry and its themed icon. Wayland-native apps (GNOME Terminal, most GNOME apps) never appear in the X server and GNOME does not expose the focused window to normal apps, so those entries keep the placeholder icon.
 - The panel follows the desktop light / dark setting. On GNOME the dark mode preference is not written into `gtk-theme-name`, which is the only thing WebKitGTK looks at, so the app reads `org.freedesktop.appearance` from the desktop portal and mirrors it into GTK. Toggling dark mode in the system settings updates the panel right away.
 
@@ -235,7 +238,7 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 Linux direct paste also requires one of:
 
 - `xdotool` in an X11 session
-- `wtype` in a Wayland session
+- `ydotool`, `wtype`, or the desktop RemoteDesktop portal in a Wayland session
 
 Common installation examples:
 
@@ -251,6 +254,19 @@ sudo dnf install wtype
 # Arch Linux
 sudo pacman -S xdotool
 sudo pacman -S wtype
+```
+
+GNOME and KDE do not implement the virtual keyboard protocol that `wtype` needs, so on those desktops
+Power Paste uses the RemoteDesktop portal instead (approve “Remote Interaction” once in the dialog that
+appears on the first paste). Configure `ydotool` if you want a silent channel with no dialog at all:
+
+```bash
+sudo dnf install ydotool          # or: sudo apt install ydotool
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' \
+  | sudo tee /etc/udev/rules.d/60-power-paste-uinput.rules
+sudo modprobe uinput && sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo usermod -aG input "$USER"    # sign out and back in afterwards
+systemctl --user enable --now ydotoold 2>/dev/null || ydotoold &
 ```
 
 Windows development also requires:

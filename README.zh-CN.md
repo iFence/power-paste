@@ -157,18 +157,21 @@ English version: [README.md](./README.md)。
 
 - Windows：当前主目标平台，也是目前混合剪贴板回放和目标感知直接粘贴能力最完整的平台
 - macOS：直接粘贴依赖系统授予“辅助功能 / 自动化”权限
-- Linux：直接粘贴依赖 `X11 + xdotool` 或 `Wayland + wtype`；缺少对应工具时，界面会直接提示当前会话所需的安装依赖，而不是只显示泛化的不支持提示；图文混合回放仍会退化为单一优先载荷
+- Linux：直接粘贴在 `X11` 下用 `xdotool`，`Wayland` 下按桌面允许的通道依次尝试 `ydotool`、`wtype` 或桌面的 RemoteDesktop 门户；三者都不可用时界面会直接给出安装与授权提示，而不是只显示泛化的不支持提示；图文混合回放仍会退化为单一优先载荷
 
 ### Linux 说明
 
 - `xdotool` 和 `wtype` 都不是 Linux 平台的必备基础依赖，只在“把历史内容直接粘贴回上一个目标应用”时需要。
 - 如果当前是 `X11` 会话，需要安装 `xdotool` 才能启用直接粘贴。
-- 如果当前是 `Wayland` 会话，需要安装 `wtype` 才能启用直接粘贴。
+- 如果当前是 `Wayland` 会话，合成器实现了虚拟键盘协议（wlroots 系：Sway、Hyprland、river 等）时安装 `wtype` 即可直接粘贴。
+- GNOME / KDE 的合成器出于安全考虑不实现该协议（`wtype` 会报 “Compositor does not support the virtual keyboard protocol”）。此时 Power Paste 会改用桌面的 `RemoteDesktop` 门户（`org.freedesktop.portal.RemoteDesktop`）：第一次粘贴会弹出 “Remote Desktop” 授权窗口，打开 “Remote Interaction” 并确认后即可自动发送 `Ctrl+V`，该授权在应用运行期间复用，不会反复弹窗。
+- 想要完全静默的通道可以配置 `ydotool`（内核 `uinput`：运行 `ydotoold` 并让用户有权访问 `/dev/uinput`，例如通过 udev 规则把用户加入 `input` 组）；只要可用，Power Paste 会优先使用它。
 - 当缺少对应工具时，Power Paste 仍可正常执行“复制回系统剪贴板”，并会根据当前会话类型给出明确安装提示。
 - `Wayland` 会话下全局快捷键改由桌面环境的 `GlobalShortcuts` 门户（`org.freedesktop.portal.GlobalShortcuts`）托管：首次启动会弹出系统确认窗口，快捷键由桌面保存，之后重启无需再次确认。若桌面没有实现该门户（例如部分精简的 wlroots 合成器），应用会退回 X11 抓键并在设置页提示，此时可按提示改用 X11 会话或在系统设置里手动绑定快捷键。
 - 由于按键由桌面托管，如果在系统确认窗口里改过按键，应用内的快捷键设置不会同步显示该改动；重新录制一次即可让两边一致。
 - Wayland 下任务切换器（Alt+Tab）与应用列表的应用图标来自按窗口 app-id / `WM_CLASS` 匹配到的 `.desktop` 文件，而不是窗口自身。安装包会自带该桌面项，`pnpm tauri dev` 也会自动写入开发用桌面项；如果直接在终端运行构建产物，先执行一次 `pnpm desktop:install`。
-- Wayland 下全局快捷键门户按调用进程的 `app-*.scope` 判定应用标识（app id），并要求存在同名桌面项，因此从终端直接启动的进程没有应用标识。`pnpm tauri dev` 会把 dev 进程树放进 `app-dev-power-paste-*.scope`（通过 `systemd-run`）并补齐开发用桌面项；桌面仍然识别不到应用时，设置页会直接说明原因，而不再只报“绑定失败”。
+- Wayland 下全局快捷键门户按调用进程的 `app-*.scope` 判定应用标识（app id），并要求存在同名桌面项，因此从终端直接启动的进程没有应用标识。`pnpm tauri dev` 会把 dev 进程树放进 `app-dev-com.yulei.powerpaste-*.scope`（通过 `systemd-run`）并补齐开发用桌面项。
+- 应用标识必须是反向域名格式（`com.yulei.powerpaste`，与 Tauri 的 identifier 一致）：GNOME 会用 `g_application_id_is_valid()` 校验门户传来的标识，没有点号的标识会在弹出确认窗口之前就被直接丢弃，因此桌面项按标识命名、`StartupWMClass` 继续用可执行文件名。桌面仍然拒绝绑定时（这类拒绝不会弹窗、也无法变成可重试的错误），设置页会直接说明是哪个应用标识不合法，而不再只报“绑定失败”。
 - 历史记录左上角的来源应用图标在 Linux 上依赖窗口归属：X11（Xorg）会话，以及 Wayland 会话里通过 Xwayland 运行的应用，可以从剪贴板归属窗口或活动窗口读出 `WM_CLASS` 与 `_NET_WM_PID`，据此匹配 `.desktop` 并显示应用图标；Wayland 原生应用（GNOME 终端、多数 GNOME 应用）不会出现在 X 服务器里，GNOME 也没有向普通应用开放前台窗口查询，因此这类来源仍显示占位图标。
 - 面板主题跟随桌面深浅色设置。GNOME 的深色模式不会写进 WebKitGTK 唯一读取的 `gtk-theme-name`，因此应用改为从桌面门户读取 `org.freedesktop.appearance` 并同步给 GTK；在系统设置里切换深色 / 浅色，面板会立即跟随。
 
@@ -233,7 +236,7 @@ xattr -dr com.apple.quarantine /Applications/Power\ Paste.app
 Linux 如果需要直接粘贴，还需要以下其一：
 
 - X11 会话 + `xdotool`
-- Wayland 会话 + `wtype`
+- Wayland 会话 + `ydotool`、`wtype` 或桌面的 RemoteDesktop 门户
 
 常见安装示例：
 
@@ -249,6 +252,19 @@ sudo dnf install wtype
 # Arch Linux
 sudo pacman -S xdotool
 sudo pacman -S wtype
+```
+
+GNOME / KDE 不实现 `wtype` 依赖的虚拟键盘协议，这两个桌面下 Power Paste 改用 RemoteDesktop 门户：
+第一次粘贴时在弹出的 “Remote Desktop” 窗口里打开 “Remote Interaction” 并确认即可（授权在应用运行期间复用）。
+希望完全不弹窗时，可以改为配置 `ydotool`：
+
+```bash
+sudo dnf install ydotool          # Ubuntu/Debian: sudo apt install ydotool
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' \
+  | sudo tee /etc/udev/rules.d/60-power-paste-uinput.rules
+sudo modprobe uinput && sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo usermod -aG input "$USER"    # 之后需要重新登录
+systemctl --user enable --now ydotoold 2>/dev/null || ydotoold &
 ```
 
 Windows 开发环境还需要：
