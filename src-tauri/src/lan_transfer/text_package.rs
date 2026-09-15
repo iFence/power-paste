@@ -2,7 +2,8 @@
 //!
 //! 1. 协议原生文本消息：单个 `fileType` 为 `text`/`text/*` 且带 `preview` 的文件，
 //!    接收端无需下载即可拿到文本，官方 LocalSend 客户端同样使用该方式。
-//! 2. power-paste 文本包：以固定前缀命名的 txt 文件，浏览器页面与旧版本使用它承载文本。
+//! 2. power-paste 文本包：以固定前缀命名的 txt 文件。旧版扫码页与旧版本用它承载文本，
+//!    接收端仍按文本还原，保证新旧版本之间可以互传。
 
 use std::collections::{HashMap, HashSet};
 

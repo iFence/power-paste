@@ -1,311 +1,1357 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Power Paste</title>
-    <style>
-        :root { color-scheme: light dark; }
-        body {
-            font-family: system-ui, sans-serif;
-            margin: 0;
-            padding: 0 1em 2em;
-            line-height: 1.6;
-            text-align: center;
-            background: #f6f7f9;
-            color: #1d232d;
-        }
-        h1 { font-size: 1.25em; padding: 1em 0 0.25em; }
-        #content {
-            box-sizing: border-box;
-            width: 100%;
-            max-width: 420px;
-            margin: 1em auto 0;
-            padding: 1em;
-            border: 2px dashed transparent;
-            border-radius: 0.75em;
-            background: #ffffff;
-        }
-        #content.drag-over { border-color: #0f766e; background: #ecfdf5; }
-        button {
-            font: inherit;
-            padding: 0.7em 1em;
-            border-radius: 0.5em;
-            border: none;
-            background: #0f766e;
-            color: #ffffff;
-            cursor: pointer;
-        }
-        button:disabled { opacity: 0.6; cursor: default; }
-        #upload-button { width: 100%; font-size: 1.1em; }
-        textarea {
-            font: inherit;
-            width: 100%;
-            box-sizing: border-box;
-            margin-top: 0.75em;
-            padding: 0.6em;
-            border: 1px solid #d0d5dd;
-            border-radius: 0.5em;
-            resize: vertical;
-            min-height: 5em;
-        }
-        #send-text { margin-top: 0.5em; width: 100%; }
-        #hint { color: #6b7280; font-size: 0.9em; margin: 0.5em 0 0; }
-        #status { min-height: 1.5em; }
-        #status.error { color: #c62828; }
-    </style>
-</head>
-<body>
-<h1>Power Paste</h1>
-<div id="content">
-    <button id="upload-button" type="button">选择文件</button>
-    <p id="hint">也可以把文件拖到这里</p>
-    <input id="file-input" type="file" multiple style="display: none">
-    <textarea id="text-input" placeholder="输入要发送到电脑的文本"></textarea>
-    <button id="send-text" type="button">发送文本</button>
-    <div id="pin-row" style="display: none; margin-top: 0.75em">
-        <input id="pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="PIN">
-        <button id="pin-button" type="button">OK</button>
-    </div>
-    <p id="status"></p>
-</div>
-<script>
-    var BASE_URL = '/api/localsend/v2';
-    var TEXT_PACKAGE_PREFIX = 'PowerPaste-Text-';
-    var zh = (navigator.language || '').toLowerCase().indexOf('zh') === 0;
-    var text = {
-        choose: zh ? '选择文件' : 'Choose files',
-        hint: zh ? '也可以把文件拖到这里' : 'Or drop files here',
-        textPlaceholder: zh ? '输入要发送到电脑的文本' : 'Type text to send to the computer',
-        sendText: zh ? '发送文本' : 'Send text',
-        waiting: zh ? '等待电脑确认…' : 'Waiting for the computer…',
-        rejected: zh ? '对方拒绝了本次传输' : 'The request was declined',
-        busy: zh ? '对方正在处理其他传输' : 'The recipient is busy',
-        done: zh ? '已发送' : 'Sent',
-        sending: zh ? '正在发送 %d/%d' : 'Sending %d/%d',
-        error: zh ? '出错了' : 'Something went wrong',
-        emptyText: zh ? '请输入文本' : 'Enter some text first',
-        pinRequired: zh ? '该设备已设置 PIN，请输入后继续' : 'This device requires a PIN',
-        pinTooMany: zh ? '尝试次数过多，请稍后再试' : 'Too many attempts, please try again later'
-    };
-    var uploading = false;
-    var dragDepth = 0;
-    var pin = sessionStorage.getItem('ppPin') || '';
-    // 等待 PIN 时暂存的文件列表，输入后重试。
-    var pendingFiles = null;
-
-    var statusEl = document.getElementById('status');
-    var uploadButton = document.getElementById('upload-button');
-    var sendTextButton = document.getElementById('send-text');
-    var fileInput = document.getElementById('file-input');
-    var textInput = document.getElementById('text-input');
-
-    document.getElementById('hint').innerText = text.hint;
-    textInput.placeholder = text.textPlaceholder;
-    sendTextButton.innerText = text.sendText;
-
-    function setStatus(value, isError) {
-        statusEl.innerText = value || '';
-        statusEl.className = isError ? 'error' : '';
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Power Paste</title>
+  <style>
+    /* 扫码页与桌面端互传页共用一套配色与尺寸：手机上打开也是一次会话。 */
+    :root {
+      color-scheme: dark;
+      --app-text: #f4efe8;
+      --app-muted: rgba(244, 239, 232, 0.68);
+      --app-soft-text: rgba(244, 239, 232, 0.52);
+      --app-panel-bg: rgba(34, 39, 48, 0.54);
+      --app-panel-strong-bg: rgba(45, 51, 61, 0.66);
+      --app-panel-border: rgba(255, 255, 255, 0.08);
+      --app-input-bg: rgba(255, 255, 255, 0.06);
+      --app-chip-bg: rgba(255, 255, 255, 0.06);
+      --app-popover-bg: #232730;
+      --app-bg: linear-gradient(180deg, #1e2128 0%, #171a1f 52%, #1c1f25 100%);
+      --accent-primary: #f0b35f;
+      --accent-primary-strong: #dd8648;
+      --accent-primary-text: #24160d;
+      --bubble-bg: rgba(45, 51, 61, 0.72);
+      --bubble-outgoing-bg: rgba(240, 179, 95, 0.16);
+      --bubble-outgoing-border: rgba(240, 179, 95, 0.42);
+      --danger: #f06d6d;
+      --online: #44d17f;
     }
 
-    function setBusy(busy) {
-        uploading = busy;
-        uploadButton.disabled = busy;
-        sendTextButton.disabled = busy;
+    @media (prefers-color-scheme: light) {
+      :root {
+        color-scheme: light;
+        --app-text: #1d232d;
+        --app-muted: rgba(29, 35, 45, 0.72);
+        --app-soft-text: rgba(29, 35, 45, 0.52);
+        --app-panel-bg: rgba(255, 255, 255, 0.62);
+        --app-panel-strong-bg: rgba(255, 255, 255, 0.78);
+        --app-panel-border: rgba(24, 36, 50, 0.18);
+        --app-input-bg: rgba(255, 255, 255, 0.88);
+        --app-chip-bg: rgba(29, 35, 45, 0.06);
+        --app-popover-bg: #f6f2ec;
+        --app-bg: linear-gradient(180deg, #f7f4ef 0%, #eff2f6 52%, #f4f6f8 100%);
+        --bubble-bg: rgba(255, 255, 255, 0.88);
+        --bubble-outgoing-bg: rgba(240, 179, 95, 0.26);
+        --bubble-outgoing-border: rgba(221, 134, 72, 0.5);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background: var(--app-bg);
+      background-attachment: fixed;
+      color: var(--app-text);
+      font-family:
+        "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC",
+        "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 页高优先用动态视口单位，手机地址栏收起时底部输入区不会被顶出屏幕。 */
+    .lan-page {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      /* 单列按容器宽度排布，避免输入框的固有宽度把整页撑出横向滚动。 */
+      grid-template-columns: minmax(0, 1fr);
+      height: 100vh;
+      height: 100dvh;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .lan-topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px 8px;
+    }
+
+    .lan-topbar-title {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .lan-topbar-icon {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+    }
+
+    .lan-topbar-title strong {
+      font-size: 0.94rem;
+    }
+
+    .lan-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex: 0 0 auto;
+      padding: 3px 8px;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 999px;
+      color: var(--app-muted);
+      font-size: 0.68rem;
+    }
+
+    .lan-status-pill i {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--app-soft-text);
+    }
+
+    .lan-status-pill.pending i {
+      background: var(--accent-primary);
+    }
+
+    .lan-status-pill.online i {
+      background: var(--online);
+      box-shadow: 0 0 8px rgba(68, 209, 127, 0.7);
+    }
+
+    .lan-status-pill.offline i {
+      background: var(--danger);
+    }
+
+    /* 会话对象是这台电脑：头像沿用桌面端设备列表的电脑图标。 */
+    .lan-peer-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px 10px;
+      border-bottom: 1px solid var(--app-panel-border);
+    }
+
+    .lan-peer-avatar {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      flex: 0 0 auto;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 999px;
+      background: var(--app-panel-strong-bg);
+      color: var(--accent-primary);
+    }
+
+    .lan-peer-avatar svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .lan-peer-info {
+      display: grid;
+      min-width: 0;
+    }
+
+    .lan-peer-info strong {
+      overflow: hidden;
+      font-size: 0.86rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lan-peer-info small {
+      color: var(--app-muted);
+      font-size: 0.68rem;
+    }
+
+    .lan-stream {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 14px;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .lan-stream-empty {
+      margin: auto;
+      padding: 0 16px;
+      color: var(--app-soft-text);
+      font-size: 0.76rem;
+      text-align: center;
+    }
+
+    .lan-day-label {
+      align-self: center;
+      margin: 10px 0 8px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--app-chip-bg);
+      color: var(--app-muted);
+      font-size: 0.66rem;
+    }
+
+    .lan-bubble-row {
+      display: grid;
+      gap: 3px;
+      padding: 3px 0;
+    }
+
+    .lan-bubble-row.outgoing {
+      justify-items: end;
+    }
+
+    .lan-bubble-time {
+      color: var(--app-muted);
+      font-size: 0.66rem;
+    }
+
+    /* 气泡与外侧进度环同一行：自己发的贴右，进度环留在气泡左侧。 */
+    .lan-bubble-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .lan-bubble-row.outgoing .lan-bubble-line {
+      flex-direction: row-reverse;
+    }
+
+    .lan-bubble {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+      max-width: min(78%, 420px);
+      padding: 8px 11px;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 13px;
+      background: var(--bubble-bg);
+      color: var(--app-text);
+    }
+
+    .lan-bubble-row.outgoing .lan-bubble {
+      border-color: var(--bubble-outgoing-border);
+      background: var(--bubble-outgoing-bg);
+    }
+
+    .lan-bubble.failed {
+      border-color: rgba(240, 109, 109, 0.46);
+    }
+
+    .lan-bubble-text {
+      margin: 0;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .lan-bubble-files {
+      display: grid;
+      gap: 5px;
+    }
+
+    .lan-bubble-file {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      padding: 5px 7px;
+      border-radius: 9px;
+      background: var(--app-chip-bg);
+    }
+
+    .lan-bubble-file svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      color: var(--app-muted);
+    }
+
+    .lan-bubble-file-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      font-size: 0.76rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lan-bubble-file small {
+      flex: 0 0 auto;
+      color: var(--app-muted);
+      font-size: 0.68rem;
+    }
+
+    .lan-bubble-state {
+      margin: 0;
+      color: var(--app-muted);
+      font-size: 0.68rem;
+    }
+
+    .lan-bubble-state.error {
+      color: var(--danger);
+      overflow-wrap: anywhere;
+    }
+
+    .lan-bubble-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .lan-ghost {
+      padding: 3px 9px;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--app-text);
+      font: inherit;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .lan-ghost:hover {
+      background: var(--app-chip-bg);
+    }
+
+    /* 传输进度：气泡外侧一圈进度环，与桌面端一致。 */
+    .lan-bubble-ring {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      color: var(--accent-primary);
+    }
+
+    .lan-bubble-ring[hidden] {
+      display: none;
+    }
+
+    .lan-bubble-ring svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .lan-bubble-ring-track {
+      fill: none;
+      stroke: var(--app-panel-border);
+      stroke-width: 3;
+    }
+
+    .lan-bubble-ring-value {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 200ms linear;
+    }
+
+    .lan-bubble-ring-label {
+      font-size: 0.52rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .lan-composer {
+      display: grid;
+      gap: 6px;
+      padding: 7px 12px calc(9px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--app-panel-border);
+      background: var(--app-panel-bg);
+    }
+
+    .lan-composer-input {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      padding: 4px 6px 4px 9px;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 11px;
+      background: var(--app-input-bg);
+    }
+
+    .lan-composer-input:focus-within {
+      border-color: rgba(240, 179, 95, 0.46);
+    }
+
+    .lan-composer-input textarea {
+      flex: 1;
+      min-width: 0;
+      max-height: 96px;
+      padding: 3px 0;
+      border: 0;
+      background: transparent;
+      color: var(--app-text);
+      font: inherit;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      outline: none;
+      resize: none;
+    }
+
+    .lan-composer-tools {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lan-icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--app-muted);
+      cursor: pointer;
+    }
+
+    .lan-icon-button svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .lan-icon-button:hover:not(:disabled) {
+      background: var(--app-chip-bg);
+      color: var(--app-text);
+    }
+
+    .lan-primary {
+      padding: 6px 12px;
+      border: 0;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-primary-strong), var(--accent-primary));
+      color: var(--accent-primary-text);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .lan-icon-button:disabled,
+    .lan-primary:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+
+    .lan-composer-hint {
+      margin: 0;
+      color: var(--app-soft-text);
+      font-size: 0.66rem;
+    }
+
+    .lan-drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.32);
+    }
+
+    .lan-drop-overlay[hidden] {
+      display: none;
+    }
+
+    .lan-drop-overlay strong {
+      padding: 12px 20px;
+      border: 1px dashed var(--accent-primary);
+      border-radius: 14px;
+      background: var(--app-popover-bg);
+      font-size: 0.86rem;
+    }
+
+    .lan-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.42);
+    }
+
+    .lan-modal[hidden] {
+      display: none;
+    }
+
+    .lan-modal-card {
+      display: grid;
+      gap: 10px;
+      width: min(100%, 330px);
+      padding: 15px;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 13px;
+      background: var(--app-popover-bg);
+      color: var(--app-text);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+    }
+
+    .lan-modal-card small {
+      color: var(--app-muted);
+      font-size: 0.72rem;
+    }
+
+    .lan-modal-card input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--app-panel-border);
+      border-radius: 8px;
+      background: var(--app-input-bg);
+      color: var(--app-text);
+      font: inherit;
+      font-size: 0.8rem;
+    }
+
+    .lan-modal-error {
+      margin: 0;
+      color: var(--danger);
+      font-size: 0.72rem;
+    }
+
+    .lan-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* 手机浏览器聚焦小于 16px 的输入框会自动放大页面，触屏下统一放大字号。 */
+    @media (hover: none) {
+      .lan-composer-input textarea,
+      .lan-modal-card input {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="lan-page">
+    <header class="lan-topbar">
+      <span class="lan-topbar-title">
+        <img class="lan-topbar-icon" src="data:image/png;base64,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" alt="">
+        <strong>LocalSend</strong>
+      </span>
+      <span id="connection" class="lan-status-pill pending">
+        <i></i>
+        <span id="connection-label">连接中…</span>
+      </span>
+    </header>
+
+    <header class="lan-peer-bar">
+      <span class="lan-peer-avatar">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3.5" y="4.5" width="17" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M8.5 20h7M12 16.5V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </span>
+      <span class="lan-peer-info">
+        <strong id="peer-name">电脑端</strong>
+        <small id="peer-hint">输入消息或选择文件，直接发送到这台电脑</small>
+      </span>
+    </header>
+
+    <main id="stream" class="lan-stream">
+      <p id="stream-empty" class="lan-stream-empty"></p>
+    </main>
+
+    <footer class="lan-composer">
+      <div class="lan-composer-input">
+        <!-- cols=1 让输入框的固有宽度不参与排版，宽度完全交给自适应布局。 -->
+        <textarea id="text-input" rows="1" cols="1"></textarea>
+        <div class="lan-composer-tools">
+          <button id="attach-button" class="lan-icon-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <path d="M11 7.5v9M7 12h8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button id="send-button" class="lan-primary" type="button" disabled></button>
+        </div>
+      </div>
+      <p id="composer-hint" class="lan-composer-hint"></p>
+      <input id="file-input" type="file" multiple style="display: none">
+    </footer>
+  </div>
+
+  <div id="drop-overlay" class="lan-drop-overlay" hidden>
+    <strong id="drop-label"></strong>
+  </div>
+
+  <div id="pin-modal" class="lan-modal" hidden>
+    <form id="pin-form" class="lan-modal-card">
+      <strong id="pin-title"></strong>
+      <small id="pin-hint"></small>
+      <input id="pin-input" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+      <p id="pin-error" class="lan-modal-error" hidden></p>
+      <div class="lan-modal-actions">
+        <button id="pin-cancel" class="lan-ghost" type="button"></button>
+        <button id="pin-submit" class="lan-primary" type="submit"></button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // 协议地址与文本消息字段：与桌面端发送文本的方式保持一致（正文放在 preview 里）。
+    var BASE_URL = '/api/localsend/v2';
+    var TEXT_MESSAGE_FILE_NAME = 'message.txt';
+    var TEXT_MESSAGE_FILE_TYPE = 'text/plain';
+    var PROTOCOL_VERSION = '2.1';
+    var WEB_DEVICE_ALIAS = 'Power Paste Web';
+    var TEXTAREA_MAX_HEIGHT = 96;
+
+    // 进度环的半径与周长（viewBox 36×36，留出描边宽度），与桌面端气泡一致。
+    var RING_RADIUS = 15.5;
+    var RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+    var zh = (navigator.language || '').toLowerCase().indexOf('zh') === 0;
+    var text = {
+      computer: zh ? '电脑端' : 'Computer',
+      peerHint: zh ? '输入消息或选择文件，直接发送到这台电脑' : 'Send text or files to this computer',
+      empty: zh ? '还没有消息，输入文字或点左下角按钮选择文件' : 'No messages yet. Type something or pick files below.',
+      placeholder: zh ? '输入消息，回车发送，Shift + 回车换行' : 'Message the computer, Enter to send',
+      send: zh ? '发送' : 'Send',
+      attach: zh ? '选择文件' : 'Choose files',
+      drop: zh ? '松手即发送给 {name}' : 'Drop to send to {name}',
+      composerHint: zh ? '也可以把文件拖到这里' : 'Or drop files here',
+      waiting: zh ? '等待电脑确认…' : 'Waiting for the computer…',
+      done: zh ? '已发送' : 'Sent',
+      retry: zh ? '重新发送' : 'Send again',
+      rejected: zh ? '对方拒绝了本次传输' : 'The request was declined',
+      busy: zh ? '对方正在处理其他传输' : 'The recipient is busy',
+      error: zh ? '出错了' : 'Something went wrong',
+      pinTitle: zh ? '输入 PIN' : 'Enter PIN',
+      pinHint: zh ? '该电脑已设置 PIN，请输入后继续' : 'This computer requires a PIN',
+      pinInvalid: zh ? 'PIN 不正确，请重新输入' : 'Incorrect PIN, please try again',
+      pinTooMany: zh ? '尝试次数过多，请稍后再试' : 'Too many attempts, please try again later',
+      pinNeeded: zh ? '未输入 PIN，本次发送已取消' : 'Cancelled without a PIN',
+      pinPlaceholder: 'PIN',
+      cancel: zh ? '取消' : 'Cancel',
+      confirm: zh ? '继续' : 'Continue',
+      connecting: zh ? '连接中…' : 'Connecting…',
+      connected: zh ? '已连接' : 'Connected',
+      offline: zh ? '未连接' : 'Offline'
+    };
+
+    var streamEl = document.getElementById('stream');
+    var emptyEl = document.getElementById('stream-empty');
+    var textInput = document.getElementById('text-input');
+    var sendButton = document.getElementById('send-button');
+    var attachButton = document.getElementById('attach-button');
+    var fileInput = document.getElementById('file-input');
+    var peerNameEl = document.getElementById('peer-name');
+    var peerHintEl = document.getElementById('peer-hint');
+    var connectionEl = document.getElementById('connection');
+    var connectionLabelEl = document.getElementById('connection-label');
+    var composerHintEl = document.getElementById('composer-hint');
+    var dropOverlay = document.getElementById('drop-overlay');
+    var dropLabelEl = document.getElementById('drop-label');
+    var pinModal = document.getElementById('pin-modal');
+    var pinForm = document.getElementById('pin-form');
+    var pinInput = document.getElementById('pin-input');
+    var pinErrorEl = document.getElementById('pin-error');
+
+    var pin = sessionStorage.getItem('ppPin') || '';
+    // 协议一次只允许一个上传会话：发送期间禁用发送入口，与桌面端输入区一致。
+    var busy = false;
+    // PIN 弹窗打开期间不继续发送，避免连续触发 401。
+    var waitingPin = false;
+    var pinMessage = null;
+    var pinTried = false;
+    var peerName = text.computer;
+    var dragDepth = 0;
+    var lastDayLabel = '';
+
+    /* ---------- 文案与基础工具 ---------- */
+
+    function formatBytes(size) {
+      var value = Number(size || 0);
+      if (value < 1000) {
+        return value + ' B';
+      }
+      if (value < 1000000) {
+        return Math.round(value / 1000) + ' KB';
+      }
+      if (value < 1000000000) {
+        return (value / 1000000).toFixed(1) + ' MB';
+      }
+      return (value / 1000000000).toFixed(2) + ' GB';
+    }
+
+    function pad2(value) {
+      return (value < 10 ? '0' : '') + value;
+    }
+
+    // 气泡上方的时间标签：当天只显示时刻，昨天与更早补上日期。
+    function formatMessageTime(timestampMs) {
+      var date = new Date(timestampMs);
+      var now = new Date();
+      var time = pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+      var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      var startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      var dayDiff = Math.round((startOfToday - startOfDay) / 86400000);
+      if (dayDiff <= 0) {
+        return time;
+      }
+      if (dayDiff === 1) {
+        return (zh ? '昨天 ' : 'Yesterday ') + time;
+      }
+      if (date.getFullYear() === now.getFullYear()) {
+        return (zh
+          ? (date.getMonth() + 1) + '月' + date.getDate() + '日 '
+          : date.toLocaleString('en-US', { month: 'short' }) + ' ' + date.getDate() + ', ') + time;
+      }
+      return date.toLocaleDateString(zh ? 'zh-CN' : 'en-US') + ' ' + time;
+    }
+
+    // 消息流的日期分隔标题：今天 / 昨天 / 具体日期。
+    function formatDayLabel(timestampMs) {
+      var date = new Date(timestampMs);
+      var now = new Date();
+      var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      var startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      var dayDiff = Math.round((startOfToday - startOfDay) / 86400000);
+      if (dayDiff <= 0) {
+        return zh ? '今天' : 'Today';
+      }
+      if (dayDiff === 1) {
+        return zh ? '昨天' : 'Yesterday';
+      }
+      if (date.getFullYear() === now.getFullYear()) {
+        return zh
+          ? (date.getMonth() + 1) + '月' + date.getDate() + '日'
+          : date.toLocaleString('en-US', { month: 'short' }) + ' ' + date.getDate();
+      }
+      return date.toLocaleDateString(zh ? 'zh-CN' : 'en-US');
+    }
+
+    function utf8Length(value) {
+      return new TextEncoder().encode(value).length;
+    }
+
+    function parseJson(value) {
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        // 无效载荷返回 null，由调用方按失败处理。
+        return null;
+      }
     }
 
     function withPin(url) {
-        if (!pin) return url;
-        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'pin=' + encodeURIComponent(pin);
+      if (!pin) {
+        return url;
+      }
+      return url + (url.indexOf('?') === -1 ? '?' : '&') + 'pin=' + encodeURIComponent(pin);
+    }
+
+    function request(url, method, body, callback) {
+      var xhr = new XMLHttpRequest();
+      xhr.open(method, url, true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          callback(xhr);
+        }
+      };
+      xhr.send(body || null);
+      return xhr;
+    }
+
+    function fill(value, name) {
+      return value.replace('{name}', name);
+    }
+
+    function scrollToBottom() {
+      window.requestAnimationFrame(function () {
+        streamEl.scrollTop = streamEl.scrollHeight;
+      });
+    }
+
+    /* ---------- 页面状态 ---------- */
+
+    function setConnection(state) {
+      connectionEl.className = 'lan-status-pill ' + state;
+      if (state === 'online') {
+        connectionLabelEl.innerText = text.connected;
+        return;
+      }
+      if (state === 'offline') {
+        connectionLabelEl.innerText = text.offline;
+        return;
+      }
+      connectionLabelEl.innerText = text.connecting;
+    }
+
+    function setPeerName(name) {
+      peerName = name || text.computer;
+      peerNameEl.innerText = peerName;
+      dropLabelEl.innerText = fill(text.drop, peerName);
+    }
+
+    function updateComposer() {
+      var blocked = busy || waitingPin;
+      attachButton.disabled = blocked;
+      sendButton.disabled = blocked || !textInput.value.trim();
+    }
+
+    function resizeTextarea() {
+      textInput.style.height = 'auto';
+      textInput.style.height = Math.min(textInput.scrollHeight, TEXTAREA_MAX_HEIGHT) + 'px';
+    }
+
+    function applyStaticText() {
+      peerHintEl.innerText = text.peerHint;
+      textInput.placeholder = text.placeholder;
+      sendButton.innerText = text.send;
+      attachButton.title = text.attach;
+      attachButton.setAttribute('aria-label', text.attach);
+      composerHintEl.innerText = text.composerHint;
+      emptyEl.innerText = text.empty;
+      document.getElementById('pin-title').innerText = text.pinTitle;
+      document.getElementById('pin-hint').innerText = text.pinHint;
+      document.getElementById('pin-cancel').innerText = text.cancel;
+      document.getElementById('pin-submit').innerText = text.confirm;
+      pinInput.placeholder = text.pinPlaceholder;
+      setPeerName(peerName);
+      setConnection('pending');
+    }
+
+    // 取回电脑的展示名：取不到时保留默认文案，不影响发送链路。
+    function loadPeerName() {
+      request(BASE_URL + '/info', 'GET', null, function (xhr) {
+        if (xhr.status !== 200) {
+          setConnection('offline');
+          return;
+        }
+        var info = parseJson(xhr.responseText);
+        if (!info) {
+          setConnection('offline');
+          return;
+        }
+        setPeerName(info.alias);
+        setConnection('online');
+      });
+    }
+
+    /* ---------- 消息气泡 ---------- */
+
+    function buildRing() {
+      var svgNs = 'http://www.w3.org/2000/svg';
+      var wrap = document.createElement('span');
+      wrap.className = 'lan-bubble-ring';
+      wrap.hidden = true;
+      var svg = document.createElementNS(svgNs, 'svg');
+      svg.setAttribute('viewBox', '0 0 36 36');
+      svg.setAttribute('aria-hidden', 'true');
+      var track = document.createElementNS(svgNs, 'circle');
+      track.setAttribute('class', 'lan-bubble-ring-track');
+      track.setAttribute('cx', '18');
+      track.setAttribute('cy', '18');
+      track.setAttribute('r', String(RING_RADIUS));
+      var value = document.createElementNS(svgNs, 'circle');
+      value.setAttribute('class', 'lan-bubble-ring-value');
+      value.setAttribute('cx', '18');
+      value.setAttribute('cy', '18');
+      value.setAttribute('r', String(RING_RADIUS));
+      value.setAttribute('stroke-dasharray', String(RING_CIRCUMFERENCE));
+      value.setAttribute('stroke-dashoffset', String(RING_CIRCUMFERENCE));
+      svg.appendChild(track);
+      svg.appendChild(value);
+      var label = document.createElement('span');
+      label.className = 'lan-bubble-ring-label';
+      label.innerText = '0';
+      wrap.appendChild(svg);
+      wrap.appendChild(label);
+      return { el: wrap, valueEl: value, labelEl: label };
+    }
+
+    function buildFileRow(file) {
+      var svgNs = 'http://www.w3.org/2000/svg';
+      var row = document.createElement('div');
+      row.className = 'lan-bubble-file';
+      var icon = document.createElementNS(svgNs, 'svg');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('aria-hidden', 'true');
+      var path = document.createElementNS(svgNs, 'path');
+      path.setAttribute('d', 'M6 3.5h7l5 5V20.5H6zM13 3.5v5h5');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'currentColor');
+      path.setAttribute('stroke-width', '1.6');
+      path.setAttribute('stroke-linejoin', 'round');
+      icon.appendChild(path);
+      var name = document.createElement('span');
+      name.className = 'lan-bubble-file-name';
+      name.innerText = file.name;
+      var size = document.createElement('small');
+      size.innerText = formatBytes(file.size);
+      row.appendChild(icon);
+      row.appendChild(name);
+      row.appendChild(size);
+      return row;
+    }
+
+    function insertDayLabel(timestampMs) {
+      var label = formatDayLabel(timestampMs);
+      if (label === lastDayLabel) {
+        return;
+      }
+      lastDayLabel = label;
+      var element = document.createElement('p');
+      element.className = 'lan-day-label';
+      element.innerText = label;
+      streamEl.appendChild(element);
+    }
+
+    // 追加一条自己发出的消息气泡，返回可继续更新状态与进度的句柄。
+    function appendMessage(options) {
+      if (emptyEl) {
+        emptyEl.remove();
+        emptyEl = null;
+      }
+      var createdAt = options.createdAt || Date.now();
+      insertDayLabel(createdAt);
+
+      var row = document.createElement('article');
+      row.className = 'lan-bubble-row outgoing';
+      var timeEl = document.createElement('small');
+      timeEl.className = 'lan-bubble-time';
+      timeEl.innerText = formatMessageTime(createdAt);
+      var line = document.createElement('div');
+      line.className = 'lan-bubble-line';
+      var bubble = document.createElement('div');
+      bubble.className = 'lan-bubble';
+      if (options.text) {
+        var body = document.createElement('p');
+        body.className = 'lan-bubble-text';
+        body.innerText = options.text;
+        bubble.appendChild(body);
+      }
+      if (options.files.length) {
+        var list = document.createElement('div');
+        list.className = 'lan-bubble-files';
+        options.files.forEach(function (file) {
+          list.appendChild(buildFileRow(file));
+        });
+        bubble.appendChild(list);
+      }
+      var stateEl = document.createElement('p');
+      stateEl.className = 'lan-bubble-state';
+      stateEl.hidden = true;
+      var actionsEl = document.createElement('div');
+      actionsEl.className = 'lan-bubble-actions';
+      actionsEl.hidden = true;
+      var retryButton = document.createElement('button');
+      retryButton.className = 'lan-ghost';
+      retryButton.type = 'button';
+      retryButton.innerText = text.retry;
+      retryButton.hidden = true;
+      actionsEl.appendChild(retryButton);
+      bubble.appendChild(stateEl);
+      bubble.appendChild(actionsEl);
+
+      var ring = buildRing();
+      line.appendChild(bubble);
+      line.appendChild(ring.el);
+      row.appendChild(timeEl);
+      row.appendChild(line);
+      streamEl.appendChild(row);
+      scrollToBottom();
+
+      return {
+        files: options.files,
+        text: options.text,
+        setStatus: function (message, isError) {
+          stateEl.innerText = message || '';
+          stateEl.className = isError ? 'lan-bubble-state error' : 'lan-bubble-state';
+          stateEl.hidden = !message;
+          bubble.classList.toggle('failed', isError);
+          scrollToBottom();
+        },
+        setProgress: function (percent) {
+          ring.el.hidden = false;
+          ring.labelEl.innerText = String(percent);
+          ring.valueEl.setAttribute(
+            'stroke-dashoffset',
+            String(RING_CIRCUMFERENCE * (1 - percent / 100))
+          );
+        },
+        clearProgress: function () {
+          ring.el.hidden = true;
+        },
+        showRetry: function (handler) {
+          retryButton.hidden = false;
+          actionsEl.hidden = false;
+          retryButton.onclick = handler;
+        },
+        hideRetry: function () {
+          retryButton.hidden = true;
+          actionsEl.hidden = true;
+          retryButton.onclick = null;
+        }
+      };
+    }
+
+    /* ---------- 发送链路 ---------- */
+
+    function fingerprint() {
+      var value = sessionStorage.getItem('ppFingerprint');
+      if (!value) {
+        value = 'web-';
+        for (var index = 0; index < 32; index += 1) {
+          value += Math.floor(Math.random() * 16).toString(16);
+        }
+        sessionStorage.setItem('ppFingerprint', value);
+      }
+      return value;
+    }
+
+    function buildPayload(message) {
+      var files = {};
+      if (message.text) {
+        // 协议原生文本消息：正文放在 preview，接收端无需下载即可显示为文本。
+        files.text = {
+          id: 'text',
+          fileName: TEXT_MESSAGE_FILE_NAME,
+          size: utf8Length(message.text),
+          fileType: TEXT_MESSAGE_FILE_TYPE,
+          preview: message.text
+        };
+      }
+      message.files.forEach(function (file, index) {
+        var id = 'file-' + index;
+        files[id] = {
+          id: id,
+          fileName: file.name,
+          size: file.size,
+          fileType: file.type || 'application/octet-stream'
+        };
+      });
+      return JSON.stringify({
+        info: {
+          alias: WEB_DEVICE_ALIAS,
+          version: PROTOCOL_VERSION,
+          deviceType: 'web',
+          fingerprint: fingerprint(),
+          port: 0,
+          protocol: location.protocol === 'https:' ? 'https' : 'http',
+          download: false
+        },
+        files: files
+      });
+    }
+
+    function closePin() {
+      pinModal.hidden = true;
+      pinErrorEl.hidden = true;
+      pinInput.value = '';
+      waitingPin = false;
+      pinMessage = null;
+      updateComposer();
+    }
+
+    // 需要 PIN 时把消息留在气泡里，输入后按原内容重发。
+    function askPin(message, reason) {
+      busy = false;
+      pinMessage = message;
+      waitingPin = true;
+      pinInput.value = '';
+      pinErrorEl.innerText = reason || '';
+      pinErrorEl.hidden = !reason;
+      message.setStatus(reason || text.pinHint, Boolean(reason));
+      pinModal.hidden = false;
+      updateComposer();
+      pinInput.focus();
+    }
+
+    function finishMessage(message) {
+      message.clearProgress();
+      message.setStatus(text.done, false);
+      busy = false;
+      updateComposer();
+    }
+
+    function failMessage(message, reason, isError) {
+      message.clearProgress();
+      message.setStatus(reason, isError !== false);
+      message.showRetry(function () {
+        startSend(message);
+      });
+      busy = false;
+      if (waitingPin) {
+        closePin();
+      }
+      updateComposer();
+    }
+
+    function uploadItem(message, item, sessionId, token, totalBytes, baseBytes, onDone) {
+      var url = BASE_URL + '/upload?sessionId=' + encodeURIComponent(sessionId) +
+        '&fileId=' + encodeURIComponent(item.id) +
+        '&token=' + encodeURIComponent(token);
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', withPin(url), true);
+      if (xhr.upload) {
+        xhr.upload.onprogress = function (event) {
+          if (!event.lengthComputable || !totalBytes) {
+            return;
+          }
+          var loaded = baseBytes + event.loaded;
+          message.setProgress(Math.min(99, Math.round((loaded / totalBytes) * 100)));
+        };
+      }
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          onDone(xhr);
+        }
+      };
+      xhr.send(item.file);
+    }
+
+    // 逐个上传文件：进度环按已传字节累计，全部完成后消息才算送达。
+    function uploadFiles(message, sessionId, tokens) {
+      var items = message.files
+        .map(function (file, index) {
+          return { id: 'file-' + index, file: file };
+        })
+        .filter(function (item) {
+          // 文本消息只靠确认即送达，服务端不会为它下发 token。
+          return Boolean(tokens[item.id]);
+        });
+      if (!items.length) {
+        finishMessage(message);
+        return;
+      }
+      var totalBytes = items.reduce(function (sum, item) {
+        return sum + item.file.size;
+      }, 0);
+      var doneBytes = 0;
+      var index = 0;
+      message.setStatus('', false);
+      message.setProgress(0);
+
+      function next() {
+        if (index >= items.length) {
+          finishMessage(message);
+          return;
+        }
+        var item = items[index];
+        var baseBytes = doneBytes;
+        uploadItem(message, item, sessionId, tokens[item.id], totalBytes, baseBytes, function (xhr) {
+          if (xhr.status !== 200) {
+            failMessage(message, text.error + ' (' + xhr.status + ')');
+            return;
+          }
+          doneBytes += item.file.size;
+          index += 1;
+          next();
+        });
+      }
+
+      next();
+    }
+
+    function startSend(message) {
+      busy = true;
+      message.hideRetry();
+      message.setStatus(text.waiting, false);
+      updateComposer();
+      request(withPin(BASE_URL + '/prepare-upload'), 'POST', buildPayload(message), function (xhr) {
+        if (xhr.status === 401) {
+          askPin(message, pinTried ? text.pinInvalid : '');
+          return;
+        }
+        if (xhr.status === 403) {
+          failMessage(message, text.rejected);
+          return;
+        }
+        if (xhr.status === 409) {
+          failMessage(message, text.busy);
+          return;
+        }
+        if (xhr.status === 429) {
+          failMessage(message, text.pinTooMany);
+          return;
+        }
+        // 纯文本消息：本次确认即送达，服务端不会建立上传会话。
+        if (xhr.status === 204) {
+          finishMessage(message);
+          return;
+        }
+        if (xhr.status !== 200) {
+          failMessage(message, text.error + ' (' + xhr.status + ')');
+          return;
+        }
+        var data = parseJson(xhr.responseText);
+        if (!data) {
+          failMessage(message, text.error);
+          return;
+        }
+        uploadFiles(message, data.sessionId, data.files || {});
+      });
+    }
+
+    // 文本与文件合并成一次发送：输入框里已输入的正文随文件一起送达。
+    function submit(text, files) {
+      var body = String(text || '').replace(/\s+$/, '');
+      if (busy || waitingPin || (!body.trim() && !files.length)) {
+        return;
+      }
+      var message = appendMessage({ createdAt: Date.now(), files: files, text: body });
+      textInput.value = '';
+      resizeTextarea();
+      updateComposer();
+      startSend(message);
     }
 
     function submitPin() {
-        var input = document.getElementById('pin-input');
-        var value = input.value.trim();
-        if (!value) return;
-        pin = value;
-        sessionStorage.setItem('ppPin', pin);
-        input.value = '';
-        document.getElementById('pin-row').style.display = 'none';
-        if (pendingFiles) {
-            var files = pendingFiles;
-            pendingFiles = null;
-            upload(files);
-        }
+      if (!pinMessage) {
+        return;
+      }
+      var value = pinInput.value.trim();
+      if (!value) {
+        return;
+      }
+      pin = value;
+      pinTried = true;
+      sessionStorage.setItem('ppPin', pin);
+      var message = pinMessage;
+      pinModal.hidden = true;
+      pinErrorEl.hidden = true;
+      pinInput.value = '';
+      waitingPin = false;
+      pinMessage = null;
+      startSend(message);
     }
 
-    document.getElementById('pin-button').onclick = submitPin;
-    document.getElementById('pin-input').onkeydown = function (event) {
-        if (event.key === 'Enter') submitPin();
+    /* ---------- 交互绑定 ---------- */
+
+    textInput.oninput = function () {
+      resizeTextarea();
+      updateComposer();
     };
-
-    function request(url, method, body, callback) {
-        var xhr = new XMLHttpRequest();
-        xhr.open(method, url, true);
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) callback(xhr);
-        };
-        xhr.send(body || null);
-    }
-
-    function fingerprint() {
-        var value = sessionStorage.getItem('ppFingerprint');
-        if (!value) {
-            value = 'web-';
-            for (var i = 0; i < 32; i++) value += Math.floor(Math.random() * 16).toString(16);
-            sessionStorage.setItem('ppFingerprint', value);
-        }
-        return value;
-    }
-
-    function textPackageName() {
-        return TEXT_PACKAGE_PREFIX + Math.floor(Date.now() / 1000) + '.txt';
-    }
-
-    function upload(fileList) {
-        // 拷贝成数组：文件选择框随后会被清空，等待 PIN 时重试仍需保留文件。
-        var files = Array.prototype.slice.call(fileList || []);
-        if (!files.length || uploading) return;
-        setBusy(true);
-        setStatus(text.waiting, false);
-
-        var selected = {};
-        var dtos = {};
-        for (var i = 0; i < files.length; i++) {
-            var file = files[i];
-            var id = String(i);
-            selected[id] = file;
-            dtos[id] = {
-                id: id,
-                fileName: file.name,
-                size: file.size,
-                fileType: file.type || 'application/octet-stream'
-            };
-        }
-
-        var body = JSON.stringify({
-            info: {
-                alias: 'Power Paste Web',
-                version: '2.1',
-                deviceType: 'web',
-                fingerprint: fingerprint(),
-                port: 0,
-                protocol: location.protocol === 'https:' ? 'https' : 'http',
-                download: false
-            },
-            files: dtos
-        });
-
-        request(withPin(BASE_URL + '/prepare-upload'), 'POST', body, function (response) {
-            if (response.status === 401) {
-                setBusy(false);
-                pendingFiles = files;
-                setStatus(text.pinRequired, true);
-                document.getElementById('pin-row').style.display = '';
-                document.getElementById('pin-input').focus();
-                return;
-            }
-            if (response.status === 429) {
-                setBusy(false);
-                setStatus(text.pinTooMany, true);
-                return;
-            }
-            if (response.status === 403) {
-                setBusy(false);
-                setStatus(text.rejected, true);
-                return;
-            }
-            if (response.status === 409) {
-                setBusy(false);
-                setStatus(text.busy, true);
-                return;
-            }
-            if (response.status !== 200) {
-                setBusy(false);
-                setStatus(text.error + ' (' + response.status + ')', true);
-                return;
-            }
-
-            var data = JSON.parse(response.responseText);
-            var ids = Object.keys(data.files || {});
-            uploadNext(data.sessionId, data.files || {}, selected, ids, 0, ids.length);
-        });
-    }
-
-    function uploadNext(sessionId, tokens, selected, ids, index, total) {
-        if (index >= total) {
-            setBusy(false);
-            setStatus(text.done, false);
-            return;
-        }
-        var id = ids[index];
-        var url = BASE_URL + '/upload?sessionId=' + encodeURIComponent(sessionId) +
-            '&fileId=' + encodeURIComponent(id) + '&token=' + encodeURIComponent(tokens[id]);
-        request(url, 'POST', selected[id], function (response) {
-            if (response.status !== 200) {
-                setBusy(false);
-                setStatus(text.error + ' (' + response.status + ')', true);
-                return;
-            }
-            setStatus(text.sending.replace('%d', index + 1).replace('%d', total), false);
-            uploadNext(sessionId, tokens, selected, ids, index + 1, total);
-        });
-    }
-
-    uploadButton.onclick = function () { fileInput.click(); };
+    textInput.onkeydown = function (event) {
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        submit(textInput.value, []);
+      }
+    };
+    sendButton.onclick = function () {
+      submit(textInput.value, []);
+    };
+    attachButton.onclick = function () {
+      if (!attachButton.disabled) {
+        fileInput.click();
+      }
+    };
     fileInput.onchange = function () {
-        if (fileInput.files.length > 0) {
-            upload(fileInput.files);
-            fileInput.value = '';
-        }
+      // 拷贝成数组：输入框随后会被清空，上传期间仍需持有文件对象。
+      var picked = Array.prototype.slice.call(fileInput.files || []);
+      fileInput.value = '';
+      submit(textInput.value, picked);
     };
-    sendTextButton.onclick = function () {
-        var value = textInput.value;
-        if (!value.trim()) {
-            setStatus(text.emptyText, true);
-            return;
-        }
-        var name = textPackageName();
-        var file = new File([value], name, { type: 'text/plain' });
-        upload([file]);
-        textInput.value = '';
+    pinForm.onsubmit = function (event) {
+      event.preventDefault();
+      submitPin();
+    };
+    document.getElementById('pin-cancel').onclick = function () {
+      var message = pinMessage;
+      closePin();
+      if (message) {
+        failMessage(message, text.pinNeeded, false);
+      }
+    };
+    pinInput.onkeydown = function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitPin();
+      }
     };
 
     function isFileDrag(event) {
-        var types = event.dataTransfer && event.dataTransfer.types;
-        if (!types) return false;
-        for (var i = 0; i < types.length; i++) if (types[i] === 'Files') return true;
+      var types = event.dataTransfer && event.dataTransfer.types;
+      if (!types) {
         return false;
+      }
+      for (var index = 0; index < types.length; index += 1) {
+        if (types[index] === 'Files') {
+          return true;
+        }
+      }
+      return false;
     }
 
     document.addEventListener('dragenter', function (event) {
-        if (!isFileDrag(event) || uploading) return;
-        event.preventDefault();
-        dragDepth++;
-        document.getElementById('content').className = 'drag-over';
+      if (!isFileDrag(event) || busy || waitingPin) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth += 1;
+      dropOverlay.hidden = false;
     });
     document.addEventListener('dragover', function (event) {
-        if (!isFileDrag(event)) return;
+      if (isFileDrag(event)) {
         event.preventDefault();
+      }
     });
     document.addEventListener('dragleave', function (event) {
-        if (!isFileDrag(event) || dragDepth === 0) return;
-        dragDepth--;
-        if (dragDepth === 0) document.getElementById('content').className = '';
+      if (!isFileDrag(event) || dragDepth === 0) {
+        return;
+      }
+      dragDepth -= 1;
+      if (dragDepth === 0) {
+        dropOverlay.hidden = true;
+      }
     });
     document.addEventListener('drop', function (event) {
-        if (!isFileDrag(event)) return;
-        event.preventDefault();
-        dragDepth = 0;
-        document.getElementById('content').className = '';
-        if (uploading) return;
-        var files = [];
-        for (var i = 0; i < event.dataTransfer.files.length; i++) {
-            files.push(event.dataTransfer.files[i]);
-        }
-        upload(files);
+      if (!isFileDrag(event)) {
+        return;
+      }
+      event.preventDefault();
+      dragDepth = 0;
+      dropOverlay.hidden = true;
+      if (busy || waitingPin) {
+        return;
+      }
+      var picked = Array.prototype.slice.call(event.dataTransfer.files || []);
+      submit(textInput.value, picked);
     });
-</script>
+
+    applyStaticText();
+    resizeTextarea();
+    updateComposer();
+    loadPeerName();
+  </script>
 </body>
 </html>
