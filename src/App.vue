@@ -8,8 +8,9 @@ import {
     onHistoryUpdated,
     onOpenLanTransfer,
     onOpenSettings,
+    onPasteAuthorizationPending,
     onPanelShown,
-    onQuickPasteFinished,
+    onQuickPasteReleased,
     onQuickPasteStarted,
     onShortcutStatusUpdated,
     onUpdateStatus,
@@ -58,7 +59,11 @@ useTheme({
 // 根据路由自动调整窗口尺寸
 useWindowSize(route);
 
-const { handleWindowAction } = useKeyboardShortcuts({
+const {
+    handleWindowAction,
+    handleQuickPasteReleased,
+    cancelQuickPasteRelease,
+} = useKeyboardShortcuts({
     closeSelect: settingsState.closeSelect,
     copyItem: historyState.copyItem,
     activeFilterTab: historyState.activeFilterTab,
@@ -99,11 +104,12 @@ let unlistenWebdavSync = null;
 let unlistenWindowFocus = null;
 let unlistenWindowResize = null;
 let unlistenQuickPaste = null;
-let unlistenQuickPasteFinished = null;
+let unlistenQuickPasteReleased = null;
 let unlistenOpenSettings = null;
 let unlistenOpenLanTransfer = null;
 let unlistenPanelShown = null;
 let unlistenShortcutStatus = null;
+let unlistenPasteAuthorization = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
@@ -149,11 +155,12 @@ function cleanupListeners() {
     unlistenWindowFocus?.();
     unlistenWindowResize?.();
     unlistenQuickPaste?.();
-    unlistenQuickPasteFinished?.();
+    unlistenQuickPasteReleased?.();
     unlistenOpenSettings?.();
     unlistenOpenLanTransfer?.();
     unlistenPanelShown?.();
     unlistenShortcutStatus?.();
+    unlistenPasteAuthorization?.();
     unlistenHistory = null;
     unlistenCopySound = null;
     unlistenUpdate = null;
@@ -161,11 +168,12 @@ function cleanupListeners() {
     unlistenWindowFocus = null;
     unlistenWindowResize = null;
     unlistenQuickPaste = null;
-    unlistenQuickPasteFinished = null;
+    unlistenQuickPasteReleased = null;
     unlistenOpenSettings = null;
     unlistenOpenLanTransfer = null;
     unlistenPanelShown = null;
     unlistenShortcutStatus = null;
+    unlistenPasteAuthorization = null;
 }
 
 function playCapturedCopySound() {
@@ -394,16 +402,18 @@ async function initializeApp() {
             }
         });
         unlistenQuickPaste = await onQuickPasteStarted(() => {
+            // 桌面又报告了一次激活：说明用户仍在连续敲击，取消待处理的“失活”。
+            cancelQuickPasteRelease();
             if (quickPasteActive.value) {
                 advanceQuickPasteSelection();
                 return;
             }
             void startQuickPasteMode();
         });
-        // Wayland 会话下快捷键由桌面环境托管，按键不会进入面板，
-        // 松开快捷键由后端转发这个事件来触发“松手即粘贴”。
-        unlistenQuickPasteFinished = await onQuickPasteFinished(() => {
-            void commitQuickPaste();
+        // Wayland 会话下快捷键由桌面环境托管，按键不一定进入面板：后端在桌面
+        // 报告快捷键失活后转发这个事件，是否真的提交由键盘逻辑结合修饰键状态决定。
+        unlistenQuickPasteReleased = await onQuickPasteReleased(() => {
+            handleQuickPasteReleased();
         });
         unlistenOpenSettings = await onOpenSettings(() => {
             void openSettingsRoute();
@@ -421,6 +431,11 @@ async function initializeApp() {
             if (event?.payload) {
                 settingsState.applyShortcutStatus(event.payload);
             }
+        });
+        // GNOME / KDE Wayland 下首次自动粘贴需要用户在系统弹窗里授权远程输入，
+        // 这里把提示放进面板的操作反馈区，避免粘贴看起来毫无反应。
+        unlistenPasteAuthorization = await onPasteAuthorizationPending(() => {
+            historyState.actionFeedback.value = settingsState.t("pasteAuthorizationPending");
         });
         unlistenWindowFocus = await getCurrentWindow().onFocusChanged(
             ({ payload }) => {

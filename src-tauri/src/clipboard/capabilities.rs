@@ -51,7 +51,7 @@ pub(crate) fn direct_paste_unavailable_reason() -> &'static str {
         #[cfg(target_os = "linux")]
         {
             match linux_direct_paste_backend() {
-                "wayland" if !linux_wayland_tooling_available() => {
+                "wayland" if !linux_wayland_input_available() => {
                     return "linux_wayland_tools_missing";
                 }
                 "x11" if !linux_x11_tooling_available() => {
@@ -92,7 +92,13 @@ fn direct_paste_strategy() -> &'static str {
         #[cfg(target_os = "linux")]
         {
             if linux_direct_paste_backend() == "wayland" {
-                return "simulated-wtype-shortcut";
+                if linux_wayland_tooling_available() {
+                    return "simulated-wtype-shortcut";
+                }
+                if linux_ydotool_available() {
+                    return "simulated-ydotool-shortcut";
+                }
+                return "simulated-portal-shortcut";
             }
         }
         "simulated-xdotool-shortcut"
@@ -144,12 +150,81 @@ pub(crate) fn linux_wayland_tooling_available() -> bool {
     binary_in_path("wtype")
 }
 
+/// ydotool 走内核 uinput，任何合成器都能用，但需要用户自行配置守护进程与权限。
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_ydotool_available() -> bool {
+    binary_in_path("ydotool")
+}
+
+/// 桌面是否为 Wayland 会话提供了远程输入注入通道。
+///
+/// GNOME / KDE 的合成器不实现虚拟键盘协议（wtype 因此不可用），改为让桌面通过
+/// `org.freedesktop.portal.RemoteDesktop` 授权按键注入；门户后端声明了该接口时
+/// 才算可用（精简的 wlroots 会话通常只提供截图 / 录屏）。
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_remote_input_portal_available() -> bool {
+    remote_input_portal_available_in(&portal_data_roots())
+}
+
+const REMOTE_DESKTOP_IMPL_INTERFACE: &str = "org.freedesktop.impl.portal.RemoteDesktop";
+
+#[cfg(target_os = "linux")]
+fn remote_input_portal_available_in(roots: &[std::path::PathBuf]) -> bool {
+    roots.iter().any(|root| {
+        std::fs::read_dir(root.join("xdg-desktop-portal/portals"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|entry| {
+                std::fs::read_to_string(entry.path())
+                    .map(|content| content.contains(REMOTE_DESKTOP_IMPL_INTERFACE))
+                    .unwrap_or(false)
+            })
+    })
+}
+
+/// XDG 约定的数据目录：`$XDG_DATA_HOME` 与 `$XDG_DATA_DIRS`，门户后端描述文件
+/// 位于其下的 `xdg-desktop-portal/portals`。
+#[cfg(target_os = "linux")]
+fn portal_data_roots() -> Vec<std::path::PathBuf> {
+    let data_home = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".local/share"))
+        });
+    let data_dirs = std::env::var_os("XDG_DATA_DIRS")
+        .into_iter()
+        .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+
+    let mut roots = Vec::new();
+    if let Some(data_home) = data_home {
+        roots.push(data_home);
+    }
+    if data_dirs.is_empty() {
+        roots.push(std::path::PathBuf::from("/usr/local/share"));
+        roots.push(std::path::PathBuf::from("/usr/share"));
+    } else {
+        roots.extend(data_dirs);
+    }
+
+    roots
+}
+
+/// Wayland 下是否存在任一种按键注入手段。
+#[cfg(target_os = "linux")]
+fn linux_wayland_input_available() -> bool {
+    linux_wayland_tooling_available()
+        || linux_ydotool_available()
+        || linux_remote_input_portal_available()
+}
+
 #[cfg(target_os = "linux")]
 fn linux_direct_paste_supported() -> bool {
     linux_direct_paste_supported_with(
         linux_direct_paste_backend(),
         linux_x11_tooling_available(),
-        linux_wayland_tooling_available(),
+        linux_wayland_input_available(),
     )
 }
 
@@ -171,7 +246,7 @@ pub(crate) fn linux_direct_paste_backend() -> &'static str {
     linux_direct_paste_backend_with(
         linux_session_backend(),
         linux_x11_tooling_available(),
-        linux_wayland_tooling_available(),
+        linux_wayland_input_available(),
     )
 }
 
@@ -354,5 +429,34 @@ mod tests {
             super::linux_direct_paste_backend_with("unknown", false, true),
             "wayland"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn remote_input_portal_is_detected_from_backend_descriptions() {
+        let root = std::env::temp_dir().join(format!(
+            "power-paste-portals-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let portals_dir = root.join("xdg-desktop-portal/portals");
+        std::fs::create_dir_all(&portals_dir).expect("create portals dir");
+        std::fs::write(
+            portals_dir.join("wlr.portal"),
+            "[portal]\nDBusName=org.freedesktop.impl.portal.desktop.wlr\nInterfaces=org.freedesktop.impl.portal.ScreenCast;\n",
+        )
+        .expect("write wlr portal");
+
+        assert!(!super::remote_input_portal_available_in(&[root.clone()]));
+
+        // GNOME / KDE 的后端会声明 RemoteDesktop，据此判断 Wayland 下仍可注入按键。
+        std::fs::write(
+            portals_dir.join("gnome.portal"),
+            "[portal]\nDBusName=org.freedesktop.impl.portal.desktop.gnome\nInterfaces=org.freedesktop.impl.portal.RemoteDesktop;\n",
+        )
+        .expect("write gnome portal");
+
+        assert!(super::remote_input_portal_available_in(&[root.clone()]));
+        std::fs::remove_dir_all(&root).expect("cleanup portals dir");
     }
 }

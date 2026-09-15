@@ -4,6 +4,8 @@
 //! Wayland 会话改用 XDG Desktop Portal 的 `org.freedesktop.portal.GlobalShortcuts`
 //! 接口：快捷键由桌面环境托管，按键被触发（或松开）时桌面通过 `Activated` /
 //! `Deactivated` 信号通知应用，GNOME / KDE / Hyprland 等合成器均已实现该接口。
+//! 注意 `Deactivated` 只表示快捷键组合不再成立：GNOME 在松开主键（例如 `）时就会
+//! 发出该信号，此时修饰键可能仍被按住，因此快速粘贴的结束时机由前端判断。
 //!
 //! 门户绑定需要用户在系统弹窗中确认，因此绑定结果是异步的：注册阶段先返回
 //! “处理中”的状态，绑定结束后再通过快捷键状态事件把最终结果推给前端。
@@ -29,7 +31,7 @@ use zbus::{
 };
 
 use crate::models::{
-    SharedState, ShortcutIssueDto, ShortcutStatusDto, QUICK_PASTE_FINISHED_EVENT,
+    SharedState, ShortcutIssueDto, ShortcutStatusDto, QUICK_PASTE_RELEASED_EVENT,
 };
 
 use super::{
@@ -73,9 +75,10 @@ const RESPONSE_CANCELLED: u32 = 1;
 /// 否则面板会在按住期间反复开关。快速粘贴依赖连续激活切换候选项，不做防抖。
 const TOGGLE_REPEAT_GUARD: Duration = Duration::from_millis(200);
 
-/// 松开快速粘贴快捷键后延迟提交：桌面可能在松开主键时就发出 Deactivated，
-/// 而用户往往还按着修饰键连续敲击切换候选项，因此留一个短暂的合并窗口。
-const QUICK_PASTE_COMMIT_DELAY: Duration = Duration::from_millis(200);
+/// 桌面报告快速粘贴快捷键失活后，延迟一小段时间再转发给前端：桌面可能在松开主键
+/// （例如 `）时就发出 Deactivated，而用户往往还按着修饰键连续敲击切换候选项，
+/// 这段窗口用于吸收连续敲击，是否最终提交由前端结合修饰键状态判断。
+const QUICK_PASTE_RELEASE_DELAY: Duration = Duration::from_millis(200);
 
 /// 会话总线报错信息中命中这些关键字时，说明桌面没有可用的 GlobalShortcuts 门户。
 const PORTAL_UNAVAILABLE_HINTS: [&str; 6] = [
@@ -617,7 +620,7 @@ fn listen_session(
                         let _ = crate::runtime::show_quick_paste_panel(&app);
                     }
                     (ShortcutAction::QuickPaste, false) => {
-                        schedule_quick_paste_commit(app.clone(), quick_paste_serial.clone());
+                        schedule_quick_paste_release(app.clone(), quick_paste_serial.clone());
                     }
                     (ShortcutAction::TogglePanel, false) => {}
                 }
@@ -672,23 +675,25 @@ fn is_current_session(session: &Arc<Mutex<ActiveSession>>, generation: u64) -> b
     session.lock().unwrap().generation == generation
 }
 
-/// 门户托管时按键不会进入面板，“松手即粘贴”由桌面通过 Deactivated 通知，
-/// 这里延迟一小段时间再转发给前端：期间用户再次按下快捷键（连续敲击切换
-/// 候选项）会取消上一次提交。
-fn schedule_quick_paste_commit(app: AppHandle, serial: Arc<AtomicU64>) {
+/// 门户托管时按键不一定进入面板，桌面只能通过 Deactivated 报告快捷键已失活，
+/// 且该信号可能在主键（例如 `）抬起、修饰键仍按住时到达。这里延迟一小段时间
+/// 再把“失活”转发给前端：期间用户再次按下快捷键（连续敲击切换候选项）会取消
+/// 本次转发，最终是否提交由前端结合修饰键状态判断。
+fn schedule_quick_paste_release(app: AppHandle, serial: Arc<AtomicU64>) {
     let pending = serial.load(Ordering::SeqCst);
     let spawn_result = thread::Builder::new()
-        .name("wayland-portal-quick-paste".into())
+        .name("wayland-portal-quick-paste-release".into())
         .spawn(move || {
-            thread::sleep(QUICK_PASTE_COMMIT_DELAY);
+            thread::sleep(QUICK_PASTE_RELEASE_DELAY);
             if serial.load(Ordering::SeqCst) != pending {
                 return;
             }
-            let _ = app.emit(QUICK_PASTE_FINISHED_EVENT, ());
+            eprintln!("[shortcuts] 桌面门户触发：快速粘贴快捷键失活");
+            let _ = app.emit(QUICK_PASTE_RELEASED_EVENT, ());
         });
 
     if let Err(error) = spawn_result {
-        eprintln!("[shortcuts] failed to schedule quick paste commit: {error}");
+        eprintln!("[shortcuts] failed to schedule quick paste release: {error}");
     }
 }
 

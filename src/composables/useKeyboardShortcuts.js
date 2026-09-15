@@ -1,6 +1,10 @@
-import { onMounted, onUnmounted } from "vue";
+import { onMounted, onUnmounted, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { normalizeShortcutKey, normalizeShortcutValue } from "../utils/shortcut";
+import {
+  QUICK_PASTE_HOLD_TIMEOUT_MS,
+  QUICK_PASTE_RELEASE_FALLBACK_MS,
+} from "../utils/constants";
 
 export function useKeyboardShortcuts({
   closeSelect,
@@ -20,6 +24,90 @@ export function useKeyboardShortcuts({
   commitQuickPaste,
   cancelQuickPaste,
 }) {
+  // 快速粘贴（门户托管快捷键）期间是否收到过键盘事件：用来判断按键是否真的
+  // 会进入面板。桌面把按键完全吞掉时，只能靠延迟兜底结束快速粘贴。
+  let quickPasteSawKeyEvent = false;
+  // 桌面报告快捷键失活后的兜底提交定时器。
+  let quickPasteReleaseTimer = null;
+
+  function clearQuickPasteReleaseTimer() {
+    if (quickPasteReleaseTimer === null) {
+      return;
+    }
+
+    window.clearTimeout(quickPasteReleaseTimer);
+    quickPasteReleaseTimer = null;
+  }
+
+  function scheduleQuickPasteCommit(delay) {
+    clearQuickPasteReleaseTimer();
+    quickPasteReleaseTimer = window.setTimeout(() => {
+      quickPasteReleaseTimer = null;
+      if (!quickPasteActive?.value) {
+        return;
+      }
+
+      void commitQuickPaste?.();
+    }, delay);
+  }
+
+  // 门户托管快捷键（Linux Wayland）时桌面只通知“快捷键已失活”，不说明 Ctrl 之类的
+  // 修饰键是否还按着。面板能收到键盘事件时，就等所有修饰键松开再提交（与 Windows /
+  // macOS 行为一致）；收不到时退回短延迟提交，避免面板一直挂着。
+  function handleQuickPasteReleased() {
+    if (!quickPasteActive?.value) {
+      return;
+    }
+
+    scheduleQuickPasteCommit(
+      quickPasteSawKeyEvent
+        ? QUICK_PASTE_HOLD_TIMEOUT_MS
+        : QUICK_PASTE_RELEASE_FALLBACK_MS,
+    );
+  }
+
+  // 快速粘贴快捷键是否带修饰键：带修饰键时要等修饰键松开才算结束。门户托管
+  // （Linux Wayland）时面板收到的按键事件可能缺少修饰键状态，只看 ctrlKey 这类
+  // 标志会把“松开主键”误判成“松手”，因此以修饰键自身的 keyup 作为结束信号。
+  function quickPasteUsesModifier() {
+    return /(^|\+)(Ctrl|Control|Alt|Shift|Command|Cmd|Meta|Super|Win)(\+|$)/i.test(
+      settings.quickPasteShortcut ?? "",
+    );
+  }
+
+  // 事件里的修饰键是否都已松开：不含修饰键的快捷键用它判断“松手了”。
+  function noModifierHeld(event) {
+    return (
+      !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+    );
+  }
+
+  // 松开的是否是修饰键本身：带修饰键的快捷键以它作为结束信号，避开失真的标志。
+  function isModifierKeyRelease(event) {
+    return [
+      "Control",
+      "Alt",
+      "AltGraph",
+      "Shift",
+      "Meta",
+      "OS",
+      "Super",
+    ].includes(event.key);
+  }
+
+  watch(
+    () => quickPasteActive?.value === true,
+    (active) => {
+      if (active) {
+        // 新一轮快速粘贴：重新观察按键是否会进入面板。
+        quickPasteSawKeyEvent = false;
+        return;
+      }
+
+      clearQuickPasteReleaseTimer();
+    },
+  );
+
   function isEditableTarget(target) {
     return (
       target instanceof HTMLElement &&
@@ -144,6 +232,8 @@ export function useKeyboardShortcuts({
     const withPrimary = event.ctrlKey || event.metaKey;
 
     if (quickPasteActive?.value) {
+      quickPasteSawKeyEvent = true;
+
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -257,11 +347,22 @@ export function useKeyboardShortcuts({
       return;
     }
 
-    if (!event.ctrlKey && !event.metaKey) {
-      event.preventDefault();
-      event.stopPropagation();
-      void commitQuickPaste?.();
+    quickPasteSawKeyEvent = true;
+
+    // 带修饰键的快捷键只认修饰键松开（门户托管时主键松开会带着失真的标志，
+    // 容易误判成“松手”）；不含修饰键的快捷键仍是松开主键即结束。
+    const shouldCommit = quickPasteUsesModifier()
+      ? isModifierKeyRelease(event)
+      : noModifierHeld(event);
+
+    if (!shouldCommit) {
+      return;
     }
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearQuickPasteReleaseTimer();
+    void commitQuickPaste?.();
   }
 
   function handlePointerDown(event) {
@@ -285,9 +386,12 @@ export function useKeyboardShortcuts({
     window.removeEventListener("keydown", handleKeydown);
     window.removeEventListener("keyup", handleKeyup);
     window.removeEventListener("pointerdown", handlePointerDown);
+    clearQuickPasteReleaseTimer();
   });
 
   return {
     handleWindowAction,
+    handleQuickPasteReleased,
+    cancelQuickPasteRelease: clearQuickPasteReleaseTimer,
   };
 }

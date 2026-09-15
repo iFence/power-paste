@@ -4,6 +4,8 @@ use anyhow::Result;
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "linux")]
+use tauri::Emitter;
+#[cfg(target_os = "linux")]
 use crate::clipboard::{
     linux_direct_paste_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
 };
@@ -574,6 +576,80 @@ fn run_linux_wtype(args: &[&str]) -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
+fn run_linux_ydotool() -> Result<()> {
+    // ydotool 通过内核 uinput 注入，任何合成都适用，但需要用户自行配置
+    // ydotoold 与 /dev/uinput 权限；没配置时这里会立刻失败并继续走其它后端。
+    if !crate::clipboard::linux_ydotool_available() {
+        anyhow::bail!("linux_ydotool_missing");
+    }
+
+    // keycode 29 = KEY_LEFTCTRL、47 = KEY_V，1 按下、0 松开。
+    let output = std::process::Command::new("ydotool")
+        .args(["key", "29:1", "47:1", "47:0", "29:0"])
+        .output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    anyhow::bail!(if stderr.is_empty() {
+        "paste_ydotool_failed".to_string()
+    } else {
+        stderr
+    })
+}
+
+#[cfg(target_os = "linux")]
+// mutter（GNOME）与 KWin 都不实现虚拟键盘协议，wtype 会固定报这个错误。
+fn is_virtual_keyboard_unsupported(error: &anyhow::Error) -> bool {
+    error
+        .to_string()
+        .to_lowercase()
+        .contains("virtual keyboard")
+}
+
+/// Wayland 下的粘贴按键注入：按可用性依次尝试
+/// ydotool（内核 uinput，静默）→ wtype（合成器实现了虚拟键盘协议，如 wlroots）
+/// → XDG RemoteDesktop 门户（GNOME / KDE 唯一允许的注入通道，首次需要授权）。
+#[cfg(target_os = "linux")]
+fn send_wayland_paste_shortcut(app: &AppHandle) -> Result<()> {
+    if crate::clipboard::linux_ydotool_available() && run_linux_ydotool().is_ok() {
+        return Ok(());
+    }
+
+    let mut wtype_error = None;
+    if linux_wayland_tooling_available() {
+        match run_linux_wtype(&["-M", "ctrl", "v", "-m", "ctrl"]) {
+            Ok(()) => return Ok(()),
+            Err(error) if is_virtual_keyboard_unsupported(&error) => {
+                wtype_error = Some(error);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    // 首次使用门户需要用户在系统弹窗里授权，先让界面把这件事说清楚。
+    if !crate::paste_portal::session_ready() {
+        let _ = app.emit(crate::models::PASTE_AUTHORIZATION_PENDING_EVENT, ());
+    }
+
+    match crate::paste_portal::inject_paste_shortcut() {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            eprintln!(
+                "[paste] 桌面门户注入失败：{}：{}",
+                error.message_key(),
+                error.detail()
+            );
+            if let Some(wtype_error) = wtype_error {
+                eprintln!("[paste] wtype 不可用：{wtype_error}");
+            }
+            Err(anyhow::anyhow!(error.message_key()))
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
     if linux_direct_paste_backend() == "wayland" {
         return Ok(());
@@ -673,7 +749,10 @@ pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
 }
 
 #[cfg(windows)]
-pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()> {
+pub(crate) fn send_native_paste_shortcut(
+    _app: &AppHandle,
+    _state: &Arc<SharedState>,
+) -> Result<()> {
     let mut inputs = [
         keyboard_input(VK_CONTROL as u16, 0),
         keyboard_input(VK_V as u16, 0),
@@ -693,14 +772,17 @@ pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-pub(crate) fn send_native_paste_shortcut(_state: &Arc<SharedState>) -> Result<()> {
+pub(crate) fn send_native_paste_shortcut(
+    _app: &AppHandle,
+    _state: &Arc<SharedState>,
+) -> Result<()> {
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
+pub(crate) fn send_native_paste_shortcut(app: &AppHandle, state: &Arc<SharedState>) -> Result<()> {
     if linux_direct_paste_backend() == "wayland" {
-        return run_linux_wtype(&["-M", "ctrl", "v", "-m", "ctrl"]);
+        return send_wayland_paste_shortcut(app);
     }
 
     let window_id = {
@@ -782,7 +864,10 @@ fn post_macos_keyboard_event(
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn send_native_paste_shortcut(state: &Arc<SharedState>) -> Result<()> {
+pub(crate) fn send_native_paste_shortcut(
+    _app: &AppHandle,
+    state: &Arc<SharedState>,
+) -> Result<()> {
     let bundle_id = {
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_app_bundle_id.clone()
@@ -948,7 +1033,7 @@ fn paste_mixed_segments(
             crate::clipboard_html::MixedPasteSegment::Text(_) => continue,
         }
         thread::sleep(Duration::from_millis(120));
-        send_native_paste_shortcut(state)?;
+        send_native_paste_shortcut(app, state)?;
         thread::sleep(Duration::from_millis(120));
     }
 
@@ -1035,6 +1120,6 @@ pub(crate) fn paste_item_to_target(
     {
         thread::sleep(Duration::from_millis(180));
     }
-    send_native_paste_shortcut(state)?;
+    send_native_paste_shortcut(app, state)?;
     Ok(true)
 }

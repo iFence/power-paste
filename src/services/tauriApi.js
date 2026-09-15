@@ -31,8 +31,8 @@ export function onQuickPasteStarted(handler) {
   return listen("quick-paste-started", handler);
 }
 
-export function onQuickPasteFinished(handler) {
-  return listen("quick-paste-finished", handler);
+export function onQuickPasteReleased(handler) {
+  return listen("quick-paste-released", handler);
 }
 
 export function onOpenSettings(handler) {
@@ -49,6 +49,10 @@ export function onPanelShown(handler) {
 
 export function onShortcutStatusUpdated(handler) {
   return listen("shortcut-status-updated", handler);
+}
+
+export function onPasteAuthorizationPending(handler) {
+  return listen("paste-authorization-pending", handler);
 }
 
 export function getHistory(payload) {

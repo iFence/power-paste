@@ -49,6 +49,18 @@ function formatActionError(error, t) {
   if (message === "paste_target_permission_denied") {
     return t("pasteTargetPermissionDenied");
   }
+  if (message === "paste_portal_denied") {
+    return t("pastePortalDenied");
+  }
+  if (message === "paste_portal_unavailable") {
+    return t("pastePortalUnavailable");
+  }
+  if (message === "paste_portal_failed") {
+    return t("pastePortalFailed");
+  }
+  if (message === "paste_portal_timeout") {
+    return t("pastePortalTimeout");
+  }
 
   return message || t("unsupportedCurrentPlatform");
 }

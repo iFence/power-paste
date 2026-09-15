@@ -22,6 +22,8 @@ mod lan_transfer;
 #[cfg(target_os = "linux")]
 mod linux_app;
 mod models;
+#[cfg(target_os = "linux")]
+mod paste_portal;
 mod paste_target;
 mod ports;
 mod repository;

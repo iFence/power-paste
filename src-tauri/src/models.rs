@@ -19,13 +19,18 @@ pub(crate) const COPY_SOUND_EVENT: &str = "copy-sound";
 pub(crate) const UPDATE_STATUS_EVENT: &str = "update-status";
 pub(crate) const WEBDAV_SYNC_STATUS_EVENT: &str = "webdav-sync-status";
 pub(crate) const QUICK_PASTE_STARTED_EVENT: &str = "quick-paste-started";
-// 门户托管快捷键（Linux Wayland）时不会收到按键事件，松开快捷键由后端转发该事件。
+// 门户托管快捷键（Linux Wayland）时按键不一定进入面板，桌面只报告“快捷键失活”；
+// 后端转发该事件，由前端结合修饰键状态决定何时提交粘贴。
 #[cfg(target_os = "linux")]
-pub(crate) const QUICK_PASTE_FINISHED_EVENT: &str = "quick-paste-finished";
+pub(crate) const QUICK_PASTE_RELEASED_EVENT: &str = "quick-paste-released";
 pub(crate) const OPEN_SETTINGS_EVENT: &str = "open-settings";
 pub(crate) const OPEN_LAN_TRANSFER_EVENT: &str = "open-lan-transfer";
 pub(crate) const PANEL_SHOWN_EVENT: &str = "panel-shown";
 pub(crate) const SHORTCUT_STATUS_UPDATED_EVENT: &str = "shortcut-status-updated";
+// GNOME / KDE Wayland 下第一次自动粘贴需要用户在系统弹窗里授权远程输入，
+// 该事件让面板直接提示“去弹窗里确认”，而不是让粘贴看起来凭空卡住。
+#[cfg(target_os = "linux")]
+pub(crate) const PASTE_AUTHORIZATION_PENDING_EVENT: &str = "paste-authorization-pending";
 pub(crate) const PANEL_LABEL: &str = "main";
 
 #[cfg(windows)]
