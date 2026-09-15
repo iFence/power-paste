@@ -15,7 +15,7 @@ const emit = defineEmits(["open-link", "start-service"]);
 const advanced = ref(false);
 
 const displayAlias = computed(
-  () => props.state.alias || props.t("lanUnknownDevice"),
+  () => props.state.alias || props.t("lanTransferUnknownDevice"),
 );
 const statusText = computed(() =>
   props.running
