@@ -70,6 +70,12 @@ export function normalizeShortcutValue(shortcut, platform = 'unknown') {
 // Wayland 会话下全局快捷键由桌面门户托管，绑定结果以错误码形式回传，
 // 这里把错误码映射成可操作的提示文案；非门户错误返回空串，由调用方
 // 继续按“快捷键冲突”处理。
+// 部分错误码会把细节拼在冒号后面，例如 wayland_portal_invalid_app_id:power-paste。
+function issueDetail(code) {
+  const separator = code.indexOf(':');
+  return separator === -1 ? '' : code.slice(separator + 1);
+}
+
 export function shortcutIssueMessage(code, t) {
   if (!code) {
     return '';
@@ -86,6 +92,9 @@ export function shortcutIssueMessage(code, t) {
   }
   if (code.startsWith('wayland_portal_no_app_id')) {
     return t('waylandPortalNoAppId');
+  }
+  if (code.startsWith('wayland_portal_invalid_app_id')) {
+    return t('waylandPortalInvalidAppId', { appId: issueDetail(code) });
   }
   if (code.startsWith('wayland_portal_failed')) {
     return t('waylandPortalFailed');

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Power Paste
+Comment=Native-feeling clipboard history manager
+Exec=power-paste
+Icon=power-paste
+StartupWMClass=power-paste
+Terminal=false
+Categories=Utility;

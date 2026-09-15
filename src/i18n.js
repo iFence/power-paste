@@ -359,262 +359,270 @@ Object.assign(messages["zh-CN"], {
 });
 
 Object.assign(messages["zh-CN"], {
-  debugMode: "璋冭瘯妯″紡",
-});
-
-Object.assign(messages["zh-CN"], {
-  debugMode: "\u8c03\u8bd5\u6a21\u5f0f",
-  hardwareAcceleration: "\u786c\u4ef6\u52a0\u901f",
+  debugMode: "调试模式",
+  hardwareAcceleration: "硬件加速",
   hardwareAccelerationTip:
-    "\u5173\u95ed\u540e\u4f1a\u8ba9 WebView2 \u4ee5\u7981\u7528 GPU \u52a0\u901f\u53c2\u6570\u542f\u52a8\uff0c\u53ef\u80fd\u964d\u4f4e\u5185\u5b58\u5360\u7528\uff0c\u4e5f\u53ef\u80fd\u5f71\u54cd\u6e32\u67d3\u6027\u80fd\u3002\u91cd\u542f\u5e94\u7528\u540e\u751f\u6548\u3002",
-  toggleOn: "\u5f00\u542f",
-  toggleOff: "\u5173\u95ed",
+    "关闭后会让 WebView2 以禁用 GPU 加速参数启动，可能降低内存占用，也可能影响渲染性能。重启应用后生效。",
+  toggleOn: "开启",
+  toggleOff: "关闭",
 });
 
-localeOptions[0].label = "\u7b80\u4f53\u4e2d\u6587";
+localeOptions[0].label = "简体中文";
 
 densityOptions["zh-CN"] = [
-  { value: "compact", label: "\u7d27\u51d1" },
-  { value: "cozy", label: "\u8212\u9002" },
+  { value: "compact", label: "紧凑" },
+  { value: "cozy", label: "舒适" },
 ];
 
 themeModeOptions["zh-CN"] = [
-  { value: "light", label: "\u6d45\u8272" },
-  { value: "dark", label: "\u6df1\u8272" },
-  { value: "system", label: "\u8ddf\u968f\u7cfb\u7edf" },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+  { value: "system", label: "跟随系统" },
 ];
 
 accentColorOptions["zh-CN"] = [
-  { value: "ocean", label: "\u6d77\u84dd" },
-  { value: "amber", label: "\u7425\u73c0" },
-  { value: "jade", label: "\u9752\u7389" },
-  { value: "rose", label: "\u73ab\u7470" },
+  { value: "ocean", label: "海蓝" },
+  { value: "amber", label: "琥珀" },
+  { value: "jade", label: "青玉" },
+  { value: "rose", label: "玫瑰" },
 ];
 
 Object.assign(messages["zh-CN"], {
   unsupportedCurrentPlatform:
-    "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u8be5\u64cd\u4f5c",
+    "当前平台暂不支持该操作",
   unsupportedClipboardWrite:
-    "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u5199\u5165\u7cfb\u7edf\u526a\u8d34\u677f",
+    "当前平台暂不支持写入系统剪贴板",
   unsupportedDirectPaste:
-    "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u76f4\u63a5\u7c98\u8d34\u5230\u76ee\u6807\u5e94\u7528",
+    "当前平台暂不支持直接粘贴到目标应用",
   linuxX11ToolsMissing:
-    "Linux\uff08X11\uff09\u76f4\u63a5\u7c98\u8d34\u9700\u8981\u989d\u5916\u5b89\u88c5 xdotool\u3002\u53ef\u53c2\u8003\uff1aUbuntu/Debian \u6267\u884c `sudo apt install xdotool`\uff0cFedora \u6267\u884c `sudo dnf install xdotool`\uff0cArch \u6267\u884c `sudo pacman -S xdotool`\uff0c\u5b89\u88c5\u540e\u91cd\u8bd5\u5373\u53ef\u3002",
+    "Linux（X11）直接粘贴需要额外安装 xdotool。可参考：Ubuntu/Debian 执行 `sudo apt install xdotool`，Fedora 执行 `sudo dnf install xdotool`，Arch 执行 `sudo pacman -S xdotool`，安装后重试即可。",
   linuxWaylandToolsMissing:
-    "Linux\uff08Wayland\uff09\u76f4\u63a5\u7c98\u8d34\u9700\u8981\u989d\u5916\u5b89\u88c5 wtype\u3002\u53ef\u53c2\u8003\uff1aUbuntu/Debian \u6267\u884c `sudo apt install wtype`\uff0cFedora \u6267\u884c `sudo dnf install wtype`\uff0cArch \u6267\u884c `sudo pacman -S wtype`\uff0c\u5b89\u88c5\u540e\u91cd\u8bd5\u5373\u53ef\u3002",
+    "Linux（Wayland）直接粘贴需要 wtype、ydotool 或桌面提供的远程输入门户（RemoteDesktop）。可参考安装：Ubuntu/Debian 执行 `sudo apt install wtype`，Fedora 执行 `sudo dnf install wtype`，Arch 执行 `sudo pacman -S wtype`；GNOME / KDE 的合成器不实现虚拟键盘协议（wtype 会提示 “Compositor does not support the virtual keyboard protocol”），需要在系统弹窗中允许远程输入，或改用 ydotool（内核 uinput，需要自行配置 ydotoold）。",
   pasteTargetFocusFailed:
-    "\u672a\u80fd\u6062\u590d\u76ee\u6807\u7a97\u53e3\u7126\u70b9\uff0c\u5df2\u53d6\u6d88\u672c\u6b21\u7c98\u8d34",
+    "未能恢复目标窗口焦点，已取消本次粘贴",
   pasteTargetPermissionDenied:
-    "\u7cfb\u7edf\u672a\u6388\u4e88 Power Paste \u8f85\u52a9\u529f\u80fd\u6216\u81ea\u52a8\u5316\u6743\u9650\uff0c\u8bf7\u5728\u201c\u7cfb\u7edf\u8bbe\u7f6e > \u9690\u79c1\u4e0e\u5b89\u5168\u6027 > \u8f85\u52a9\u529f\u80fd / \u81ea\u52a8\u5316\u201d\u4e2d\u5141\u8bb8\u540e\u91cd\u8bd5",
+    "系统未授予 Power Paste 辅助功能或自动化权限，请在“系统设置 > 隐私与安全性 > 辅助功能 / 自动化”中允许后重试",
+  pastePortalDenied:
+    "桌面没有允许远程输入，自动粘贴被系统拒绝。请在系统授权窗口里打开「Allow Remote Interaction」再确认，或改为复制到剪贴板后手动粘贴。",
+  pastePortalUnavailable:
+    "当前 Wayland 桌面既没有实现 wtype 依赖的虚拟键盘协议，也没有提供远程输入门户（RemoteDesktop），无法自动发送粘贴快捷键。可改用 ydotool（内核 uinput，需要自行配置 ydotoold），或在系统设置里改为复制到剪贴板后手动粘贴。",
+  pastePortalFailed:
+    "桌面远程输入门户发送粘贴快捷键失败，请重试；若持续失败，可在系统设置里改为复制到剪贴板后手动粘贴。",
+  pasteAuthorizationPending:
+    "首次自动粘贴需要授权：请在系统弹出的 “Remote Desktop” 窗口中打开 “Allow Remote Interaction”，再点击 “Share”。授权在本次运行内复用，不会反复弹窗。",
+  pastePortalTimeout:
+    "等待系统授权超时，本次自动粘贴已取消。请重试，并在弹出的 “Remote Desktop” 窗口里打开 “Allow Remote Interaction” 后点击 “Share”。",
   unsupportedLaunchOnStartup:
-    "\u5f53\u524d\u5e73\u53f0\u6682\u4e0d\u652f\u6301\u5f00\u673a\u542f\u52a8",
-  duplicateShortcut: "\u5feb\u6377\u952e\u4e0d\u80fd\u91cd\u590d",
-  invalidShortcut: "\u5feb\u6377\u952e\u683c\u5f0f\u4e0d\u6b63\u786e",
+    "当前平台暂不支持开机启动",
+  duplicateShortcut: "快捷键不能重复",
+  invalidShortcut: "快捷键格式不正确",
   shortcutRegistrationFailed:
-    "\u5feb\u6377\u952e\u672a\u751f\u6548\uff0c\u53ef\u80fd\u5df2\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528",
+    "快捷键未生效，可能已被其他程序占用",
   shortcutConflictMessage:
-    "{name}\uff08{shortcut}\uff09\u672a\u751f\u6548\uff0c\u53ef\u80fd\u5df2\u88ab\u5176\u4ed6\u7a0b\u5e8f\u5360\u7528\u3002\u8bf7\u5173\u95ed\u5360\u7528\u7a0b\u5e8f\u540e\u91cd\u8bd5\uff0c\u6216\u5728\u8bbe\u7f6e\u4e2d\u66f4\u6362\u5feb\u6377\u952e\u3002",
+    "{name}（{shortcut}）未生效，可能已被其他程序占用。请关闭占用程序后重试，或在设置中更换快捷键。",
   waylandPortalUnavailable:
-    "\u5f53\u524d Wayland \u684c\u9762\u6ca1\u6709\u63d0\u4f9b\u5168\u5c40\u5feb\u6377\u952e\u95e8\u6237\uff08GlobalShortcuts\uff09\uff0c\u65e0\u6cd5\u81ea\u52a8\u7ed1\u5b9a\u5feb\u6377\u952e\u3002\u53ef\u5728\u7cfb\u7edf\u8bbe\u7f6e\u91cc\u4e3a Power Paste \u624b\u52a8\u6307\u5b9a\u5feb\u6377\u952e\uff0c\u6216\u6539\u7528 X11 \u4f1a\u8bdd\u3002",
+    "当前 Wayland 桌面没有提供全局快捷键门户（GlobalShortcuts），无法自动绑定快捷键。可在系统设置里为 Power Paste 手动指定快捷键，或改用 X11 会话。",
   waylandPortalDenied:
-    "\u684c\u9762\u73af\u5883\u672a\u7ed1\u5b9a\u8be5\u5feb\u6377\u952e\uff1a\u53ef\u80fd\u662f\u7cfb\u7edf\u5f39\u7a97\u88ab\u53d6\u6d88\uff0c\u6216\u8be5\u5feb\u6377\u952e\u4e0e\u7cfb\u7edf\u5feb\u6377\u952e\u51b2\u7a81\u3002\u8bf7\u91cd\u8bd5\u5e76\u5728\u5f39\u7a97\u4e2d\u786e\u8ba4\uff0c\u6216\u6539\u7528\u5176\u5b83\u6309\u952e\u3002",
+    "桌面环境未绑定该快捷键：可能是系统弹窗被取消，或该快捷键与系统快捷键冲突。请重试并在弹窗中确认，或改用其它按键。",
   waylandPortalFailed:
-    "\u684c\u9762\u73af\u5883\u7ed1\u5b9a\u5168\u5c40\u5feb\u6377\u952e\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002\u82e5\u6301\u7eed\u5931\u8d25\uff0c\u53ef\u5728\u7cfb\u7edf\u8bbe\u7f6e\u91cc\u624b\u52a8\u4e3a Power Paste \u6307\u5b9a\u5feb\u6377\u952e\u3002",
+    "桌面环境绑定全局快捷键失败，请重试。若持续失败，可在系统设置里手动为 Power Paste 指定快捷键。",
   waylandPortalClosed:
-    "\u684c\u9762\u73af\u5883\u5df2\u91ca\u653e\u5feb\u6377\u952e\u7ed1\u5b9a\uff08\u4f8b\u5982\u684c\u9762\u4f1a\u8bdd\u91cd\u542f\uff09\uff0c\u8bf7\u91cd\u8bd5\u4ee5\u91cd\u65b0\u7ed1\u5b9a\u3002",
+    "桌面环境已释放快捷键绑定（例如桌面会话重启），请重试以重新绑定。",
   waylandPortalNoAppId:
-    "\u684c\u9762\u65e0\u6cd5\u8bc6\u522b\u5f53\u524d\u8fdb\u7a0b\u7684\u5e94\u7528\u6807\u8bc6\uff0c\u56e0\u6b64\u62d2\u7edd\u7ed1\u5b9a\u5feb\u6377\u952e\u3002\u8bf7\u4ece\u5e94\u7528\u5217\u8868\u542f\u52a8 Power Paste\uff08\u672c\u5730\u6784\u5efa\u5148\u6267\u884c pnpm desktop:install\uff09\uff0c\u6216\u5728\u9879\u76ee\u76ee\u5f55\u7528 pnpm tauri dev \u542f\u52a8\u3002",
-  checkForUpdates: "\u68c0\u67e5\u66f4\u65b0",
-  downloadAndInstall: "\u4e0b\u8f7d\u5e76\u5b89\u88c5",
-  updateIdle: "\u5c1a\u672a\u6267\u884c\u66f4\u65b0\u68c0\u67e5",
-  checkingForUpdates: "\u6b63\u5728\u68c0\u67e5\u66f4\u65b0",
-  updateAvailable: "\u53d1\u73b0\u65b0\u7248\u672c",
-  updateAvailableVersion: "\u53d1\u73b0\u65b0\u7248\u672c {version}",
+    "桌面无法识别当前进程的应用标识，因此拒绝绑定快捷键。请从应用列表启动 Power Paste（本地构建先执行 pnpm desktop:install），或在项目目录用 pnpm tauri dev 启动。",
+  waylandPortalInvalidAppId:
+    "当前进程的应用标识「{appId}」不符合桌面要求：GNOME 只接受反向域名格式（至少包含一个点，例如 com.yulei.powerpaste），因此绑定请求被系统直接丢弃。请从应用列表启动 Power Paste（本地构建先执行 pnpm desktop:install），或在项目目录用 pnpm tauri dev 启动。",
+  checkForUpdates: "检查更新",
+  downloadAndInstall: "下载并安装",
+  updateIdle: "尚未执行更新检查",
+  checkingForUpdates: "正在检查更新",
+  updateAvailable: "发现新版本",
+  updateAvailableVersion: "发现新版本 {version}",
   updateConfirmInstall:
-    "\u53d1\u73b0\u65b0\u7248\u672c\uff0c\u662f\u5426\u7acb\u5373\u4e0b\u8f7d\u5e76\u5b89\u88c5\uff1f",
+    "发现新版本，是否立即下载并安装？",
   updateConfirmInstallVersion:
-    "\u53d1\u73b0\u65b0\u7248\u672c {version}\uff0c\u662f\u5426\u7acb\u5373\u4e0b\u8f7d\u5e76\u5b89\u88c5\uff1f",
-  downloadingUpdate: "\u6b63\u5728\u4e0b\u8f7d\u66f4\u65b0",
-  downloadingUpdateProgress: "\u6b63\u5728\u4e0b\u8f7d\u66f4\u65b0 {percent}%",
+    "发现新版本 {version}，是否立即下载并安装？",
+  downloadingUpdate: "正在下载更新",
+  downloadingUpdateProgress: "正在下载更新 {percent}%",
   updateReadyToInstall:
-    "\u66f4\u65b0\u5df2\u4e0b\u8f7d\uff0c\u5b89\u88c5\u7a0b\u5e8f\u5373\u5c06\u542f\u52a8",
-  upToDate: "\u5f53\u524d\u5df2\u662f\u6700\u65b0\u7248\u672c",
-  updateCheckFailed: "\u68c0\u67e5\u66f4\u65b0\u5931\u8d25",
-  updateInstallFailed: "\u5b89\u88c5\u66f4\u65b0\u5931\u8d25",
-  currentVersionLabel: "\u5f53\u524d\u7248\u672c\uff1a{version}",
-  latestVersionLabel: "\u6700\u65b0\u7248\u672c\uff1a{version}",
-  updateDetailsTitle: "\u66f4\u65b0\u5185\u5bb9",
-  updateNotesEmpty: "\u6682\u65e0\u66f4\u65b0\u8bf4\u660e",
-  ignoreUpdate: "\u5ffd\u7565",
-  installUpdateNow: "\u5b89\u88c5",
-  updateDebugTitle: "\u66f4\u65b0\u8c03\u8bd5",
+    "更新已下载，安装程序即将启动",
+  upToDate: "当前已是最新版本",
+  updateCheckFailed: "检查更新失败",
+  updateInstallFailed: "安装更新失败",
+  currentVersionLabel: "当前版本：{version}",
+  latestVersionLabel: "最新版本：{version}",
+  updateDetailsTitle: "更新内容",
+  updateNotesEmpty: "暂无更新说明",
+  ignoreUpdate: "忽略",
+  installUpdateNow: "安装",
+  updateDebugTitle: "更新调试",
   updateDebugHint:
-    "\u4ec5\u5f00\u53d1\u6a21\u5f0f\u53ef\u89c1\uff0c\u7528\u4e8e\u9884\u89c8 new \u5fbd\u6807\u548c\u66f4\u65b0\u72b6\u6001\u3002",
-  updateDebugVersionLabel: "\u8c03\u8bd5\u7248\u672c\u53f7",
-  updateDebugVersionPlaceholder: "\u4f8b\u5982 v0.3.6",
-  updateDebugBodyLabel: "\u8c03\u8bd5\u66f4\u65b0\u8bf4\u660e",
+    "仅开发模式可见，用于预览 new 徽标和更新状态。",
+  updateDebugVersionLabel: "调试版本号",
+  updateDebugVersionPlaceholder: "例如 v0.3.6",
+  updateDebugBodyLabel: "调试更新说明",
   updateDebugBodyPlaceholder:
-    "\u5728\u8fd9\u91cc\u8f93\u5165 Markdown \u66f4\u65b0\u8bf4\u660e",
-  updateDebugAvailable: "\u65b0\u7248\u672c",
-  updateDebugDownloading: "\u4e0b\u8f7d\u4e2d",
-  updateDebugDownloaded: "\u5df2\u4e0b\u8f7d",
-  updateDebugUpToDate: "\u5df2\u662f\u6700\u65b0",
-  updateDebugError: "\u9519\u8bef",
-  updateDebugClear: "\u6062\u590d\u771f\u5b9e\u68c0\u67e5",
-  saveSettingsFailed: "\u4fdd\u5b58\u8bbe\u7f6e\u5931\u8d25",
-  backAction: "\u8fd4\u56de",
+    "在这里输入 Markdown 更新说明",
+  updateDebugAvailable: "新版本",
+  updateDebugDownloading: "下载中",
+  updateDebugDownloaded: "已下载",
+  updateDebugUpToDate: "已是最新",
+  updateDebugError: "错误",
+  updateDebugClear: "恢复真实检查",
+  saveSettingsFailed: "保存设置失败",
+  backAction: "返回",
   lanReceiverTitle: "LocalSend",
-  lanTransferStatusRunning: "\u5df2\u5f00\u542f",
-  lanTransferStatusStopped: "\u5df2\u505c\u6b62",
+  lanTransferStatusRunning: "已开启",
+  lanTransferStatusStopped: "已停止",
   lanTransferStatusPortInUse:
-    "\u7aef\u53e3 53317 \u88ab\u5360\u7528\uff0c\u53ef\u80fd\u672c\u673a LocalSend \u6b63\u5728\u8fd0\u884c",
-  lanTransferStatusActive: "\u4f20\u8f93\u4e2d",
-  lanTransferStatusDone: "\u5df2\u5b8c\u6210",
-  lanTransferStatusFailed: "\u5931\u8d25",
-  lanTransferStatusCancelled: "\u5df2\u53d6\u6d88",
-  lanTransferDevices: "\u9644\u8fd1\u8bbe\u5907",
-  lanTransferRefresh: "\u5237\u65b0",
-  lanScanMenuTitle: "\u9009\u62e9\u7f51\u6bb5",
+    "端口 53317 被占用，可能本机 LocalSend 正在运行",
+  lanTransferStatusActive: "传输中",
+  lanTransferStatusDone: "已完成",
+  lanTransferStatusFailed: "失败",
+  lanTransferStatusCancelled: "已取消",
+  lanTransferDevices: "附近设备",
+  lanTransferRefresh: "刷新",
+  lanScanMenuTitle: "选择网段",
   lanScanMenuHint:
-    "\u53ea\u626b\u63cf\u6240\u9009\u7f51\u6bb5\uff0c\u5176\u4f59\u7f51\u6bb5\u4e0d\u4f1a\u88ab\u63a2\u6d4b\u3002",
-  lanScanLastUsed: "\u4e0a\u6b21",
-  lanScanCancel: "\u53d6\u6d88\u626b\u63cf",
-  lanScanNoInterface: "\u6ca1\u6709\u53ef\u7528\u7684\u5c40\u57df\u7f51\u7f51\u5361\u3002",
-  lanScanInvalidSubnet: "\u7f51\u6bb5\u65e0\u6548\uff0c\u4ec5\u652f\u6301 /24\u3002",
-  lanScanNoSubnet: "\u8bf7\u9009\u62e9\u8981\u626b\u63cf\u7684\u7f51\u6bb5\u3002",
-  lanTransferAddDevice: "\u6dfb\u52a0",
+    "只扫描所选网段，其余网段不会被探测。",
+  lanScanLastUsed: "上次",
+  lanScanCancel: "取消扫描",
+  lanScanNoInterface: "没有可用的局域网网卡。",
+  lanScanInvalidSubnet: "网段无效，仅支持 /24。",
+  lanScanNoSubnet: "请选择要扫描的网段。",
+  lanTransferAddDevice: "添加",
   lanTransferIpPlaceholder:
-    "\u8f93\u5165\u5bf9\u7aef IP\uff08\u5982 192.168.1.20\uff09",
+    "输入对端 IP（如 192.168.1.20）",
   lanTransferNoDevices:
-    "\u6682\u65f6\u6ca1\u6709\u53d1\u73b0\u8bbe\u5907\uff0c\u8bf7\u786e\u4fdd\u5bf9\u7aef LocalSend \u5df2\u6253\u5f00\u63a5\u6536",
-  lanTransferTrusted: "\u5df2\u4fe1\u4efb",
-  lanTransferSendFile: "\u53d1\u9001\u6587\u4ef6",
-  lanTransferSendText: "\u53d1\u9001\u6587\u672c",
-  lanTransferSendTextTitle: "\u53d1\u9001\u6587\u672c\u7ed9 {name}",
+    "暂时没有发现设备，请确保对端 LocalSend 已打开接收",
+  lanTransferTrusted: "已信任",
+  lanTransferSendFile: "发送文件",
+  lanTransferSendText: "发送文本",
+  lanTransferSendTextTitle: "发送文本给 {name}",
   lanTransferSendTextPlaceholder:
-    "\u8f93\u5165\u8981\u53d1\u9001\u7684\u6587\u672c\uff0c\u5bf9\u7aef\u4f1a\u76f4\u63a5\u663e\u793a\u4e3a\u6d88\u606f",
-  lanTransferCancel: "\u53d6\u6d88",
-  lanTransferWebReceive: "\u6d4f\u89c8\u5668\u4f20\u7ed9\u6211",
+    "输入要发送的文本，对端会直接显示为消息",
+  lanTransferCancel: "取消",
+  lanTransferWebReceive: "浏览器传给我",
   lanTransferWebReceiveHint:
-    "\u6d4f\u89c8\u5668\u6253\u5f00\u540e\u53ef\u4e0a\u4f20\u6587\u4ef6\uff0c\u4e5f\u53ef\u8f93\u5165\u6587\u672c\u53d1\u9001\u5230\u672c\u673a\u526a\u8d34\u677f\u3002",
+    "浏览器打开后可上传文件，也可输入文本发送到本机剪贴板。",
   lanTransferWebIdleHint:
-    "\u9009\u62e9\u4e00\u4e2a\u6a21\u5f0f\u540e\u751f\u6210\u624b\u673a\u626b\u7801\u5730\u5740\uff1a\u4e24\u79cd\u6a21\u5f0f\u4e92\u65a5\uff0c\u5207\u6362\u65f6\u4f1a\u91cd\u542f\u670d\u52a1\u3002",
-  lanTransferWebStop: "\u5173\u95ed\u626b\u7801\u9875",
-  lanTransferStartService: "\u542f\u52a8\u670d\u52a1",
-  lanTransferStopService: "\u505c\u6b62\u670d\u52a1",
+    "选择一个模式后生成手机扫码地址：两种模式互斥，切换时会重启服务。",
+  lanTransferWebStop: "关闭扫码页",
+  lanTransferStartService: "启动服务",
+  lanTransferStopService: "停止服务",
   lanTransferDisabledHint:
-    "\u5c40\u57df\u7f51\u4e92\u4f20\u5df2\u5728\u8bbe\u7f6e\u4e2d\u5173\u95ed\uff0c\u53ef\u5728\u8bbe\u7f6e\u9875\u201c\u4e92\u4f20\u201d\u5206\u7ec4\u91cd\u65b0\u5f00\u542f\u3002",
-  lanIncomingTitle: "\u6536\u5230\u4f20\u8f93\u8bf7\u6c42",
-  lanIncomingAccept: "\u63a5\u53d7",
-  lanIncomingDecline: "\u62d2\u7edd",
-  lanIncomingAcceptAndTrust: "\u63a5\u53d7\u5e76\u4fe1\u4efb",
+    "局域网互传已在设置中关闭，可在设置页“互传”分组重新开启。",
+  lanIncomingTitle: "收到传输请求",
+  lanIncomingAccept: "接受",
+  lanIncomingDecline: "拒绝",
+  lanIncomingAcceptAndTrust: "接受并信任",
   lanTransferTitle: "LocalSend",
-  lanTransferDropFiles: "\u677e\u5f00\u4ee5\u53d1\u9001\u6587\u4ef6",
-  windowControlStyle: "\u7a97\u53e3\u63a7\u4ef6\u6837\u5f0f",
-  windowControlStyleTip: "\u4ec5\u5f71\u54cd\u5f53\u524d\u5e94\u7528\u7684\u6807\u9898\u680f\u6309\u94ae\uff0c\u5207\u6362\u540e\u7acb\u5373\u751f\u6548\u3002",
-  windowControlTrafficLights: "\u7ea2\u7eff\u706f",
+  lanTransferDropFiles: "松开以发送文件",
+  windowControlStyle: "窗口控件样式",
+  windowControlStyleTip: "仅影响当前应用的标题栏按钮，切换后立即生效。",
+  windowControlTrafficLights: "红绿灯",
   windowControlWindows: "Windows",
-  minimizeAction: "\u6700\u5c0f\u5316",
-  maximizeAction: "\u6700\u5927\u5316",
-  restoreAction: "\u8fd8\u539f",
-  lanTransferSend: "\u53d1\u9001",
-  openAction: "\u6253\u5f00",
+  minimizeAction: "最小化",
+  maximizeAction: "最大化",
+  restoreAction: "还原",
+  lanTransferSend: "发送",
+  openAction: "打开",
   revealInExplorer:
-    "\u5728\u6587\u4ef6\u7ba1\u7406\u5668\u4e2d\u663e\u793a",
+    "在文件管理器中显示",
   lanTransferDownloadDirMissing:
-    "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u76ee\u5f55\u4e0d\u5b58\u5728",
+    "互传文件保存目录不存在",
   lanTransferDownloadDirNotDirectory:
-    "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u4f4d\u7f6e\u4e0d\u662f\u76ee\u5f55",
+    "互传文件保存位置不是目录",
   lanTransferDownloadDirNotWritable:
-    "\u4e92\u4f20\u6587\u4ef6\u4fdd\u5b58\u76ee\u5f55\u4e0d\u53ef\u5199",
-  lanTransferPin: "\u63a5\u6536 PIN",
+    "互传文件保存目录不可写",
+  lanTransferPin: "接收 PIN",
   lanTransferPinTip:
-    "\u8bbe\u7f6e\u540e\uff0c\u5176\u4ed6\u8bbe\u5907\u5fc5\u987b\u8f93\u5165\u76f8\u540c PIN \u624d\u80fd\u4f20\u8f93\uff1b\u7559\u7a7a\u8868\u793a\u4e0d\u9700\u8981\u3002",
-  lanTransferPinPlaceholder: "\u7559\u7a7a\u8868\u793a\u4e0d\u9700\u8981",
-  lanPinTitle: "\u8f93\u5165 PIN",
+    "设置后，其他设备必须输入相同 PIN 才能传输；留空表示不需要。",
+  lanTransferPinPlaceholder: "留空表示不需要",
+  lanPinTitle: "输入 PIN",
   lanPinHint:
-    "\u8be5\u8bbe\u5907\u542f\u7528\u4e86 PIN\uff0c\u8bf7\u8f93\u5165\u540e\u7ee7\u7eed\u3002",
+    "该设备启用了 PIN，请输入后继续。",
   lanPinPlaceholder: "PIN",
-  lanPinInvalid: "PIN \u4e0d\u6b63\u786e\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165\u3002",
+  lanPinInvalid: "PIN 不正确，请重新输入。",
   lanErrorPortInUse:
-    "\u7aef\u53e3 53317 \u5df2\u88ab\u5360\u7528\uff0c\u672c\u673a\u53ef\u80fd\u6709\u5176\u5b83 LocalSend \u5ba2\u6237\u7aef\u6b63\u5728\u8fd0\u884c\u3002",
+    "端口 53317 已被占用，本机可能有其它 LocalSend 客户端正在运行。",
   lanErrorMulticastUnavailable:
-    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u53ef\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+    "组播不可用，设备发现可能失败；可手动添加设备连接。",
   lanWarningMulticastWindows:
-    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u8bf7\u68c0\u67e5 Windows \u9632\u706b\u5899\u662f\u5426\u653e\u884c Power Paste\uff0c\u6216\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+    "组播不可用，设备发现可能失败；请检查 Windows 防火墙是否放行 Power Paste，或手动添加设备连接。",
   lanWarningMulticastMacos:
-    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u8bf7\u5728\u300c\u7cfb\u7edf\u8bbe\u7f6e \u2192 \u9690\u79c1\u4e0e\u5b89\u5168\u6027 \u2192 \u672c\u5730\u7f51\u7edc\u300d\u4e2d\u5141\u8bb8 Power Paste\uff0c\u6216\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+    "组播不可用，设备发现可能失败；请在「系统设置 → 隐私与安全性 → 本地网络」中允许 Power Paste，或手动添加设备连接。",
   lanWarningMulticastLinux:
-    "\u7ec4\u64ad\u4e0d\u53ef\u7528\uff0c\u8bbe\u5907\u53d1\u73b0\u53ef\u80fd\u5931\u8d25\uff1b\u8bf7\u68c0\u67e5\u9632\u706b\u5899\uff08ufw/firewalld\uff09\u662f\u5426\u653e\u884c TCP 53317 \u4e0e UDP \u7ec4\u64ad 224.0.0.167:53317\uff0c\u6216\u624b\u52a8\u6dfb\u52a0\u8bbe\u5907\u8fde\u63a5\u3002",
+    "组播不可用，设备发现可能失败；请检查防火墙（ufw/firewalld）是否放行 TCP 53317 与 UDP 组播 224.0.0.167:53317，或手动添加设备连接。",
   lanErrorListenerFailed:
-    "\u5c40\u57df\u7f51\u76d1\u542c\u5931\u8d25\uff0c\u5df2\u5c1d\u8bd5\u81ea\u52a8\u6062\u590d\uff1b\u82e5\u4ecd\u5931\u8d25\u8bf7\u91cd\u542f\u670d\u52a1\u3002",
-  lanErrorServiceFailed: "\u5c40\u57df\u7f51\u670d\u52a1\u542f\u52a8\u5931\u8d25\u3002",
-  lanErrorNotRunning: "\u5c40\u57df\u7f51\u670d\u52a1\u672a\u8fd0\u884c\u3002",
+    "局域网监听失败，已尝试自动恢复；若仍失败请重启服务。",
+  lanErrorServiceFailed: "局域网服务启动失败。",
+  lanErrorNotRunning: "局域网服务未运行。",
   lanErrorDeviceMissing:
-    "\u627e\u4e0d\u5230\u8be5\u8bbe\u5907\uff0c\u8bf7\u5237\u65b0\u8bbe\u5907\u5217\u8868\u540e\u91cd\u8bd5\u3002",
-  lanErrorNoFiles: "\u6ca1\u6709\u53ef\u53d1\u9001\u7684\u6587\u4ef6\u3002",
-  lanErrorFileNotFound: "\u6587\u4ef6\u4e0d\u5b58\u5728\u6216\u5df2\u88ab\u79fb\u52a8\u3002",
-  lanErrorRequestMissing: "\u8be5\u8bf7\u6c42\u5df2\u5931\u6548\u3002",
+    "找不到该设备，请刷新设备列表后重试。",
+  lanErrorNoFiles: "没有可发送的文件。",
+  lanErrorFileNotFound: "文件不存在或已被移动。",
+  lanErrorRequestMissing: "该请求已失效。",
   lanErrorPinRequired:
-    "\u5bf9\u7aef\u542f\u7528\u4e86 PIN\uff0c\u8bf7\u8f93\u5165 PIN \u540e\u91cd\u8bd5\u3002",
-  lanErrorDeclined: "\u5bf9\u65b9\u62d2\u7edd\u4e86\u672c\u6b21\u4f20\u8f93\u3002",
+    "对端启用了 PIN，请输入 PIN 后重试。",
+  lanErrorDeclined: "对方拒绝了本次传输。",
   lanErrorBusy:
-    "\u5bf9\u65b9\u6b63\u5728\u5904\u7406\u5176\u5b83\u4f20\u8f93\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002",
+    "对方正在处理其它传输，请稍后再试。",
   lanErrorTooManyRequests:
-    "PIN \u5c1d\u8bd5\u6b21\u6570\u8fc7\u591a\uff0c\u5bf9\u7aef\u5df2\u6682\u65f6\u62d2\u7edd\u672c\u673a\uff1b\u8bf7\u5728\u5bf9\u7aef\u91cd\u65b0\u5f00\u59cb\u63a5\u6536\u6216\u91cd\u542f\u5bf9\u7aef\u5e94\u7528\u540e\u518d\u8bd5\u3002",
-  lanErrorEmptyText: "\u8bf7\u8f93\u5165\u8981\u53d1\u9001\u7684\u6587\u672c\u3002",
-  lanErrorGeneric: "\u4f20\u8f93\u5931\u8d25\uff1a{detail}",
-  settingsCategorySync: "\u540c\u6b65",
-  webdavSyncEnabled: "WebDAV \u540c\u6b65",
-  webdavAutoSync: "\u81ea\u52a8\u540c\u6b65",
-  webdavServerUrl: "WebDAV \u5730\u5740",
+    "PIN 尝试次数过多，对端已暂时拒绝本机；请在对端重新开始接收或重启对端应用后再试。",
+  lanErrorEmptyText: "请输入要发送的文本。",
+  lanErrorGeneric: "传输失败：{detail}",
+  settingsCategorySync: "同步",
+  webdavSyncEnabled: "WebDAV 同步",
+  webdavAutoSync: "自动同步",
+  webdavServerUrl: "WebDAV 地址",
   webdavServerUrlTip:
-    "\u586b\u5199 WebDAV \u670d\u52a1\u6839\u5730\u5740\uff0c\u5efa\u8bae\u4f7f\u7528 HTTPS\u3002",
-  webdavUsername: "\u7528\u6237\u540d",
-  webdavPassword: "\u5bc6\u7801",
-  webdavPasswordPlaceholder: "\u7559\u7a7a\u8868\u793a\u4e0d\u66f4\u6539",
-  webdavPasswordSaved: "\u5df2\u4fdd\u5b58\u5230\u7cfb\u7edf\u51ed\u636e",
+    "填写 WebDAV 服务根地址，建议使用 HTTPS。",
+  webdavUsername: "用户名",
+  webdavPassword: "密码",
+  webdavPasswordPlaceholder: "留空表示不更改",
+  webdavPasswordSaved: "已保存到系统凭据",
   webdavPasswordSavedPlaceholder:
-    "\u5bc6\u7801\u5df2\u4fdd\u5b58\uff0c\u8f93\u5165\u65b0\u5bc6\u7801\u53ef\u8986\u76d6",
-  webdavRemoteDir: "\u8fdc\u7a0b\u76ee\u5f55",
-  webdavSyncStatus: "\u540c\u6b65\u72b6\u6001",
-  webdavLastSyncAt: "\u4e0a\u6b21\u540c\u6b65\uff1a{time}",
-  webdavNeverSynced: "\u5c1a\u672a\u540c\u6b65",
-  webdavTestConnection: "\u6d4b\u8bd5\u8fde\u63a5",
-  webdavSyncNow: "\u7acb\u5373\u540c\u6b65",
-  webdavSyncing: "\u540c\u6b65\u4e2d",
-  webdavClearPassword: "\u6e05\u9664\u5bc6\u7801",
-  webdavSyncFailed: "WebDAV \u540c\u6b65\u5931\u8d25",
+    "密码已保存，输入新密码可覆盖",
+  webdavRemoteDir: "远程目录",
+  webdavSyncStatus: "同步状态",
+  webdavLastSyncAt: "上次同步：{time}",
+  webdavNeverSynced: "尚未同步",
+  webdavTestConnection: "测试连接",
+  webdavSyncNow: "立即同步",
+  webdavSyncing: "同步中",
+  webdavClearPassword: "清除密码",
+  webdavSyncFailed: "WebDAV 同步失败",
   webdavSettingsIncomplete:
-    "\u8bf7\u5148\u586b\u5199 WebDAV \u5730\u5740\u548c\u7528\u6237\u540d",
+    "请先填写 WebDAV 地址和用户名",
   webdavCredentialMissing:
-    "\u8bf7\u5148\u586b\u5199\u5e76\u4fdd\u5b58 WebDAV \u5bc6\u7801",
+    "请先填写并保存 WebDAV 密码",
   webdavConnectionFailed:
-    "WebDAV \u8fde\u63a5\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u5730\u5740\u3001\u7528\u6237\u540d\u548c\u5bc6\u7801",
+    "WebDAV 连接失败，请检查地址、用户名和密码",
   webdavUnauthorized:
-    "WebDAV \u8ba4\u8bc1\u5931\u8d25\uff08401\uff09\uff0c\u575a\u679c\u4e91\u9700\u4f7f\u7528\u5e94\u7528\u5bc6\u7801\uff0c\u4e0d\u662f\u767b\u5f55\u5bc6\u7801",
+    "WebDAV 认证失败（401），坚果云需使用应用密码，不是登录密码",
   webdavForbidden:
-    "WebDAV \u6743\u9650\u4e0d\u8db3\uff08403\uff09\uff0c\u8bf7\u68c0\u67e5\u8d26\u53f7\u6743\u9650\u548c\u8fdc\u7a0b\u76ee\u5f55",
+    "WebDAV 权限不足（403），请检查账号权限和远程目录",
   webdavNotFound:
-    "WebDAV \u5730\u5740\u4e0d\u5b58\u5728\uff08404\uff09\uff0c\u575a\u679c\u4e91\u901a\u5e38\u4f7f\u7528 https://dav.jianguoyun.com/dav/",
+    "WebDAV 地址不存在（404），坚果云通常使用 https://dav.jianguoyun.com/dav/",
   webdavMethodNotAllowed:
-    "WebDAV \u65b9\u6cd5\u4e0d\u88ab\u8be5\u8def\u5f84\u652f\u6301\uff08405\uff09\uff0c\u8bf7\u68c0\u67e5\u5730\u5740\u662f\u5426\u4e3a WebDAV \u6839\u5730\u5740",
+    "WebDAV 方法不被该路径支持（405），请检查地址是否为 WebDAV 根地址",
   webdavServiceUnavailable:
-    "WebDAV \u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff08503\uff09\uff0c\u53ef\u80fd\u662f\u670d\u52a1\u7aef\u9650\u6d41\u6216\u6b63\u5728\u5904\u7406\u5927\u91cf\u6587\u4ef6\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5",
+    "WebDAV 服务暂时不可用（503），可能是服务端限流或正在处理大量文件，请稍后再试",
   webdavEndpointGone:
-    "WebDAV \u5730\u5740\u8fd4\u56de 410 Gone\uff0c\u8bf7\u68c0\u67e5\u670d\u52a1\u5730\u5740\u662f\u5426\u6b63\u786e\u3002\u575a\u679c\u4e91\u901a\u5e38\u4f7f\u7528 https://dav.jianguoyun.com/dav/",
+    "WebDAV 地址返回 410 Gone，请检查服务地址是否正确。坚果云通常使用 https://dav.jianguoyun.com/dav/",
   webdavRemoteCleanupFailed:
-    "\u5185\u5bb9\u5df2\u4e0a\u4f20\uff0c\u4f46\u8fdc\u7a0b\u5220\u9664\u6807\u8bb0\u6e05\u7406\u5931\u8d25\uff0c\u8bf7\u518d\u6b21\u540c\u6b65",
+    "内容已上传，但远程删除标记清理失败，请再次同步",
   webdavManifestSaveFailed:
-    "\u5185\u5bb9\u5df2\u4e0a\u4f20\uff0c\u4f46\u540c\u6b65\u7d22\u5f15\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u518d\u6b21\u540c\u6b65",
+    "内容已上传，但同步索引保存失败，请再次同步",
   webdavManifestFetchFailed:
-    "\u8bfb\u53d6 WebDAV \u540c\u6b65\u7d22\u5f15\u5931\u8d25\uff0c\u8bf7\u518d\u8bd5",
+    "读取 WebDAV 同步索引失败，请再试",
   webdavItemUploadFailed:
-    "\u4e0a\u4f20\u5386\u53f2\u6761\u76ee\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 WebDAV \u7a7a\u95f4\u548c\u7f51\u7edc",
+    "上传历史条目失败，请检查 WebDAV 空间和网络",
   webdavItemDownloadFailed:
-    "\u4e0b\u8f7d\u8fdc\u7a0b\u5386\u53f2\u6761\u76ee\u5931\u8d25\uff0c\u8bf7\u518d\u8bd5",
+    "下载远程历史条目失败，请再试",
   webdavFolderCreateFailed:
-    "\u521b\u5efa WebDAV \u540c\u6b65\u76ee\u5f55\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u8fdc\u7a0b\u76ee\u5f55\u6743\u9650",
+    "创建 WebDAV 同步目录失败，请检查远程目录权限",
 });
 
 Object.assign(messages["en-US"], {
@@ -627,11 +635,21 @@ Object.assign(messages["en-US"], {
   linuxX11ToolsMissing:
     "Direct paste on Linux (X11) requires xdotool. Example installs: `sudo apt install xdotool`, `sudo dnf install xdotool`, or `sudo pacman -S xdotool`, then try again.",
   linuxWaylandToolsMissing:
-    "Direct paste on Linux (Wayland) requires wtype. Example installs: `sudo apt install wtype`, `sudo dnf install wtype`, or `sudo pacman -S wtype`, then try again.",
+    "Direct paste on Linux (Wayland) needs wtype, ydotool, or the desktop's remote-input portal (RemoteDesktop). Example installs: `sudo apt install wtype`, `sudo dnf install wtype`, or `sudo pacman -S wtype`. GNOME and KDE compositors do not implement the virtual keyboard protocol (wtype reports “Compositor does not support the virtual keyboard protocol”), so allow remote interaction in the system dialog instead, or configure ydotool (kernel uinput, requires ydotoold).",
   pasteTargetFocusFailed:
     "The target window could not be focused. Paste was cancelled.",
   pasteTargetPermissionDenied:
     "Power Paste does not have the required Accessibility or Automation permission. Allow it in System Settings > Privacy & Security > Accessibility / Automation and try again.",
+  pastePortalDenied:
+    "The desktop did not allow remote input, so the paste shortcut was rejected. Turn on “Allow Remote Interaction” in the system dialog and confirm, or copy to the clipboard and paste manually.",
+  pastePortalUnavailable:
+    "This Wayland desktop implements neither the virtual keyboard protocol wtype needs nor the remote-input portal (RemoteDesktop), so the paste shortcut cannot be sent. Configure ydotool (kernel uinput, requires ydotoold), or switch to copy-and-paste-manually in the settings.",
+  pastePortalFailed:
+    "The desktop remote-input portal failed to send the paste shortcut. Retry, or switch to copy-and-paste-manually in the settings.",
+  pasteAuthorizationPending:
+    "Automatic paste needs a one-time authorization: in the “Remote Desktop” window, turn on “Allow Remote Interaction” and click “Share”. The grant is reused for the rest of this run.",
+  pastePortalTimeout:
+    "Timed out waiting for the desktop authorization, so this paste was cancelled. Retry and allow “Remote Interaction” in the “Remote Desktop” window.",
   unsupportedLaunchOnStartup:
     "Launch on startup is not available on this platform.",
   duplicateShortcut: "Shortcuts must be unique.",
@@ -650,6 +668,8 @@ Object.assign(messages["en-US"], {
     "The desktop released the shortcut binding (for example after a session restart). Retry to bind it again.",
   waylandPortalNoAppId:
     "The desktop could not identify the app id of this process, so it refused to bind shortcuts. Launch Power Paste from your app list (run pnpm desktop:install first for a local build), or start it with pnpm tauri dev from the project directory.",
+  waylandPortalInvalidAppId:
+    "The desktop rejected this process's app id “{appId}”: GNOME only accepts reverse-DNS application ids (at least one dot, for example com.yulei.powerpaste), so the bind request was discarded. Launch Power Paste from your app list (run pnpm desktop:install first for a local build), or start it with pnpm tauri dev from the project directory.",
   checkForUpdates: "Check for Updates",
   downloadAndInstall: "Download and Install",
   updateIdle: "No update check has been run yet.",

@@ -32,7 +32,10 @@ use crate::models::{
     SharedState, ShortcutIssueDto, ShortcutStatusDto, QUICK_PASTE_FINISHED_EVENT,
 };
 
-use super::{store_and_emit_shortcut_status, GLOBAL_SHORTCUT_KEY, QUICK_PASTE_SHORTCUT_KEY};
+use super::{
+    app_id::{check_current_app_id, AppIdCheck},
+    store_and_emit_shortcut_status, GLOBAL_SHORTCUT_KEY, QUICK_PASTE_SHORTCUT_KEY,
+};
 
 /// 门户快捷键 ID：重启后复用同一 ID，桌面环境据此恢复用户改过的按键。
 pub(crate) const TOGGLE_SHORTCUT_ID: &str = "toggle-panel";
@@ -45,6 +48,9 @@ const ERROR_PORTAL_FAILED: &str = "wayland_portal_failed";
 const ERROR_PORTAL_CLOSED: &str = "wayland_portal_closed";
 // 门户按调用进程的应用标识（app id）保存快捷键，拿不到应用标识时会直接拒绝。
 const ERROR_PORTAL_NO_APP_ID: &str = "wayland_portal_no_app_id";
+// 应用标识存在但不符合桌面要求（GNOME 只接受反向域名格式）时同样会被直接丢弃，
+// 错误码后面会拼上实际标识，便于在设置页说明到底是哪个标识不合法。
+const ERROR_PORTAL_INVALID_APP_ID: &str = "wayland_portal_invalid_app_id";
 
 /// GNOME 的 GlobalShortcuts 门户在调用进程没有应用标识时返回的错误文本。
 const PORTAL_NO_APP_ID_HINT: &str = "app id is required";
@@ -150,6 +156,10 @@ pub(crate) fn bind_shortcuts(
     shortcuts: Vec<PortalShortcut>,
     issues: Vec<ShortcutIssueDto>,
 ) -> ShortcutStatusDto {
+    if let Some(status) = app_id_failure_status(&shortcuts, issues.clone(), check_current_app_id()) {
+        return status;
+    }
+
     let status = pending_status(issues.clone());
 
     match runtime(app) {
@@ -175,6 +185,36 @@ pub(crate) fn bind_shortcuts(
     }
 
     status
+}
+
+/// 调用门户前自检进程应用标识：标识缺失或（GNOME 下）不是反向域名格式时，
+/// 门户会直接丢弃绑定请求、连确认窗口都不弹，这里提前给出可操作提示，
+/// 不再发起注定失败的绑定。
+///
+/// 返回 None 表示标识可用，或者在当前桌面上不构成阻断（例如 KDE / wlroots
+/// 的实现并未校验格式，应交由门户自行判断）。
+fn app_id_failure_status(
+    shortcuts: &[PortalShortcut],
+    issues: Vec<ShortcutIssueDto>,
+    check: AppIdCheck,
+) -> Option<ShortcutStatusDto> {
+    // 清空快捷键时只是解绑，不需要应用标识。
+    if shortcuts.is_empty() {
+        return None;
+    }
+
+    let code = match check {
+        AppIdCheck::Acceptable => return None,
+        AppIdCheck::Missing => ERROR_PORTAL_NO_APP_ID.to_string(),
+        AppIdCheck::Invalid(app_id) => format!("{ERROR_PORTAL_INVALID_APP_ID}:{app_id}"),
+    };
+    eprintln!("[shortcuts] 跳过门户绑定，进程应用标识不可用：{code}");
+
+    let mut status = pending_status(issues);
+    for shortcut in shortcuts {
+        push_issue(&mut status, shortcut.settings_key, &code);
+    }
+    Some(status)
 }
 
 /// 关闭当前门户会话（更换或清空快捷键时先解绑）。
@@ -970,6 +1010,52 @@ mod tests {
             failed_error_code("org.freedesktop.portal.Error.Failed: unknown error"),
             ERROR_PORTAL_FAILED
         );
+    }
+
+    #[test]
+    fn missing_app_id_skips_the_portal_and_explains_why() {
+        let shortcuts = [
+            portal_shortcut(TOGGLE_SHORTCUT_ID, GLOBAL_SHORTCUT_KEY),
+            portal_shortcut(QUICK_PASTE_SHORTCUT_ID, QUICK_PASTE_SHORTCUT_KEY),
+        ];
+
+        let status = app_id_failure_status(&shortcuts, Vec::new(), AppIdCheck::Missing)
+            .expect("missing app id must not reach the portal");
+
+        assert!(!status.global_shortcut_registered);
+        assert!(!status.quick_paste_shortcut_registered);
+        assert_eq!(status.issues.len(), 2);
+        assert!(status
+            .issues
+            .iter()
+            .all(|issue| issue.error == ERROR_PORTAL_NO_APP_ID));
+    }
+
+    #[test]
+    fn invalid_app_id_is_reported_with_the_identifier() {
+        let shortcuts = [portal_shortcut(TOGGLE_SHORTCUT_ID, GLOBAL_SHORTCUT_KEY)];
+
+        let status = app_id_failure_status(
+            &shortcuts,
+            Vec::new(),
+            AppIdCheck::Invalid("power-paste".to_string()),
+        )
+        .expect("invalid app id must not reach the portal");
+
+        assert_eq!(status.issues.len(), 1);
+        assert_eq!(
+            status.issues[0].error,
+            "wayland_portal_invalid_app_id:power-paste"
+        );
+    }
+
+    #[test]
+    fn acceptable_app_id_and_empty_shortcuts_keep_using_the_portal() {
+        let shortcuts = [portal_shortcut(TOGGLE_SHORTCUT_ID, GLOBAL_SHORTCUT_KEY)];
+
+        assert!(app_id_failure_status(&shortcuts, Vec::new(), AppIdCheck::Acceptable).is_none());
+        // 清空快捷键只是解绑，即使没有应用标识也要让门户关闭旧会话。
+        assert!(app_id_failure_status(&[], Vec::new(), AppIdCheck::Missing).is_none());
     }
 
     #[test]

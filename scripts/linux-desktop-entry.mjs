@@ -8,14 +8,24 @@ const __dirname = path.dirname(__filename)
 
 export const projectRoot = path.resolve(__dirname, '..')
 
-// 窗口 app-id、X11 的 WM_CLASS 与桌面门户的应用标识都取自可执行文件名，
-// 桌面项的文件名与 StartupWMClass 必须与之一致：GNOME Wayland 才能把窗口
-// 与应用图标关联起来，GlobalShortcuts 门户才能识别调用应用。
-export const APP_ID = 'power-paste'
+// 应用标识（app id）：桌面门户按调用进程 cgroup 里 app-*.scope 的名字推导，
+// GNOME 侧还会用 GLib 的 g_application_id_is_valid() 校验，要求反向域名格式
+// （至少包含一个点，如 power-paste 会被直接丢弃）。因此这里必须与
+// tauri.conf.json 的 identifier 保持一致，桌面项的文件名也必须与它同名，
+// 桌面才能识别调用应用、并在应用列表里把它列成同一款应用。
+export const APP_ID = 'com.yulei.powerpaste'
+
+// 窗口 app-id 与 X11 WM_CLASS 取自可执行文件名：Tauri 未开启 enableGtkAppId
+// 时 GTK 用程序名注册窗口，GNOME 再用桌面项的 StartupWMClass 把窗口关联到
+// 应用图标，因此桌面项里的 StartupWMClass 必须保持可执行文件名。
+export const WINDOW_CLASS = 'power-paste'
+
+// 旧版本直接用可执行文件名当应用标识，保留它用于清理历史桌面项。
+const LEGACY_APP_ID = WINDOW_CLASS
 
 const ICON_FILE = path.join(projectRoot, 'src-tauri', 'icons', '128x128@2x.png')
-const DEBUG_BINARY_PATH = path.join(projectRoot, 'src-tauri', 'target', 'debug', APP_ID)
-const RELEASE_BINARY_PATH = path.join(projectRoot, 'src-tauri', 'target', 'release', APP_ID)
+const DEBUG_BINARY_PATH = path.join(projectRoot, 'src-tauri', 'target', 'debug', WINDOW_CLASS)
+const RELEASE_BINARY_PATH = path.join(projectRoot, 'src-tauri', 'target', 'release', WINDOW_CLASS)
 
 // 开发运行（pnpm tauri dev / cargo run）使用的可执行文件路径。
 export const DEV_BINARY_PATH = DEBUG_BINARY_PATH
@@ -53,10 +63,36 @@ Name=Power Paste
 Comment=Native-feeling clipboard history manager (development build)
 Exec="${binaryPath}"
 Icon=${ICON_FILE}
-StartupWMClass=${APP_ID}
+StartupWMClass=${WINDOW_CLASS}
 Terminal=false
 Categories=Utility;
 `
+}
+
+// 判断桌面项是否指向本项目构建产物：只清理我们自己写过的旧桌面项，
+// 避免误删用户手写的同名文件。
+function isProjectEntry(content) {
+  const match = content.match(/^Exec="?([^"\n]+)"?$/m)
+  if (!match) {
+    return false
+  }
+
+  const binaryPath = match[1].trim()
+  const suffix = path.join('target', 'debug', WINDOW_CLASS)
+  const releaseSuffix = path.join('target', 'release', WINDOW_CLASS)
+  return binaryPath.endsWith(suffix) || binaryPath.endsWith(releaseSuffix)
+}
+
+// 删除旧版用可执行文件名命名的桌面项，避免应用列表出现两个 Power Paste。
+async function removeLegacyDesktopEntry(targetDir) {
+  const legacyPath = path.join(targetDir, `${LEGACY_APP_ID}.desktop`)
+  const content = await fs.readFile(legacyPath, 'utf8').catch(() => null)
+  if (content === null || !isProjectEntry(content)) {
+    return null
+  }
+
+  await fs.rm(legacyPath, { force: true })
+  return legacyPath
 }
 
 // 写入（或更新）用户级桌面项，返回写入结果；内容已是最新时不重复写。
@@ -69,13 +105,14 @@ export async function ensureDesktopEntry({ binaryPath } = {}) {
   const targetDir = applicationsDir()
   const targetPath = path.join(targetDir, `${APP_ID}.desktop`)
   const content = desktopEntryContent(targetBinary)
+  const removedLegacyPath = await removeLegacyDesktopEntry(targetDir)
 
   const existing = await fs.readFile(targetPath, 'utf8').catch(() => null)
   if (existing === content) {
-    return { path: targetPath, binaryPath: targetBinary, written: false }
+    return { path: targetPath, binaryPath: targetBinary, written: false, removedLegacyPath }
   }
 
   await fs.mkdir(targetDir, { recursive: true })
   await fs.writeFile(targetPath, content, { mode: 0o644 })
-  return { path: targetPath, binaryPath: targetBinary, written: true }
+  return { path: targetPath, binaryPath: targetBinary, written: true, removedLegacyPath }
 }

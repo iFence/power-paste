@@ -43,6 +43,7 @@
   },
   "bundle": {
     "active": true,
+    "category": "Utility",
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -52,6 +53,25 @@
       "icons/icon.icns"
     ],
     "targets": "all",
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/applications/com.yulei.powerpaste.desktop": "linux/com.yulei.powerpaste.desktop"
+        },
+        "desktopTemplate": "linux/packaged-desktop-entry.hbs"
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/applications/com.yulei.powerpaste.desktop": "linux/com.yulei.powerpaste.desktop"
+        },
+        "desktopTemplate": "linux/packaged-desktop-entry.hbs"
+      },
+      "appimage": {
+        "files": {
+          "/usr/share/applications/com.yulei.powerpaste.desktop": "linux/com.yulei.powerpaste.desktop"
+        }
+      }
+    },
     "windows": {
       "nsis": {
         "languages": ["SimpChinese"]

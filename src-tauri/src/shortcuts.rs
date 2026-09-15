@@ -3,6 +3,8 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 #[cfg(target_os = "linux")]
+mod app_id;
+#[cfg(target_os = "linux")]
 mod portal;
 
 use crate::models::{

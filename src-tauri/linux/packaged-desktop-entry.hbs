@@ -1,0 +1,19 @@
+{{! 打包器默认生成的桌面项按 <productName>.desktop 命名（即 “Power Paste.desktop”），
+   桌面按该文件名推导应用标识时会得到非法标识（含有空格，GLib 直接判非法），
+    所以包里另外安装 com.yulei.powerpaste.desktop 作为可用入口，这里把默认项隐藏，
+    避免应用列表出现两个同名 Power Paste。只要保证默认项不被用户点开即可。 }}
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}}
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
+NoDisplay=true
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}

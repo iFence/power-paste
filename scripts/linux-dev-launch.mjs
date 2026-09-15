@@ -42,7 +42,9 @@ async function resolveAppScopeCommand(launch, env) {
     return null
   }
 
-  // 桌面约定 scope 名为 app-<前缀>-<应用标识>-<唯一后缀>，门户据此取应用标识。
+  // 桌面约定 scope 名为 app-<前缀>-<应用标识>-<唯一后缀>，门户用
+  // ^app-(?:[[:alnum:]]+\-)?(.+?)(?:\-[[:alnum:]]*)(?:\.scope|\.slice)$ 取出应用标识，
+  // 因此 "dev-" 前缀会被剥离，最终标识仍是 com.yulei.powerpaste。
   const unit = `${APP_SCOPE_PREFIX}-${APP_ID}-${process.pid}.scope`
   return {
     command: systemdRun,
