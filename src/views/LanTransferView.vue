@@ -22,6 +22,7 @@ const props = defineProps({
   onInspectSelection: { type: Function, required: true },
   onListSubnets: { type: Function, required: true },
   onOpenFile: { type: Function, required: true },
+  onOpenSettings: { type: Function, required: true },
   onReadClipboard: { type: Function, required: true },
   onReadTransferPreview: { type: Function, required: true },
   onRefreshDevices: { type: Function, required: true },
@@ -70,6 +71,12 @@ const receivedFiles = computed(() =>
 const running = computed(() => props.state.status === "running");
 const failed = computed(() => props.state.status === "error");
 const scanRunning = computed(() => Boolean(props.state.scan?.running));
+// 刷新按钮的最短旋转时长：网络很快时后端扫描瞬间结束，
+// 没有这段兜底就几乎看不到“正在刷新”的反馈。
+const REFRESH_SPIN_MIN_MS = 900;
+const refreshSpinning = ref(false);
+let refreshSpinTimer = null;
+const spinning = computed(() => scanRunning.value || refreshSpinning.value);
 const webMode = computed(() => props.state.webMode || "none");
 // 会话列表数据源：已知对端（含离线），在线设备置顶并按最近联系排序。
 const peers = computed(() => {
@@ -79,11 +86,10 @@ const peers = computed(() => {
       : devices.value;
   return source
     .slice()
-    .sort(
-      (left, right) =>
-        Number(Boolean(right.online)) - Number(Boolean(left.online)) ||
-        Number(right.lastSeenMs || 0) - Number(left.lastSeenMs || 0),
-    );
+    // 只按在线状态做一次稳定分区：组内保持后端给的顺序。
+    // 不能再按 lastSeenMs 排序——刷新/扫描期间每确认到一台设备都会更新它的
+    // lastSeenMs，按这个时间排会让列表里的设备跟着来回跳动。
+    .sort((left, right) => Number(Boolean(right.online)) - Number(Boolean(left.online)));
 });
 const activePeer = computed(
   () =>
@@ -274,20 +280,6 @@ function mergeDraftItems(fingerprint, items) {
   return true;
 }
 
-async function addPathsToDraft(fingerprint, paths) {
-  const normalized = (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
-  if (!normalized.length) {
-    return false;
-  }
-  try {
-    const items = await props.onInspectSelection(normalized);
-    return mergeDraftItems(fingerprint, items);
-  } catch (error) {
-    reportError(error);
-    return false;
-  }
-}
-
 async function pickClipboardIntoDraft(fingerprint) {
   try {
     const items = await props.onReadClipboard();
@@ -418,8 +410,35 @@ async function submitDraft(peer) {
   await sendItems(peer, payload);
 }
 
-// 附件菜单选完文件/文件夹即发送，不再要求用户再点一次发送；
-// 输入框里已有的文字会与新选中的内容合并成同一次传输。
+// 送入一批本地路径：与输入框里已有的文字合并成同一次传输并立即发送。
+// 附件菜单选完文件、拖拽松开鼠标都走这条路径，不再要求用户再点一次发送。
+async function sendPaths(peer, paths) {
+  if (!peer || props.busy || !running.value) {
+    return false;
+  }
+  const normalized = (Array.isArray(paths) ? paths : [paths]).filter(Boolean);
+  if (!normalized.length) {
+    return false;
+  }
+  let picked;
+  try {
+    picked = await props.onInspectSelection(normalized);
+  } catch (error) {
+    reportError(error);
+    return false;
+  }
+  if (!Array.isArray(picked) || !picked.length) {
+    return false;
+  }
+  const payload = mergeIntoItems(draftItems(peer), picked);
+  if (!payload.length) {
+    return false;
+  }
+  await sendItems(peer, payload);
+  return true;
+}
+
+// 附件菜单里的「文件 / 文件夹」：选完即发送。
 async function sendPickedFiles(peer, directory) {
   if (!peer || props.busy || !running.value) {
     return;
@@ -428,24 +447,7 @@ async function sendPickedFiles(peer, directory) {
   const paths = (Array.isArray(selected) ? selected : selected ? [selected] : []).filter(
     Boolean,
   );
-  if (!paths.length) {
-    return;
-  }
-  let picked;
-  try {
-    picked = await props.onInspectSelection(paths);
-  } catch (error) {
-    reportError(error);
-    return;
-  }
-  if (!Array.isArray(picked) || !picked.length) {
-    return;
-  }
-  const payload = mergeIntoItems(draftItems(peer), picked);
-  if (!payload.length) {
-    return;
-  }
-  await sendItems(peer, payload);
+  await sendPaths(peer, paths);
 }
 
 async function resendMessage(transferId) {
@@ -562,6 +564,7 @@ async function refreshDevices() {
     const countable = physicalCount || items.length;
     if (countable <= 1) {
       subnetMenuOpen.value = false;
+      startRefreshSpin();
       await props.onRefreshDevices();
       return;
     }
@@ -571,8 +574,18 @@ async function refreshDevices() {
   }
 }
 
+// 真正发起刷新/扫描时让按钮至少转够一圈。
+function startRefreshSpin() {
+  refreshSpinning.value = true;
+  clearTimeout(refreshSpinTimer);
+  refreshSpinTimer = setTimeout(() => {
+    refreshSpinning.value = false;
+  }, REFRESH_SPIN_MIN_MS);
+}
+
 async function selectSubnet(cidr) {
   subnetMenuOpen.value = false;
+  startRefreshSpin();
   try {
     await props.onScanSubnets([cidr]);
   } catch (error) {
@@ -662,8 +675,10 @@ async function handleDrop(event) {
   if (!peers.value.some((peer) => peer.fingerprint === fingerprint)) {
     return;
   }
+  // 拖到某个会话就发给该设备：松开鼠标立即发送，不再先进草稿等一次点击。
+  const peer = peers.value.find((item) => item.fingerprint === fingerprint);
   selectPeer(fingerprint);
-  await addPathsToDraft(fingerprint, paths);
+  await sendPaths(peer, paths);
 }
 
 watch(
@@ -704,6 +719,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlistenDragDrop?.();
+  clearTimeout(refreshSpinTimer);
   if (webMode.value !== "none") {
     props.onSetWebMode("none", []).catch(() => {});
   }
@@ -740,6 +756,22 @@ onUnmounted(() => {
         </span>
       </div>
       <button
+        class="toolbar-icon-button lan-transfer-refresh-button"
+        :class="{ spinning }"
+        type="button"
+        :title="scanRunning ? t('lanScanCancel') : t('lanTransferRefresh')"
+        :aria-label="scanRunning ? t('lanScanCancel') : t('lanTransferRefresh')"
+        :disabled="!running"
+        @click="refreshDevices"
+      >
+        <svg viewBox="0 0 1024 1024" aria-hidden="true">
+          <path
+            d="M958.681412 457.499032c-6.170072-50.632177-20.854483-99.563886-43.643361-145.434552-45.779694-92.144205-122.249797-166.333021-215.325711-208.898719-20.083724-9.18513-43.810309-0.349891-52.995439 19.734833-9.18413 20.082724-0.349891 43.810309 19.733833 52.996438 159.26323 72.834239 245.755201 249.640987 205.658732 420.410622-30.735395 130.876101-129.201624 233.321087-256.187941 270.333521l-0.262918-70.800875-196.843487 114.650172 197.690222 113.176632-0.275914-74.43274c75.398438-17.911403 144.809747-54.929834 202.084849-108.039237 65.597501-60.827991 111.122274-139.186504 131.651859-226.606186 12.170197-51.828803 15.10328-104.683286 8.715276-157.089909zM408.299406-0.001l0.271915 74.43374c-75.404436 17.911403-144.820744 54.931834-202.099843 108.046235-65.6005 60.83099-111.124274 139.191503-131.651859 226.616183-7.987504 34.034364-11.994252 68.507591-11.994252 103.010809 0 17.994377 1.090659 35.996751 3.271978 53.946142 6.152077 50.59119 20.803499 99.48891 43.545392 145.333583 45.678725 92.080225 122.012871 166.270041 214.936832 208.900718 20.071728 9.209122 43.810309 0.401874 53.018432-19.670852 9.210122-20.076726 0.400875-43.810309-19.671853-53.019432-158.963324-72.92821-245.278351-249.658982-205.24886-420.22368 30.732396-130.883099 129.201624-233.333083 256.195939-270.345517l0.259919 70.801874 196.850484-114.640174L408.299406-0.001z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+      <button
         class="toolbar-icon-button lan-transfer-qr-button"
         type="button"
         :title="t('lanTransferQrTitle')"
@@ -773,6 +805,20 @@ onUnmounted(() => {
           />
         </svg>
       </button>
+      <button
+        class="toolbar-icon-button lan-transfer-settings-button"
+        type="button"
+        :title="t('settingsTitle')"
+        :aria-label="t('settingsTitle')"
+        @click="onOpenSettings"
+      >
+        <svg viewBox="0 0 1024 1024" aria-hidden="true">
+          <path
+            d="M816.64 551.936c1.536-12.8 2.56-26.112 2.56-39.936 0-13.824-1.024-27.136-3.072-39.936l86.528-67.584a21.162667 21.162667 0 0 0 5.12-26.112l-81.92-141.824a20.821333 20.821333 0 0 0-25.088-9.216l-101.888 40.96a299.946667 299.946667 0 0 0-69.12-39.936l-15.36-108.544a20.437333 20.437333 0 0 0-20.48-17.408h-163.84a19.925333 19.925333 0 0 0-19.968 17.408l-15.36 108.544a308.010667 308.010667 0 0 0-69.12 39.936l-101.888-40.96a20.266667 20.266667 0 0 0-25.088 9.216l-81.92 141.824a19.84 19.84 0 0 0 5.12 26.112l86.528 67.584c-2.048 12.8-3.584 26.624-3.584 39.936 0 13.312 1.024 27.136 3.072 39.936L121.344 619.52a21.162667 21.162667 0 0 0-5.12 26.112l81.92 141.824c5.12 9.216 15.872 12.288 25.088 9.216l101.888-40.96a299.946667 299.946667 0 0 0 69.12 39.936l15.36 108.544c2.048 10.24 10.24 17.408 20.48 17.408h163.84c10.24 0 18.944-7.168 19.968-17.408l15.36-108.544a308.010667 308.010667 0 0 0 69.12-39.936l101.888 40.96c9.216 3.584 19.968 0 25.088-9.216l81.92-141.824a19.84 19.84 0 0 0-5.12-26.112l-85.504-67.584zM512 665.6A154.026667 154.026667 0 0 1 358.4 512c0-84.48 69.12-153.6 153.6-153.6s153.6 69.12 153.6 153.6-69.12 153.6-153.6 153.6z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
     </header>
 
     <div class="lan-transfer-shell">
@@ -781,10 +827,8 @@ onUnmounted(() => {
         :conversations="conversations"
         :drop-target-fingerprint="dropTargetFingerprint"
         :running="running"
-        :scan-running="scanRunning"
         :t="t"
         @add-device="manualOpen = true"
-        @refresh="refreshDevices"
         @select="selectPeer"
       />
 
@@ -925,7 +969,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 14px 8px;
+  padding: 0 14px 4px;
+}
+
+/* 顶栏整体压矮：按钮比全局尺寸略矮，图标仍居中，纵向留白也收紧。 */
+.lan-transfer-topbar .toolbar-icon-button {
+  height: 30px;
 }
 
 .lan-transfer-title {
@@ -937,13 +986,13 @@ onUnmounted(() => {
 }
 
 .lan-transfer-title strong {
-  font-size: 0.94rem;
+  font-size: 0.9rem;
 }
 
 /* 标题前的 LocalSend 官方图标：与标题文字同高，不参与伸缩。 */
 .lan-transfer-title-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
   object-fit: contain;
 }
@@ -952,7 +1001,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border: 1px solid var(--app-panel-border);
   border-radius: 999px;
   color: var(--app-muted);
@@ -992,6 +1041,26 @@ onUnmounted(() => {
   flex: 0 0 auto;
 }
 
+/* 设置入口：跳到设置页的「传输」分类，与本页的互传配置对应。 */
+.lan-transfer-settings-button {
+  flex: 0 0 auto;
+}
+
+/* 刷新发现：按钮在顶栏二维码左侧，扫描期间持续旋转，再点即取消扫描。 */
+.lan-transfer-refresh-button {
+  flex: 0 0 auto;
+}
+
+.lan-transfer-refresh-button.spinning svg {
+  animation: lan-transfer-spin 900ms linear infinite;
+}
+
+@keyframes lan-transfer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .lan-transfer-shell {
   position: relative;
   display: flex;
@@ -1020,11 +1089,12 @@ onUnmounted(() => {
   color: #f06d6d;
 }
 
-/* 网段选择悬浮在会话列表上方，避免选中时挤压会话区域。 */
+/* 网段选择悬浮在顶栏刷新按钮下方，避免选中时挤压会话区域。 */
 .lan-subnet-popover {
   position: absolute;
-  bottom: 56px;
-  left: 10px;
+  top: 38px;
+  /* 右侧还有二维码、服务开关与设置三个按钮：每多一个按钮右移一个按钮宽 + 间距。 */
+  right: 102px;
   z-index: 30;
   width: min(320px, calc(100% - 20px));
   border-radius: 10px;

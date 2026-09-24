@@ -223,7 +223,7 @@ fn show_settings_panel(app: &AppHandle) -> Result<()> {
 }
 
 // 显示主窗口并通知前端进入互传页面。
-fn show_lan_transfer_panel(app: &AppHandle) -> Result<()> {
+pub(crate) fn show_lan_transfer_panel(app: &AppHandle) -> Result<()> {
     show_panel_and_notify(app, OPEN_LAN_TRANSFER_EVENT)
 }
 

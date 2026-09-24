@@ -121,6 +121,7 @@ export function useSettings() {
     lanTransferDownloadDir: "",
     globalShortcut: "Ctrl+Shift+V",
     quickPasteShortcut: "Ctrl+`",
+    lanTransferShortcut: "Ctrl+Shift+L",
     searchShortcut: "Ctrl+F",
     filterShortcut: "Ctrl+Tab",
     ignoredApps: [],
@@ -150,6 +151,7 @@ export function useSettings() {
   const shortcutStatus = ref({
     globalShortcutRegistered: false,
     quickPasteShortcutRegistered: false,
+    lanTransferShortcutRegistered: false,
     issues: [],
   });
   const platformCapabilities = ref(initialPlatformCapabilities(detectedPlatform));
@@ -189,7 +191,11 @@ export function useSettings() {
     }
 
     const label =
-      issue.key === "quickPasteShortcut" ? t("quickPasteShortcut") : t("globalShortcut");
+      {
+        globalShortcut: t("globalShortcut"),
+        quickPasteShortcut: t("quickPasteShortcut"),
+        lanTransferShortcut: t("lanTransferShortcut"),
+      }[issue.key] || t("globalShortcut");
     return t("shortcutConflictMessage", {
       name: label,
       shortcut: issue.shortcut || label,
@@ -387,6 +393,7 @@ export function useSettings() {
         next.windowControlStyle === "windows" ? "windows" : "traffic-lights",
       globalShortcut: normalizeShortcutValue(next.globalShortcut, detectedPlatform),
       quickPasteShortcut: normalizeShortcutValue(next.quickPasteShortcut, detectedPlatform),
+      lanTransferShortcut: normalizeShortcutValue(next.lanTransferShortcut, detectedPlatform),
       searchShortcut: normalizeShortcutValue(next.searchShortcut, detectedPlatform),
       filterShortcut: normalizeShortcutValue(next.filterShortcut, detectedPlatform),
       ignoredApps: Array.isArray(next.ignoredApps) ? next.ignoredApps : [],
@@ -413,6 +420,10 @@ export function useSettings() {
       globalShortcut: normalizeShortcutValue(sourceSettings.globalShortcut, detectedPlatform),
       quickPasteShortcut: normalizeShortcutValue(
         sourceSettings.quickPasteShortcut,
+        detectedPlatform,
+      ),
+      lanTransferShortcut: normalizeShortcutValue(
+        sourceSettings.lanTransferShortcut,
         detectedPlatform,
       ),
       searchShortcut: normalizeShortcutValue(sourceSettings.searchShortcut, detectedPlatform),

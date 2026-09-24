@@ -65,18 +65,36 @@ await appWindow.setSize({
 
 ### 3. CSS 过渡
 
-在 `src/styles/base.css` 中添加了页面切换的淡入淡出效果：
+在 `src/styles/base.css` 中维护面板切换动画；`App.vue` 用
+`<Transition name="page-transition" mode="out-in">` 包住 `.window-shell`，
+切换路由时整块主体先淡出、再带一点上移淡入，两个面板不会同时占位：
+
 ```css
-.page-transition-enter-active,
-.page-transition-leave-active {
-    transition: opacity 180ms ease;
+.page-transition-enter-active {
+    transition:
+        opacity 190ms ease-out,
+        transform 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.page-transition-enter-from,
+.page-transition-leave-active {
+    transition:
+        opacity 120ms ease-in,
+        transform 120ms ease-in;
+}
+
+.page-transition-enter-from {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
 .page-transition-leave-to {
     opacity: 0;
+    transform: translateY(-6px);
 }
 ```
+
+互传页与设置页是异步组件，应用启动完成后会空闲预取它们的代码，
+避免首次切换面板时先淡出到空白、再等 chunk 加载。
 
 ## 使用方式
 

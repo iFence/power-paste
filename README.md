@@ -37,6 +37,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 
 - Global shortcut to toggle the main history panel
 - Quick paste shortcut: hold the shortcut to open the panel, cycle through items, then release to paste
+- LAN transfer shortcut: open the panel directly on the LocalSend transfer page (defaults to `Ctrl+Shift+L`)
 - Capture `text`, `link`, `image`, and `mixed` clipboard content
 - Search and filter by `All`, `Pinned`, `Text`, `Image`, and `Mixed`
 - Pin important items and keep them out of bulk clear / retention cleanup
@@ -52,7 +53,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - LocalSend-compatible LAN transfer with LocalSend-style Receive/Send pages, nearby devices, subnet-based scanning, file/folder/text/clipboard sending, incoming-request confirmation, transfer progress, and received-file history
 - Browser QR pages for phones: share files (text shown inline) or receive uploads and typed text straight into the desktop clipboard
 - WebDAV history sync with system credential storage for the remote password
-- Settings for language, theme, accent color, launch on startup, sound, ignored apps, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, and quick paste shortcut
+- Settings for language, theme, accent color, launch on startup, sound, ignored apps, history retention, image-size limit, copy/paste stats, transfer directory, tag labels, debug mode, global shortcut, quick paste shortcut, and LAN transfer shortcut
 - Tray integration, single-instance behavior, background startup, automatic update checks, and manual update checks
 - Custom in-app confirmation dialogs instead of system confirm prompts for destructive actions
 
@@ -102,9 +103,10 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Nearby-device list with manual IP entry, file/folder sending, text sending (shown as a message on the peer), clipboard sending, and transfer progress
 - Incoming requests can be accepted, declined, or accepted-and-trusted; trusted devices skip the prompt
 - Received text and images go to the clipboard and history, other files land in the configured download folder and can be opened or revealed
+- Sent text and images can be written to the local clipboard and history as well (Settings → Transfer), so what you send stays available on this device
 - Transfer records and received files are grouped in the Receive page history panel, where active transfers can be cancelled
 - Optional browser QR pages: share files to a phone (text shown inline) or receive uploads and typed text from a phone
-- Device name, receive PIN, receive policy, trusted devices, and the download folder are managed in settings; when a peer requires a PIN, Power Paste asks for it and retries
+- Device name, receive PIN, receive policy, trusted devices, the download folder, and sync-to-clipboard for sent content are managed in settings; when a peer requires a PIN, Power Paste asks for it and retries
 - While a QR page is open the service switches to plain HTTP (like the official client) and announces `http`, then returns to HTTPS with client-certificate verification afterwards
 - LAN transfer shares port 53317 with official LocalSend, so both cannot run on the same machine at the same time; the page reports the port conflict and one of them can be stopped
 - On macOS, allow Power Paste under System Settings → Privacy & Security → Local Network; while the permission is denied, multicast discovery cannot work
@@ -149,8 +151,9 @@ Current configurable options include:
 - Ignored applications picker and rule list
 - Tag display names
 - LAN transfer download directory
+- Sync-to-clipboard toggle (mirrors text and images sent over LocalSend into this device's clipboard and history)
 - WebDAV sync endpoint, username, remote directory, auto sync, and credential management
-- Global shortcut and quick paste shortcut recording / clearing
+- Global shortcut, quick paste shortcut, and LAN transfer shortcut recording / clearing
 - Debug mode
 
 Update checks are not configured as a regular setting. The app checks for updates on startup, shows an update badge in the UI when a new version is available, and also exposes a manual tray action.

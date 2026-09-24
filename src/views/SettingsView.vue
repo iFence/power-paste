@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
@@ -69,7 +70,13 @@ const props = defineProps({
   webdavSyncStatus: { type: Object, required: true },
 })
 
-const activeCategory = ref(window.localStorage.getItem(SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY) || 'general')
+// LocalSend 等页面可用 ?category=transfer 直达指定分类；非法的分类值由下方 watch 兜底为 general。
+const route = useRoute()
+const activeCategory = ref(
+  String(route.query.category || '') ||
+    window.localStorage.getItem(SETTINGS_ACTIVE_CATEGORY_STORAGE_KEY) ||
+    'general',
+)
 const showUpdateConfirm = ref(false)
 const showUpdateFeedback = ref(false)
 const tooltipState = ref({
@@ -119,6 +126,9 @@ const pasteStatsToggleIndex = computed(() => (props.settings.pasteStatsEnabled ?
 const webdavEnabledToggleIndex = computed(() => (props.settings.webdavSync?.enabled ? 0 : 1))
 const webdavAutoSyncToggleIndex = computed(() => (props.settings.webdavSync?.autoSync ? 0 : 1))
 const lanTransferToggleIndex = computed(() => (props.settings.lanTransferEnabled ? 0 : 1))
+const lanSaveSentToClipboardToggleIndex = computed(() =>
+  props.settings.lanTransferSaveSentToClipboard ? 0 : 1,
+)
 const lanReceivePolicyOptions = computed(() => [
   { value: 'ask', label: props.t('lanReceivePolicyAsk') },
   { value: 'auto', label: props.t('lanReceivePolicyAuto') },
@@ -269,6 +279,7 @@ function shortcutIssueText(key) {
   const labelMap = {
     globalShortcut: props.t('globalShortcut'),
     quickPasteShortcut: props.t('quickPasteShortcut'),
+    lanTransferShortcut: props.t('lanTransferShortcut'),
     searchShortcut: props.t('searchShortcut'),
     filterShortcut: props.t('filterShortcut'),
   }
@@ -1812,12 +1823,52 @@ watch(
                 :aria-label="t('chooseFolder')"
                 @click="chooseLanTransferDownloadDir"
               >
-                <svg viewBox="0 0 1025 960" aria-hidden="true">
+                <svg viewBox="0 0 1024 1024" aria-hidden="true" fill="currentColor">
                   <path
-                    d="M86.592 153.6v716.8h853.376V288H472.64L365.696 153.6h-279.04zM1.28 64h404.288L512.64 198.4H1025.28V960H1.28V64z m85.312 281.6v535.616l853.376-1.28V480H472.64L365.696 345.6h-279.04zM33.28 256h372.352L512.64 390.4H993.28a32 32 0 0 1 32 32v458.496l-1025.216 16.192 1.152-609.152A32 32 0 0 1 33.28 256z"
-                    fill="currentColor"
+                    d="M853.333333 938.666667 42.666667 938.666667c-25.6 0-42.666667-17.066667-42.666667-42.666667L0 128c0-25.6 17.066667-42.666667 42.666667-42.666667l298.666667 0c25.6 0 42.666667 17.066667 42.666667 42.666667l0 42.666667 469.333333 0c25.6 0 42.666667 17.066667 42.666667 42.666667l0 170.666667c0 25.6-17.066667 42.666667-42.666667 42.666667s-42.666667-17.066667-42.666667-42.666667L810.666667 256 341.333333 256C315.733333 256 298.666667 238.933333 298.666667 213.333333L298.666667 170.666667 85.333333 170.666667l0 682.666667 768 0c25.6 0 42.666667 17.066667 42.666667 42.666667S878.933333 938.666667 853.333333 938.666667z"
+                  />
+                  <path
+                    d="M853.333333 938.666667 42.666667 938.666667c-12.8 0-25.6-4.266667-34.133333-17.066667S0 900.266667 0 887.466667l128-512C132.266667 354.133333 149.333333 341.333333 170.666667 341.333333l810.666667 0c12.8 0 25.6 4.266667 34.133333 17.066667S1024 379.733333 1024 392.533333l-128 512C891.733333 925.866667 874.666667 938.666667 853.333333 938.666667zM98.133333 853.333333l721.066667 0 106.666667-426.666667L204.8 426.666667 98.133333 853.333333z"
                   />
                 </svg>
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanSaveSentToClipboard') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanSaveSentToClipboardTip')" :aria-label="t('lanSaveSentToClipboardTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+            </div>
+            <div
+              class="setting-toggle"
+              role="group"
+              :aria-label="t('lanSaveSentToClipboard')"
+              :style="segmentedToggleStyle(lanSaveSentToClipboardToggleIndex, 2)"
+            >
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: settings.lanTransferSaveSentToClipboard }"
+                :disabled="isPending('lanTransferSaveSentToClipboard')"
+                @click="updateSetting('lanTransferSaveSentToClipboard', true, 'lanTransferSaveSentToClipboard')"
+              >
+                {{ t('toggleOn') }}
+              </button>
+              <button
+                type="button"
+                class="setting-toggle-option"
+                :class="{ active: !settings.lanTransferSaveSentToClipboard }"
+                :disabled="isPending('lanTransferSaveSentToClipboard')"
+                @click="updateSetting('lanTransferSaveSentToClipboard', false, 'lanTransferSaveSentToClipboard')"
+              >
+                {{ t('toggleOff') }}
               </button>
             </div>
           </section>
@@ -1902,6 +1953,45 @@ watch(
                 :disabled="isPending('quickPasteShortcut')"
                 @mousedown.prevent
                 @click="clearShortcut('quickPasteShortcut')"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="setting-card wide">
+            <div class="setting-head">
+              <span class="setting-label-row">
+                <span class="meta-label">{{ t('lanTransferShortcut') }}</span>
+                <span class="setting-help-icon" :data-tooltip="t('lanTransferShortcutTip')" :aria-label="t('lanTransferShortcutTip')" tabindex="0">
+                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
+                  </svg>
+                </span>
+              </span>
+              <span v-if="shortcutIssueText('lanTransferShortcut')" class="setting-note shortcut-warning-note">
+                {{ shortcutIssueText('lanTransferShortcut') }}
+              </span>
+            </div>
+            <div class="shortcut-input-wrap">
+              <input
+                :value="settings.lanTransferShortcut"
+                type="text"
+                readonly
+                :disabled="isPending('lanTransferShortcut')"
+                :placeholder="recordingShortcut ? t('shortcutRecording') : t('shortcutPlaceholder')"
+                @focus="beginShortcutRecording"
+                @blur="endShortcutRecording"
+                @keydown="handleShortcutKeydown($event, 'lanTransferShortcut')"
+              />
+              <button
+                v-if="settings.lanTransferShortcut"
+                type="button"
+                class="shortcut-clear-button"
+                :aria-label="t('clear')"
+                :disabled="isPending('lanTransferShortcut')"
+                @mousedown.prevent
+                @click="clearShortcut('lanTransferShortcut')"
               >
                 <span aria-hidden="true">×</span>
               </button>

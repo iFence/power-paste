@@ -46,8 +46,11 @@ const historyState = useHistory({
     settings: settingsState.settings,
     t: settingsState.t,
 });
-const LanTransferView = defineAsyncComponent(() => import("./views/LanTransferView.vue"));
-const SettingsView = defineAsyncComponent(() => import("./views/SettingsView.vue"));
+// 互传页与设置页都按需加载；加载函数单独保留，便于启动后预取代码。
+const loadLanTransferView = () => import("./views/LanTransferView.vue");
+const loadSettingsView = () => import("./views/SettingsView.vue");
+const LanTransferView = defineAsyncComponent(loadLanTransferView);
+const SettingsView = defineAsyncComponent(loadSettingsView);
 const quickPasteActive = ref(false);
 const isWindowMaximized = ref(false);
 
@@ -113,6 +116,16 @@ let unlistenPasteAuthorization = null;
 const startupBusy = ref(false);
 const isLanTransferRoute = computed(() => route.name === "lanTransfer");
 const isSettingsRoute = computed(() => route.name === "settings");
+// 面板切换动画的 key：路由变化时让 Transition 认出这是另一个面板。
+const activePanelKey = computed(() => {
+    if (isSettingsRoute.value) {
+        return "settings";
+    }
+    if (isLanTransferRoute.value) {
+        return "lanTransfer";
+    }
+    return "home";
+});
 const windowControlPlatform = computed(
     () => settingsState.platformCapabilities.value.platform,
 );
@@ -465,6 +478,7 @@ onMounted(async () => {
     document.addEventListener("pointerdown", handleUserInteractionForSound, true);
     document.addEventListener("keydown", handleUserInteractionForSound, true);
     await initializeApp();
+    preloadPanelChunks();
 });
 
 onUnmounted(() => {
@@ -479,8 +493,29 @@ async function openLanTransferRoute() {
     await router.push({ name: "lanTransfer" });
 }
 
+// 启动完成后空闲时预取互传页与设置页代码：首次切换面板不再等待 chunk，
+// 否则切换动画会先淡出到空白、再等代码加载完成才出现新面板。
+function preloadPanelChunks() {
+    const preload = () => {
+        void loadLanTransferView();
+        void loadSettingsView();
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(preload, { timeout: 2000 });
+        return;
+    }
+
+    window.setTimeout(preload, 400);
+}
+
 async function openSettingsRoute() {
     await router.push({ name: "settings" });
+}
+
+// 从 LocalSend 页面进入设置：直接落在「传输」分类，省去用户再手动切换。
+async function openLanTransferSettingsRoute() {
+    await router.push({ name: "settings", query: { category: "transfer" } });
 }
 
 async function leaveLanTransferRoute() {
@@ -552,7 +587,7 @@ function openResetSettingsConfirm() {
     >
         <section class="titlebar-row">
             <div
-                v-if="isSettingsRoute"
+                v-if="isSettingsRoute || isLanTransferRoute"
                 class="window-controls"
                 :class="windowControlPlatform"
             >
@@ -745,230 +780,233 @@ function openResetSettingsConfirm() {
             ></div>
         </section>
 
-        <div class="window-shell">
-            <div
-                v-if="settingsState.startupError.value"
-                class="startup-error-panel"
-            >
-                <div class="startup-error-state">
-                    <strong>{{ settingsState.t("startupLoadFailed") }}</strong>
-                    <p>{{ settingsState.startupError.value }}</p>
-                    <button
-                        class="primary"
-                        type="button"
-                        :disabled="startupBusy"
-                        @click="initializeApp"
-                    >
-                        {{ settingsState.t("retryAction") }}
-                    </button>
-                </div>
-            </div>
-
-            <template v-else-if="isLanTransferRoute">
-                <LanTransferView
-                    :busy="lanTransferState.lanTransferBusy.value"
-                    :error="lanTransferState.lanTransferError.value"
-                    :on-add-device="lanTransferState.addDevice"
-                    :on-back="leaveLanTransferRoute"
-                    :on-cancel-scan="lanTransferState.cancelScan"
-                    :on-cancel-transfer="lanTransferState.cancelTransfer"
-                    :on-inspect-selection="lanTransferState.inspectSelection"
-                    :on-list-subnets="lanTransferState.listSubnets"
-                    :on-open-file="lanTransferState.openReceivedFile"
-                    :on-read-clipboard="lanTransferState.readClipboard"
-                    :on-read-transfer-preview="lanTransferState.readTransferPreview"
-                    :on-refresh-devices="lanTransferState.refreshDevices"
-                    :on-resend-transfer="lanTransferState.resendTransfer"
-                    :on-reveal-file="lanTransferState.revealReceivedFile"
-                    :on-scan-subnets="lanTransferState.scanSubnets"
-                    :on-send-items="lanTransferState.sendItems"
-                    :on-set-web-mode="lanTransferState.setWebMode"
-                    :on-start="lanTransferState.openLanTransfer"
-                    :on-start-service="lanTransferState.startLanTransferService"
-                    :on-stop-service="lanTransferState.stopLanTransferService"
-                    :platform="settingsState.platformCapabilities.value.platform"
-                    :locale="settingsState.currentLocale.value"
-                    :state="lanTransferState.lanTransferState.value"
-                    :t="settingsState.t"
-                />
-            </template>
-
-            <template v-else-if="isSettingsRoute">
-                <SettingsView
-                    :app-version="settingsState.appVersion.value"
-                    :apply-setting-patch="settingsState.applySettingPatch"
-                    :apply-webdav-sync-patch="settingsState.applyWebdavSyncPatch"
-                    :begin-shortcut-recording="settingsState.beginShortcutRecording"
-                    :clear-webdav-password="settingsState.clearWebdavPassword"
-                    :close-select="settingsState.closeSelect"
-                    :current-accent-color-options="
-                        settingsState.currentAccentColorOptions.value
-                    "
-                    :current-locale="settingsState.currentLocale.value"
-                    :current-theme-mode-options="
-                        settingsState.currentThemeModeOptions.value
-                    "
-                    :can-toggle-launch-on-startup="
-                        settingsState.canToggleLaunchOnStartup.value
-                    "
-                    :end-shortcut-recording="settingsState.endShortcutRecording"
-                    :locale-options="settingsState.localeOptions"
-                    :on-check-updates="updaterState.runUpdateCheck"
-                    :on-clear-update-debug-status="updaterState.clearUpdateDebugStatus"
-                    :on-install-update="updaterState.runUpdateInstall"
-                    :on-remove-trusted-device="
-                        lanTransferState.removeTrustedDevice
-                    "
-                    :on-set-update-debug-status-with-overrides="
-                        updaterState.setUpdateDebugStatusWithOverrides
-                    "
-                    :open-select-key="settingsState.openSelectKey.value"
-                    :pending-setting-key="settingsState.pendingSettingKey.value"
-                    :recording-shortcut="settingsState.recordingShortcut.value"
-                    :reset-settings="openResetSettingsConfirm"
-                    :retry-shortcut-registration="settingsState.retryShortcutRegistration"
-                    :run-webdav-sync-now="settingsState.runWebdavSyncNow"
-                    :run-webdav-test="settingsState.runWebdavTest"
-                    :save-webdav-password="settingsState.saveWebdavPassword"
-                    :saving-settings="settingsState.savingSettings.value"
-                    :segmented-toggle-style="settingsState.segmentedToggleStyle"
-                    :selected-option-label="settingsState.selectedOptionLabel"
-                    :settings="settingsState.settings"
-                    :settings-save-error="settingsState.settingsSaveError.value"
-                    :shortcut-retrying="settingsState.shortcutRetrying.value"
-                    :shortcut-status="settingsState.shortcutStatus.value"
-                    :show-update-action="updaterState.canInstallUpdate.value"
-                    :platform-capabilities="settingsState.platformCapabilities.value"
-                    :t="settingsState.t"
-                    :toggle-select="settingsState.toggleSelect"
-                    :update-debug-enabled="updaterState.updateDebugEnabled"
-                    :update-debug-status="updaterState.updateDebugStatus.value"
-                    :update-busy="updaterState.updateBusy.value"
-                    :update-label="settingsState.t('downloadAndInstall')"
-                    :update-status-message="updaterState.statusMessage.value"
-                    :update-state="updaterState.updateState.value"
-                    :webdav-credential-saved="settingsState.webdavCredentialSaved.value"
-                    :webdav-password-draft="settingsState.webdavPasswordDraft.value"
-                    :webdav-sync-status="settingsState.webdavSyncStatus.value"
-                />
-            </template>
-
-            <template v-else>
-                <SearchBar
-                    :action-feedback="historyState.actionFeedback.value"
-                    :clear-label="settingsState.t('clear')"
-                    :clear-search-label="settingsState.t('clearSearch')"
-                    :on-clear="openClearHistoryConfirm"
-                    :on-clear-query="
-                        () => {
-                            historyState.query.value = '';
-                        }
-                    "
-                    :on-open-settings="
-                        () => {
-                            openSettingsRoute();
-                        }
-                    "
-                    :on-open-lan-receiver="openLanTransferRoute"
-                    :on-window-action="handleWindowAction"
-                    :placeholder="settingsState.t('searchPlaceholder')"
-                    :query="historyState.query.value"
-                    :settings-label="settingsState.t('settingsTitle')"
-                    :lan-receiver-label="settingsState.t('lanReceiverTitle')"
-                    @update:query="
-                        historyState.query.value = $event;
-                    "
-                />
-
-                <section
-                    v-if="settingsState.hasShortcutIssues.value"
-                    class="shortcut-warning-banner"
+        <Transition name="page-transition" mode="out-in">
+            <div :key="activePanelKey" class="window-shell">
+                <div
+                    v-if="settingsState.startupError.value"
+                    class="startup-error-panel"
                 >
-                    <p>{{ settingsState.shortcutWarningMessage.value }}</p>
-                    <div class="shortcut-warning-actions">
+                    <div class="startup-error-state">
+                        <strong>{{ settingsState.t("startupLoadFailed") }}</strong>
+                        <p>{{ settingsState.startupError.value }}</p>
                         <button
-                            class="ghost compact"
+                            class="primary"
                             type="button"
-                            :disabled="settingsState.shortcutRetrying.value"
-                            @click="settingsState.retryShortcutRegistration"
+                            :disabled="startupBusy"
+                            @click="initializeApp"
                         >
                             {{ settingsState.t("retryAction") }}
                         </button>
-                        <button
-                            class="primary compact"
-                            type="button"
-                            @click="openSettingsRoute"
-                        >
-                            {{ settingsState.t("settingsTitle") }}
-                        </button>
                     </div>
-                </section>
-
-                <FilterTabs
-                    :active-filter-tab="historyState.activeFilterTab.value"
-                    :active-tag-filter="historyState.activeTagFilter.value"
-                    :aria-label="settingsState.t('searchPlaceholder')"
-                    :tabs="historyState.historyTabs.value"
-                    :tag-filters="historyState.availableTagFilters.value"
-                    :tag-label-prefix="settingsState.t('historyTags')"
-                    @select="historyState.activeFilterTab.value = $event"
-                    @select-tag="
-                        historyState.activeTagFilter.value =
-                            historyState.activeTagFilter.value === $event ? '' : $event
-                    "
-                />
-
-                <section class="history-region">
-                    <HistoryList
-                        :can-clipboard-write="
-                            settingsState.platformCapabilities.value
-                                .supportsTextWrite ||
-                            settingsState.platformCapabilities.value
-                                .supportsHtmlWrite ||
-                            settingsState.platformCapabilities.value
-                                .supportsImageWrite
-                        "
-                        :can-direct-paste="
-                            settingsState.platformCapabilities.value
-                                .supportsDirectPaste
-                        "
-                        :copy-stats-enabled="settingsState.settings.copyStatsEnabled"
-                        :paste-stats-enabled="settingsState.settings.pasteStatsEnabled"
-                        :history-panel-ref="historyState.historyPanelRef"
-                        :has-more="historyState.hasMoreHistory.value"
-                        :items="historyState.filteredHistory.value"
-                        :loading="historyState.loading.value"
-                        :loading-more="historyState.loadingMore.value"
-                        :locale="settingsState.currentLocale.value"
-                        :relative-time-version="
-                            historyState.relativeTimeVersion.value
-                        "
-                        :selected-id="historyState.selectedId.value"
-                        :tag-label-map="settingsState.settings.tagLabels"
-                        :t="settingsState.t"
-                        :unsupported-clipboard-write-message="
-                            settingsState.t('unsupportedClipboardWrite')
-                        "
-                        :unsupported-direct-paste-message="
-                            directPasteUnavailableMessage
-                        "
-                        @copy="historyState.copyItem"
-                        @edit="historyState.openEditModal"
-                        @load-more="historyState.loadMoreHistory"
-                        @open-link="historyState.openExternalUrl"
-                        @paste="historyState.pasteItem"
-                        @remove="historyState.removeItem"
-                        @select="historyState.setSelectedId"
-                        @toggle-pin="historyState.togglePin"
-                        @update-tags="historyState.updateTags($event.id, $event.tagColors)"
-                    />
-                </section>
-
-                <div class="history-count-bar">
-                    {{ historyState.historyCountLabel.value }}
                 </div>
-            </template>
-        </div>
+
+                <template v-else-if="isLanTransferRoute">
+                    <LanTransferView
+                        :busy="lanTransferState.lanTransferBusy.value"
+                        :error="lanTransferState.lanTransferError.value"
+                        :on-add-device="lanTransferState.addDevice"
+                        :on-back="leaveLanTransferRoute"
+                        :on-cancel-scan="lanTransferState.cancelScan"
+                        :on-cancel-transfer="lanTransferState.cancelTransfer"
+                        :on-inspect-selection="lanTransferState.inspectSelection"
+                        :on-list-subnets="lanTransferState.listSubnets"
+                        :on-open-file="lanTransferState.openReceivedFile"
+                        :on-open-settings="openLanTransferSettingsRoute"
+                        :on-read-clipboard="lanTransferState.readClipboard"
+                        :on-read-transfer-preview="lanTransferState.readTransferPreview"
+                        :on-refresh-devices="lanTransferState.refreshDevices"
+                        :on-resend-transfer="lanTransferState.resendTransfer"
+                        :on-reveal-file="lanTransferState.revealReceivedFile"
+                        :on-scan-subnets="lanTransferState.scanSubnets"
+                        :on-send-items="lanTransferState.sendItems"
+                        :on-set-web-mode="lanTransferState.setWebMode"
+                        :on-start="lanTransferState.openLanTransfer"
+                        :on-start-service="lanTransferState.startLanTransferService"
+                        :on-stop-service="lanTransferState.stopLanTransferService"
+                        :platform="settingsState.platformCapabilities.value.platform"
+                        :locale="settingsState.currentLocale.value"
+                        :state="lanTransferState.lanTransferState.value"
+                        :t="settingsState.t"
+                    />
+                </template>
+
+                <template v-else-if="isSettingsRoute">
+                    <SettingsView
+                        :app-version="settingsState.appVersion.value"
+                        :apply-setting-patch="settingsState.applySettingPatch"
+                        :apply-webdav-sync-patch="settingsState.applyWebdavSyncPatch"
+                        :begin-shortcut-recording="settingsState.beginShortcutRecording"
+                        :clear-webdav-password="settingsState.clearWebdavPassword"
+                        :close-select="settingsState.closeSelect"
+                        :current-accent-color-options="
+                            settingsState.currentAccentColorOptions.value
+                        "
+                        :current-locale="settingsState.currentLocale.value"
+                        :current-theme-mode-options="
+                            settingsState.currentThemeModeOptions.value
+                        "
+                        :can-toggle-launch-on-startup="
+                            settingsState.canToggleLaunchOnStartup.value
+                        "
+                        :end-shortcut-recording="settingsState.endShortcutRecording"
+                        :locale-options="settingsState.localeOptions"
+                        :on-check-updates="updaterState.runUpdateCheck"
+                        :on-clear-update-debug-status="updaterState.clearUpdateDebugStatus"
+                        :on-install-update="updaterState.runUpdateInstall"
+                        :on-remove-trusted-device="
+                            lanTransferState.removeTrustedDevice
+                        "
+                        :on-set-update-debug-status-with-overrides="
+                            updaterState.setUpdateDebugStatusWithOverrides
+                        "
+                        :open-select-key="settingsState.openSelectKey.value"
+                        :pending-setting-key="settingsState.pendingSettingKey.value"
+                        :recording-shortcut="settingsState.recordingShortcut.value"
+                        :reset-settings="openResetSettingsConfirm"
+                        :retry-shortcut-registration="settingsState.retryShortcutRegistration"
+                        :run-webdav-sync-now="settingsState.runWebdavSyncNow"
+                        :run-webdav-test="settingsState.runWebdavTest"
+                        :save-webdav-password="settingsState.saveWebdavPassword"
+                        :saving-settings="settingsState.savingSettings.value"
+                        :segmented-toggle-style="settingsState.segmentedToggleStyle"
+                        :selected-option-label="settingsState.selectedOptionLabel"
+                        :settings="settingsState.settings"
+                        :settings-save-error="settingsState.settingsSaveError.value"
+                        :shortcut-retrying="settingsState.shortcutRetrying.value"
+                        :shortcut-status="settingsState.shortcutStatus.value"
+                        :show-update-action="updaterState.canInstallUpdate.value"
+                        :platform-capabilities="settingsState.platformCapabilities.value"
+                        :t="settingsState.t"
+                        :toggle-select="settingsState.toggleSelect"
+                        :update-debug-enabled="updaterState.updateDebugEnabled"
+                        :update-debug-status="updaterState.updateDebugStatus.value"
+                        :update-busy="updaterState.updateBusy.value"
+                        :update-label="settingsState.t('downloadAndInstall')"
+                        :update-status-message="updaterState.statusMessage.value"
+                        :update-state="updaterState.updateState.value"
+                        :webdav-credential-saved="settingsState.webdavCredentialSaved.value"
+                        :webdav-password-draft="settingsState.webdavPasswordDraft.value"
+                        :webdav-sync-status="settingsState.webdavSyncStatus.value"
+                    />
+                </template>
+
+                <template v-else>
+                    <SearchBar
+                        :action-feedback="historyState.actionFeedback.value"
+                        :clear-label="settingsState.t('clear')"
+                        :clear-search-label="settingsState.t('clearSearch')"
+                        :on-clear="openClearHistoryConfirm"
+                        :on-clear-query="
+                            () => {
+                                historyState.query.value = '';
+                            }
+                        "
+                        :on-open-settings="
+                            () => {
+                                openSettingsRoute();
+                            }
+                        "
+                        :on-open-lan-receiver="openLanTransferRoute"
+                        :on-window-action="handleWindowAction"
+                        :placeholder="settingsState.t('searchPlaceholder')"
+                        :query="historyState.query.value"
+                        :settings-label="settingsState.t('settingsTitle')"
+                        :lan-receiver-label="settingsState.t('lanReceiverTitle')"
+                        @update:query="
+                            historyState.query.value = $event;
+                        "
+                    />
+
+                    <section
+                        v-if="settingsState.hasShortcutIssues.value"
+                        class="shortcut-warning-banner"
+                    >
+                        <p>{{ settingsState.shortcutWarningMessage.value }}</p>
+                        <div class="shortcut-warning-actions">
+                            <button
+                                class="ghost compact"
+                                type="button"
+                                :disabled="settingsState.shortcutRetrying.value"
+                                @click="settingsState.retryShortcutRegistration"
+                            >
+                                {{ settingsState.t("retryAction") }}
+                            </button>
+                            <button
+                                class="primary compact"
+                                type="button"
+                                @click="openSettingsRoute"
+                            >
+                                {{ settingsState.t("settingsTitle") }}
+                            </button>
+                        </div>
+                    </section>
+
+                    <FilterTabs
+                        :active-filter-tab="historyState.activeFilterTab.value"
+                        :active-tag-filter="historyState.activeTagFilter.value"
+                        :aria-label="settingsState.t('searchPlaceholder')"
+                        :tabs="historyState.historyTabs.value"
+                        :tag-filters="historyState.availableTagFilters.value"
+                        :tag-label-prefix="settingsState.t('historyTags')"
+                        @select="historyState.activeFilterTab.value = $event"
+                        @select-tag="
+                            historyState.activeTagFilter.value =
+                                historyState.activeTagFilter.value === $event ? '' : $event
+                        "
+                    />
+
+                    <section class="history-region">
+                        <HistoryList
+                            :can-clipboard-write="
+                                settingsState.platformCapabilities.value
+                                    .supportsTextWrite ||
+                                settingsState.platformCapabilities.value
+                                    .supportsHtmlWrite ||
+                                settingsState.platformCapabilities.value
+                                    .supportsImageWrite
+                            "
+                            :can-direct-paste="
+                                settingsState.platformCapabilities.value
+                                    .supportsDirectPaste
+                            "
+                            :copy-stats-enabled="settingsState.settings.copyStatsEnabled"
+                            :paste-stats-enabled="settingsState.settings.pasteStatsEnabled"
+                            :history-panel-ref="historyState.historyPanelRef"
+                            :has-more="historyState.hasMoreHistory.value"
+                            :items="historyState.filteredHistory.value"
+                            :loading="historyState.loading.value"
+                            :loading-more="historyState.loadingMore.value"
+                            :locale="settingsState.currentLocale.value"
+                            :relative-time-version="
+                                historyState.relativeTimeVersion.value
+                            "
+                            :selected-id="historyState.selectedId.value"
+                            :tag-label-map="settingsState.settings.tagLabels"
+                            :t="settingsState.t"
+                            :unsupported-clipboard-write-message="
+                                settingsState.t('unsupportedClipboardWrite')
+                            "
+                            :unsupported-direct-paste-message="
+                                directPasteUnavailableMessage
+                            "
+                            @copy="historyState.copyItem"
+                            @edit="historyState.openEditModal"
+                            @load-more="historyState.loadMoreHistory"
+                            @open-link="historyState.openExternalUrl"
+                            @paste="historyState.pasteItem"
+                            @remove="historyState.removeItem"
+                            @select="historyState.setSelectedId"
+                            @toggle-pin="historyState.togglePin"
+                            @update-tags="historyState.updateTags($event.id, $event.tagColors)"
+                        />
+                    </section>
+
+                    <div class="history-count-bar">
+                        {{ historyState.historyCountLabel.value }}
+                    </div>
+                </template>
+            </div>
+        </Transition>
 
         <EditModal
             v-if="!settingsState.startupError.value"

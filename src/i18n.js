@@ -90,6 +90,7 @@ export const messages = {
     chooseFolder: "选择文件夹",
     globalShortcut: "全局快捷键",
     quickPasteShortcut: "快速粘贴快捷键",
+    lanTransferShortcut: "局域网互传快捷键",
     searchShortcut: "搜索快捷键",
     filterShortcut: "筛选切换快捷键",
     ignoredApps: "忽略的应用",
@@ -114,6 +115,9 @@ export const messages = {
     lanTransferEnabled: "启用局域网互传",
     lanTransferEnabledTip:
       "开启后本机会监听 LocalSend 默认端口 53317，并在局域网内被官方 LocalSend 客户端发现。",
+    lanSaveSentToClipboard: "同步到剪贴板",
+    lanSaveSentToClipboardTip:
+      "开启后，通过 LocalSend 发送的文本与图片会同步写入本机剪贴板，并保留在剪贴板历史中；其他文件不受影响。",
     lanDeviceAlias: "设备名称",
     lanDeviceAliasTip: "其他设备上显示的名字，留空则使用主机名。",
     lanDeviceAliasPlaceholder: "留空使用主机名",
@@ -126,6 +130,8 @@ export const messages = {
     lanTrustedDevicesTip: "来自这些设备的传输请求会直接接受，不再弹出确认。",
     lanTrustedUnknownDevice: "未知设备",
     globalShortcutTip: "按下这个全局快捷键可唤起或隐藏主窗口。",
+    lanTransferShortcutTip:
+      "按下这个全局快捷键可直接唤起面板并进入 LocalSend 互传页面，默认 Ctrl+Shift+L。",
     quickPasteShortcutTip:
       "按住快捷键唤起主窗口；不松开 Ctrl 时重复按 ` 向下选择，松开 Ctrl 后粘贴当前条目。",
     searchShortcutTip: "在主面板内按下该快捷键可聚焦搜索框。默认 Ctrl/Cmd+F。",
@@ -233,6 +239,7 @@ export const messages = {
     megabytesShort: "MB",
     globalShortcut: "Shortcut",
     quickPasteShortcut: "Quick paste shortcut",
+    lanTransferShortcut: "LAN transfer shortcut",
     searchShortcut: "Search shortcut",
     filterShortcut: "Filter shortcut",
     shortcutPlaceholder: "Focus and press keys",
@@ -263,6 +270,9 @@ export const messages = {
     lanTransferEnabled: "Enable LAN transfer",
     lanTransferEnabledTip:
       "When on, this device listens on the LocalSend default port 53317 and is discoverable by official LocalSend clients on the LAN.",
+    lanSaveSentToClipboard: "Sync to clipboard",
+    lanSaveSentToClipboardTip:
+      "When on, text and images sent over LocalSend are also written to this device's clipboard and kept in the clipboard history. Other files are unaffected.",
     lanDeviceAlias: "Device name",
     lanDeviceAliasTip:
       "The name other devices see. Leave empty to use the host name.",
@@ -278,6 +288,8 @@ export const messages = {
     lanTrustedUnknownDevice: "Unknown device",
     globalShortcutTip:
       "Use this global shortcut to show or hide the main window.",
+    lanTransferShortcutTip:
+      "Use this global shortcut to open the panel on the LocalSend transfer page. Defaults to Ctrl+Shift+L.",
     quickPasteShortcutTip:
       "Hold the shortcut to open the main window. While Ctrl stays pressed, press ` again to move down, then release Ctrl to paste the selected item.",
     searchShortcutTip:

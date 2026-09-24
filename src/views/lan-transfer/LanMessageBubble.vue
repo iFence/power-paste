@@ -279,8 +279,37 @@ onMounted(async () => {
 }
 
 .lan-bubble-row.outgoing .lan-bubble {
-  border-color: color-mix(in srgb, var(--accent-primary) 40%, var(--app-panel-border));
-  background: color-mix(in srgb, var(--accent-primary-soft) 34%, var(--app-panel-bg));
+  /* 自己的气泡用主题色实底、不画描边；文字用与主题色配套的深色，保证对比度。 */
+  border-color: transparent;
+  background: var(--accent-primary-strong);
+  color: var(--accent-primary-text);
+}
+
+/* 实底上的次级内容改成半透明的主题文字色，避免灰字糊在彩色背景上。 */
+.lan-bubble-row.outgoing .lan-bubble-file {
+  /* 自己的气泡里文件行不再画任何底色，直接落在主题色上。 */
+  padding: 2px 0;
+  background: transparent;
+}
+
+.lan-bubble-row.outgoing .lan-bubble-file svg,
+.lan-bubble-row.outgoing .lan-bubble-file small,
+.lan-bubble-row.outgoing .lan-bubble-status {
+  color: color-mix(in srgb, var(--accent-primary-text) 70%, transparent);
+}
+
+.lan-bubble-row.outgoing .lan-bubble-failure {
+  color: color-mix(in srgb, #b3261e 55%, var(--accent-primary-text));
+}
+
+.lan-bubble-row.outgoing .lan-bubble-actions button {
+  border-color: color-mix(in srgb, var(--accent-primary-text) 32%, transparent);
+  background: transparent;
+  color: var(--accent-primary-text);
+}
+
+.lan-bubble-row.outgoing .lan-bubble-actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-primary-text) 12%, transparent);
 }
 
 .lan-bubble.failed {

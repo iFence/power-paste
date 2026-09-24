@@ -13,6 +13,7 @@ use crate::models::{
 
 const GLOBAL_SHORTCUT_KEY: &str = "globalShortcut";
 const QUICK_PASTE_SHORTCUT_KEY: &str = "quickPasteShortcut";
+const LAN_TRANSFER_SHORTCUT_KEY: &str = "lanTransferShortcut";
 
 #[derive(Debug, Clone)]
 struct ParsedShortcut {
@@ -73,17 +74,35 @@ fn parse_configured_shortcuts(
         Err(issue) => issues.push(issue),
     }
 
-    if shortcuts.len() == 2 && shortcuts[0].value == shortcuts[1].value {
-        issues.push(ShortcutIssueDto {
-            key: GLOBAL_SHORTCUT_KEY.into(),
-            shortcut: shortcuts[0].value.clone(),
-            error: "duplicate_shortcut".into(),
-        });
-        issues.push(ShortcutIssueDto {
-            key: QUICK_PASTE_SHORTCUT_KEY.into(),
-            shortcut: shortcuts[1].value.clone(),
-            error: "duplicate_shortcut".into(),
-        });
+    match parse_optional_shortcut(
+        LAN_TRANSFER_SHORTCUT_KEY,
+        &settings.lan_transfer_shortcut,
+        "lan_transfer_shortcut",
+    ) {
+        Ok(Some(shortcut)) => shortcuts.push(shortcut),
+        Ok(None) => {}
+        Err(issue) => issues.push(issue),
+    }
+
+    // 多个全局快捷键重复时，涉及的键都要报错并整体放弃注册：否则后注册的那条必然抢占失败。
+    let duplicates = shortcuts
+        .iter()
+        .filter(|shortcut| {
+            shortcuts
+                .iter()
+                .filter(|other| other.value == shortcut.value)
+                .count()
+                > 1
+        })
+        .collect::<Vec<_>>();
+    if !duplicates.is_empty() {
+        for shortcut in duplicates {
+            issues.push(ShortcutIssueDto {
+                key: shortcut.key.into(),
+                shortcut: shortcut.value.clone(),
+                error: "duplicate_shortcut".into(),
+            });
+        }
         shortcuts.clear();
     }
 
@@ -104,18 +123,27 @@ pub(crate) fn uses_wayland_portal() -> bool {
 
 /// 桌面弹窗中展示的快捷键说明文案。
 #[cfg(target_os = "linux")]
-fn portal_descriptions(locale: &str) -> (&'static str, &'static str) {
+fn portal_descriptions(locale: &str) -> (&'static str, &'static str, &'static str) {
     if locale == "zh-CN" {
-        ("呼出主面板", "快速粘贴（按住呼出候选，松开立即粘贴）")
+        (
+            "呼出主面板",
+            "快速粘贴（按住呼出候选，松开立即粘贴）",
+            "局域网互传（呼出面板并进入 LocalSend 页面）",
+        )
     } else {
-        ("Show main panel", "Quick paste (hold to open, release to paste)")
+        (
+            "Show main panel",
+            "Quick paste (hold to open, release to paste)",
+            "LAN transfer (open the panel on the LocalSend page)",
+        )
     }
 }
 
 /// 把设置里的快捷键转换成门户需要的描述与触发器。
 #[cfg(target_os = "linux")]
 fn portal_shortcuts(shortcuts: &[ParsedShortcut], locale: &str) -> Vec<portal::PortalShortcut> {
-    let (toggle_description, quick_paste_description) = portal_descriptions(locale);
+    let (toggle_description, quick_paste_description, lan_transfer_description) =
+        portal_descriptions(locale);
 
     shortcuts
         .iter()
@@ -130,6 +158,11 @@ fn portal_shortcuts(shortcuts: &[ParsedShortcut], locale: &str) -> Vec<portal::P
                     portal::QUICK_PASTE_SHORTCUT_ID,
                     portal::ShortcutAction::QuickPaste,
                     quick_paste_description,
+                ),
+                LAN_TRANSFER_SHORTCUT_KEY => (
+                    portal::LAN_TRANSFER_SHORTCUT_ID,
+                    portal::ShortcutAction::LanTransfer,
+                    lan_transfer_description,
                 ),
                 _ => return None,
             };
@@ -269,6 +302,8 @@ fn mark_shortcut_registered(status: &mut ShortcutStatusDto, key: &str) {
         status.global_shortcut_registered = true;
     } else if key == QUICK_PASTE_SHORTCUT_KEY {
         status.quick_paste_shortcut_registered = true;
+    } else if key == LAN_TRANSFER_SHORTCUT_KEY {
+        status.lan_transfer_shortcut_registered = true;
     }
 }
 
@@ -283,7 +318,7 @@ pub(crate) fn store_and_emit_shortcut_status(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_configured_shortcuts;
+    use super::{parse_configured_shortcuts, GLOBAL_SHORTCUT_KEY, LAN_TRANSFER_SHORTCUT_KEY};
     use crate::models::AppSettings;
 
     #[test]
@@ -305,6 +340,7 @@ mod tests {
         let mut settings = AppSettings::default().normalized();
         settings.global_shortcut.clear();
         settings.quick_paste_shortcut.clear();
+        settings.lan_transfer_shortcut.clear();
 
         let (shortcuts, issues) = parse_configured_shortcuts(&settings);
 
@@ -312,10 +348,34 @@ mod tests {
         assert!(issues.is_empty());
     }
 
+    // 互传快捷键与其它全局快捷键撞车时要一起报错，否则后注册的那条必然注册失败。
+    #[test]
+    fn lan_transfer_shortcut_conflict_is_reported() {
+        let mut settings = AppSettings::default().normalized();
+        settings.lan_transfer_shortcut = settings.global_shortcut.clone();
+
+        let (shortcuts, issues) = parse_configured_shortcuts(&settings);
+
+        assert!(shortcuts.is_empty());
+        assert_eq!(issues.len(), 2);
+        let keys = issues
+            .iter()
+            .map(|issue| issue.key.as_str())
+            .collect::<Vec<_>>();
+        assert!(keys.contains(&GLOBAL_SHORTCUT_KEY));
+        assert!(keys.contains(&LAN_TRANSFER_SHORTCUT_KEY));
+        assert!(issues
+            .iter()
+            .all(|issue| issue.error == "duplicate_shortcut"));
+    }
+
     #[cfg(target_os = "linux")]
     #[test]
     fn portal_shortcuts_follow_settings_keys_and_triggers() {
-        use super::{portal, portal_shortcuts, GLOBAL_SHORTCUT_KEY, QUICK_PASTE_SHORTCUT_KEY};
+        use super::{
+            portal, portal_shortcuts, GLOBAL_SHORTCUT_KEY, LAN_TRANSFER_SHORTCUT_KEY,
+            QUICK_PASTE_SHORTCUT_KEY,
+        };
 
         let settings = AppSettings::default().normalized();
         let (shortcuts, issues) = parse_configured_shortcuts(&settings);
@@ -323,7 +383,7 @@ mod tests {
 
         let mapped = portal_shortcuts(&shortcuts, "zh-CN");
 
-        assert_eq!(mapped.len(), 2);
+        assert_eq!(mapped.len(), 3);
         assert_eq!(mapped[0].id, portal::TOGGLE_SHORTCUT_ID);
         assert_eq!(mapped[0].settings_key, GLOBAL_SHORTCUT_KEY);
         assert_eq!(mapped[0].trigger.as_deref(), Some("<Control><Shift>v"));
@@ -332,5 +392,9 @@ mod tests {
         assert_eq!(mapped[1].settings_key, QUICK_PASTE_SHORTCUT_KEY);
         assert_eq!(mapped[1].trigger.as_deref(), Some("<Control>grave"));
         assert_eq!(mapped[1].action, portal::ShortcutAction::QuickPaste);
+        assert_eq!(mapped[2].id, portal::LAN_TRANSFER_SHORTCUT_ID);
+        assert_eq!(mapped[2].settings_key, LAN_TRANSFER_SHORTCUT_KEY);
+        assert_eq!(mapped[2].trigger.as_deref(), Some("<Control><Shift>l"));
+        assert_eq!(mapped[2].action, portal::ShortcutAction::LanTransfer);
     }
 }

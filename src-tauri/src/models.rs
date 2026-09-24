@@ -75,6 +75,7 @@ pub(crate) struct PlatformCapabilities {
 pub(crate) struct ShortcutStatusDto {
     pub(crate) global_shortcut_registered: bool,
     pub(crate) quick_paste_shortcut_registered: bool,
+    pub(crate) lan_transfer_shortcut_registered: bool,
     pub(crate) issues: Vec<ShortcutIssueDto>,
 }
 
@@ -121,11 +122,15 @@ pub(crate) struct AppSettings {
     pub(crate) lan_transfer_pin: Option<String>,
     pub(crate) lan_device_alias: Option<String>,
     pub(crate) lan_receive_policy: String,
+    // 发送侧对齐接收侧：送出的文本与图片同样写入剪贴板历史并复制到系统剪贴板。
+    pub(crate) lan_transfer_save_sent_to_clipboard: bool,
     pub(crate) lan_trusted_devices: Vec<LanTrustedDevice>,
     // 刷新时最后一次主动扫描的网段（如 `192.168.1.0/24`），仅用于下次高亮。
     pub(crate) lan_scan_last_subnet: Option<String>,
     pub(crate) global_shortcut: String,
     pub(crate) quick_paste_shortcut: String,
+    // 直接唤起面板并进入局域网互传页面的全局快捷键。
+    pub(crate) lan_transfer_shortcut: String,
     pub(crate) search_shortcut: String,
     pub(crate) filter_shortcut: String,
     pub(crate) ignored_apps: Vec<String>,
@@ -164,10 +169,12 @@ impl Default for AppSettings {
             lan_transfer_pin: None,
             lan_device_alias: None,
             lan_receive_policy: "ask".into(),
+            lan_transfer_save_sent_to_clipboard: true,
             lan_trusted_devices: Vec::new(),
             lan_scan_last_subnet: None,
             global_shortcut: "Ctrl+Shift+V".into(),
             quick_paste_shortcut: "Ctrl+Backquote".into(),
+            lan_transfer_shortcut: "Ctrl+Shift+L".into(),
             search_shortcut: "Ctrl+F".into(),
             filter_shortcut: "Ctrl+Tab".into(),
             ignored_apps: Vec::new(),
@@ -194,6 +201,7 @@ impl AppSettings {
     pub(crate) fn normalized(mut self) -> Self {
         self.global_shortcut = normalize_shortcut(&self.global_shortcut);
         self.quick_paste_shortcut = normalize_shortcut(&self.quick_paste_shortcut);
+        self.lan_transfer_shortcut = normalize_shortcut(&self.lan_transfer_shortcut);
         self.search_shortcut = normalize_shortcut(&self.search_shortcut);
         self.filter_shortcut = normalize_shortcut(&self.filter_shortcut);
         if self.max_history_items == 0 {
@@ -798,6 +806,13 @@ mod tests {
         let settings = AppSettings::default().normalized();
 
         assert_eq!(settings.quick_paste_shortcut, "Ctrl+Backquote");
+    }
+
+    #[test]
+    fn default_lan_transfer_shortcut_uses_ctrl_shift_l() {
+        let settings = AppSettings::default().normalized();
+
+        assert_eq!(settings.lan_transfer_shortcut, "Ctrl+Shift+L");
     }
 
     #[test]

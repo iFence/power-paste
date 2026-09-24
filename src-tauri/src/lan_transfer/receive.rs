@@ -147,7 +147,7 @@ fn handle_prepare_upload(
             .is_ok()
         {
             for (_, text) in &text_messages {
-                record_received_text(app, &shared, &settings, text);
+                record_text_in_clipboard(app, &shared, &settings, text);
                 record_text_transfer(handle, &fingerprint, &info.alias, text);
             }
             if !file_ids.is_empty() {
@@ -235,7 +235,7 @@ fn handle_prepare_upload(
                     if let Some(shared) = shared.upgrade() {
                         let settings = shared.settings.lock().unwrap().clone();
                         for (_, text) in &text_messages {
-                            record_received_text(&app, &shared, &settings, text);
+                            record_text_in_clipboard(&app, &shared, &settings, text);
                             record_text_transfer(&handle, &fingerprint, &info.alias, text);
                         }
                     }
@@ -456,10 +456,10 @@ fn handle_file_upload(
                 is_text_file.then(|| String::from_utf8_lossy(&buffer).to_string());
             let outcome = match &text_payload {
                 Some(text) => {
-                    record_received_text(&app, &shared_for_task, &settings_for_task, text);
+                    record_text_in_clipboard(&app, &shared_for_task, &settings_for_task, text);
                     Ok(())
                 }
-                None => record_received_image(
+                None => record_image_in_clipboard(
                     &app,
                     &shared_for_task,
                     &settings_for_task,
@@ -641,8 +641,8 @@ fn resolve_download_dir(app: &AppHandle, shared: &Arc<SharedState>) -> Result<Pa
     Ok(path)
 }
 
-// 把收到的文本写入剪贴板与历史。
-fn record_received_text(
+// 把一段文本写入剪贴板与历史；接收与发送共用同一套写入规则。
+pub(super) fn record_text_in_clipboard(
     app: &AppHandle,
     shared: &Arc<SharedState>,
     settings: &crate::models::AppSettings,
@@ -691,8 +691,8 @@ fn write_text_to_history(
     Ok(())
 }
 
-// 把收到的图片写入剪贴板与历史。
-fn record_received_image(
+// 把一张图片写入剪贴板与历史；mime_type 与 bytes 来自原始载荷，超出上限时会缩放。
+pub(super) fn record_image_in_clipboard(
     app: &AppHandle,
     shared: &Arc<SharedState>,
     settings: &crate::models::AppSettings,

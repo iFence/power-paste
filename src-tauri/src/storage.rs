@@ -162,6 +162,26 @@ mod tests {
         );
     }
 
+    // 旧配置文件缺少新增设置项时按结构体内默认值补齐，不能让整份配置解析失败。
+    #[test]
+    fn defaults_sent_to_clipboard_setting_for_legacy_files() {
+        let paths = test_paths();
+
+        fs::write(&paths.settings_path, br#"{"pollingIntervalMs":750}"#)
+            .expect("write legacy settings");
+        let loaded = load_settings(&paths).expect("load legacy settings");
+
+        assert_eq!(loaded.polling_interval_ms, 750);
+        assert!(loaded.lan_transfer_save_sent_to_clipboard);
+
+        let _ = fs::remove_dir_all(
+            paths
+                .settings_path
+                .parent()
+                .unwrap_or(paths.settings_path.as_path()),
+        );
+    }
+
     #[test]
     fn recreates_parent_directory_before_saving_settings() {
         let paths = test_paths();

@@ -36,12 +36,14 @@ use crate::models::{
 
 use super::{
     app_id::{check_current_app_id, AppIdCheck},
-    store_and_emit_shortcut_status, GLOBAL_SHORTCUT_KEY, QUICK_PASTE_SHORTCUT_KEY,
+    store_and_emit_shortcut_status, GLOBAL_SHORTCUT_KEY, LAN_TRANSFER_SHORTCUT_KEY,
+    QUICK_PASTE_SHORTCUT_KEY,
 };
 
 /// 门户快捷键 ID：重启后复用同一 ID，桌面环境据此恢复用户改过的按键。
 pub(crate) const TOGGLE_SHORTCUT_ID: &str = "toggle-panel";
 pub(crate) const QUICK_PASTE_SHORTCUT_ID: &str = "quick-paste";
+pub(crate) const LAN_TRANSFER_SHORTCUT_ID: &str = "open-lan-transfer";
 
 /// 门户绑定失败时写入快捷键状态的错误码，前端据此显示可操作提示。
 const ERROR_PORTAL_UNAVAILABLE: &str = "wayland_portal_unavailable";
@@ -110,6 +112,7 @@ pub(crate) struct PortalShortcut {
 pub(crate) enum ShortcutAction {
     TogglePanel,
     QuickPaste,
+    LanTransfer,
 }
 
 /// 当前生效的门户会话。
@@ -622,6 +625,11 @@ fn listen_session(
                     (ShortcutAction::QuickPaste, false) => {
                         schedule_quick_paste_release(app.clone(), quick_paste_serial.clone());
                     }
+                    (ShortcutAction::LanTransfer, true) => {
+                        eprintln!("[shortcuts] 桌面门户触发：进入局域网互传");
+                        let _ = crate::runtime::show_lan_transfer_panel(&app);
+                    }
+                    (ShortcutAction::LanTransfer, false) => {}
                     (ShortcutAction::TogglePanel, false) => {}
                 }
             }
@@ -788,6 +796,7 @@ fn status_from_shortcuts(shortcuts: &[PortalShortcut], bound_ids: &[String]) -> 
             match shortcut.settings_key {
                 GLOBAL_SHORTCUT_KEY => status.global_shortcut_registered = true,
                 QUICK_PASTE_SHORTCUT_KEY => status.quick_paste_shortcut_registered = true,
+                LAN_TRANSFER_SHORTCUT_KEY => status.lan_transfer_shortcut_registered = true,
                 _ => {}
             }
             continue;

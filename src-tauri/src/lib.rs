@@ -59,7 +59,7 @@ use models::{
     PANEL_LABEL,
 };
 use repository::SqliteHistoryStore;
-use runtime::{configure_window, show_quick_paste_panel, toggle_panel};
+use runtime::{configure_window, show_lan_transfer_panel, show_quick_paste_panel, toggle_panel};
 use startup::{is_background_startup_args, set_launch_on_startup, BACKGROUND_STARTUP_ARG};
 use storage::{load_settings, save_settings};
 
@@ -210,6 +210,8 @@ pub fn run() {
                     let global_shortcut = settings.global_shortcut.parse::<Shortcut>().ok();
                     let quick_paste_shortcut =
                         settings.quick_paste_shortcut.parse::<Shortcut>().ok();
+                    let lan_transfer_shortcut =
+                        settings.lan_transfer_shortcut.parse::<Shortcut>().ok();
 
                     if quick_paste_shortcut.as_ref() == Some(shortcut) {
                         if event.state == ShortcutState::Pressed {
@@ -222,6 +224,14 @@ pub fn run() {
                         && event.state == ShortcutState::Released
                     {
                         let _ = toggle_panel(app);
+                        return;
+                    }
+
+                    // 互传快捷键：与「呼出主面板」一样在松开时触发，避免长按重复打开。
+                    if lan_transfer_shortcut.as_ref() == Some(shortcut)
+                        && event.state == ShortcutState::Released
+                    {
+                        let _ = show_lan_transfer_panel(app);
                     }
                 })
                 .build(),

@@ -1,6 +1,6 @@
 <script setup>
 // 会话输入区：多行文本 + 待发送附件 + 附件选择菜单，回车即发送。
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { formatBytes } from "../../utils/format";
 
 const props = defineProps({
@@ -20,6 +20,8 @@ const emit = defineEmits([
 ]);
 
 const attachMenuOpen = ref(false);
+// 附件菜单依附在“+”按钮上：点击别处或按 Esc 都会收起。
+const attachRef = ref(null);
 const textareaRef = ref(null);
 // 模块级：极端情况下输入区被重建时，把焦点还给用户，输入不被打断。
 let composerHadFocus = false;
@@ -35,20 +37,7 @@ const totalBytes = computed(() =>
   items.value.reduce((sum, item) => sum + Number(item.size || 0), 0),
 );
 
-// 输入框随内容增高，最多到 max-height，超出后内部滚动。
-const TEXTAREA_MAX_HEIGHT = 80;
-
-function resizeTextarea() {
-  const element = textareaRef.value;
-  if (!element) {
-    return;
-  }
-  element.style.height = "auto";
-  element.style.height = `${Math.min(element.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
-}
-
 function updateText(event) {
-  resizeTextarea();
   emit("update:text", event.target.value);
 }
 
@@ -61,7 +50,6 @@ function handleBlur() {
 }
 
 onMounted(() => {
-  resizeTextarea();
   if (composerHadFocus) {
     textareaRef.value?.focus();
   }
@@ -90,6 +78,32 @@ function runAttach(action) {
   attachMenuOpen.value = false;
   emit(action);
 }
+
+function handleDocumentPointerDown(event) {
+  if (!attachMenuOpen.value) {
+    return;
+  }
+  if (attachRef.value?.contains(event.target)) {
+    return;
+  }
+  attachMenuOpen.value = false;
+}
+
+function handleDocumentKeydown(event) {
+  if (event.key === "Escape") {
+    attachMenuOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointerDown, true);
+  document.addEventListener("keydown", handleDocumentKeydown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+  document.removeEventListener("keydown", handleDocumentKeydown);
+});
 </script>
 
 <template>
@@ -131,25 +145,36 @@ function runAttach(action) {
         @keydown="handleKeydown"
       ></textarea>
       <div class="lan-composer-tools">
-        <button
-          class="toolbar-icon-button"
-          type="button"
-          :title="t('lanComposerAttach')"
-          :aria-label="t('lanComposerAttach')"
-          :disabled="disabled"
-          @click="attachMenuOpen = !attachMenuOpen"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M11 7.5v9M7 12h8"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.9"
-              stroke-linecap="round"
-            />
-            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5" />
-          </svg>
-        </button>
+        <!-- 附件菜单挂在按钮上，弹出位置紧贴图标。 -->
+        <span ref="attachRef" class="lan-composer-attach">
+          <button
+            class="toolbar-icon-button"
+            type="button"
+            :title="t('lanComposerAttach')"
+            :aria-label="t('lanComposerAttach')"
+            :disabled="disabled"
+            @click="attachMenuOpen = !attachMenuOpen"
+          >
+            <svg viewBox="0 0 1024 1024" aria-hidden="true">
+              <path
+                d="M512 32c265.088 0 480 214.912 480 480 0 265.088-214.912 480-480 480-265.088 0-480-214.912-480-480C32 246.912 246.912 32 512 32z m0 64C282.24 96 96 282.24 96 512s186.24 416 416 416 416-186.24 416-416S741.76 96 512 96z m0 128a32 32 0 0 1 31.776 28.256L544 256v224h224a32 32 0 0 1 3.744 63.776L768 544h-224v224a32 32 0 0 1-63.776 3.744L480 768v-224H256a32 32 0 0 1-3.744-63.776L256 480h224V256a32 32 0 0 1 32-32z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+
+          <div v-if="attachMenuOpen" class="lan-composer-menu">
+            <button type="button" @click="runAttach('add-files')">
+              {{ t("lanTransferPickFile") }}
+            </button>
+            <button type="button" @click="runAttach('add-folder')">
+              {{ t("lanTransferPickFolder") }}
+            </button>
+            <button type="button" @click="runAttach('pick-clipboard')">
+              {{ t("lanTransferPickClipboard") }}
+            </button>
+          </div>
+        </span>
         <button
           class="primary compact"
           type="button"
@@ -157,18 +182,6 @@ function runAttach(action) {
           @click="submit"
         >
           {{ t("lanTransferSend") }}
-        </button>
-      </div>
-
-      <div v-if="attachMenuOpen" class="lan-composer-menu">
-        <button type="button" @click="runAttach('add-files')">
-          {{ t("lanTransferPickFile") }}
-        </button>
-        <button type="button" @click="runAttach('add-folder')">
-          {{ t("lanTransferPickFolder") }}
-        </button>
-        <button type="button" @click="runAttach('pick-clipboard')">
-          {{ t("lanTransferPickClipboard") }}
         </button>
       </div>
     </div>
@@ -180,7 +193,6 @@ function runAttach(action) {
   display: grid;
   gap: 6px;
   padding: 7px 12px 9px;
-  border-top: 1px solid var(--app-panel-border);
   background: color-mix(in srgb, var(--app-panel-bg) 88%, transparent);
 }
 
@@ -265,7 +277,11 @@ function runAttach(action) {
 .lan-composer-input textarea {
   flex: 1;
   min-width: 0;
-  max-height: 80px;
+  /* 输入区保持原有的舒展高度，不受设置页 textarea 全局最小高度影响；
+     内容更多时在框内滚动。 */
+  height: 96px;
+  min-height: 96px;
+  max-height: 96px;
   padding: 3px 0;
   border: 0;
   background: transparent;
@@ -284,10 +300,15 @@ function runAttach(action) {
   gap: 6px;
 }
 
+.lan-composer-attach {
+  position: relative;
+  display: inline-flex;
+}
+
 .lan-composer-menu {
   position: absolute;
-  right: 8px;
-  bottom: calc(100% + 6px);
+  right: 0;
+  bottom: calc(100% + 4px);
   z-index: 12;
   display: grid;
   min-width: 132px;

@@ -16,6 +16,10 @@ const props = defineProps({
 const emit = defineEmits(["back", "cancel", "open-file", "resend", "reveal-file"]);
 
 const scrollRef = ref(null);
+// 用户是否贴着底部：贴底时新消息自动跟随，手动上滑查看历史后不再把人拽回底部。
+const stickToBottom = ref(true);
+// 视为“贴底”的容差（px）：滚动惯性、行高取整都会留一点缝隙。
+const BOTTOM_TOLERANCE = 40;
 
 // 消息流按天插入分隔标题，便于回溯更早的传输。
 const messageGroups = computed(() => {
@@ -40,18 +44,39 @@ async function scrollToBottom() {
   }
 }
 
+function handleScroll() {
+  const element = scrollRef.value;
+  if (!element) {
+    return;
+  }
+  stickToBottom.value =
+    element.scrollHeight - element.scrollTop - element.clientHeight < BOTTOM_TOLERANCE;
+}
+
+// 切换会话时总是定位到最新一条。
 watch(
-  () => [props.peer.fingerprint, props.messages.length],
+  () => props.peer.fingerprint,
   () => {
+    stickToBottom.value = true;
     void scrollToBottom();
   },
   { immediate: true },
+);
+
+// 只在新增消息且用户本来就贴底时才跟随；消息数变少（历史上限裁剪）不滚动。
+watch(
+  () => props.messages.length,
+  (length, previous) => {
+    if (length > (previous || 0) && stickToBottom.value) {
+      void scrollToBottom();
+    }
+  },
 );
 </script>
 
 <template>
   <section class="lan-conversation-panel">
-    <div ref="scrollRef" class="lan-conversation-stream">
+    <div ref="scrollRef" class="lan-conversation-stream" @scroll="handleScroll">
       <!-- 窄窗单栏布局下没有左侧会话列表，用悬浮返回按钮回到列表。 -->
       <button
         class="toolbar-icon-button lan-conversation-back"

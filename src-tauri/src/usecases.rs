@@ -84,7 +84,8 @@ impl SettingsRuntimePort for DefaultSettingsRuntime {
         let capabilities = platform_capabilities();
         let previous_settings = state.settings.lock().unwrap().clone();
         let shortcuts_changed = settings.global_shortcut != previous_settings.global_shortcut
-            || settings.quick_paste_shortcut != previous_settings.quick_paste_shortcut;
+            || settings.quick_paste_shortcut != previous_settings.quick_paste_shortcut
+            || settings.lan_transfer_shortcut != previous_settings.lan_transfer_shortcut;
 
         let next_shortcut_status = if shortcuts_changed {
             unregister_configured_shortcuts(app, &previous_settings);

@@ -957,6 +957,9 @@ impl LanTransferHandle {
         }
         emit_state(app, self, &settings);
 
+        // 送出的图片按设置镜像进本机剪贴板与历史。
+        remember_sent_content(app, shared, &settings, None, &picked);
+
         let advertised_protocol = self.advertised_protocol();
         send::spawn_send(
             app.clone(),
@@ -1038,6 +1041,8 @@ impl LanTransferHandle {
 
         // 文本消息与文件走同一条发送链路：对端把它当消息时以 204 结束，
         // 当普通文件接受时会把正文真实上传，避免对端会话悬挂。
+        // 送出的文本按设置镜像进本机剪贴板与历史。
+        remember_sent_content(app, shared, &settings, Some(&text), &[]);
         let advertised_protocol = self.advertised_protocol();
         send::spawn_send(
             app.clone(),
@@ -1103,6 +1108,11 @@ impl LanTransferHandle {
             [LanSelectionItemDto::Text { text }] => Some(text.clone()),
             _ => None,
         };
+        // 剪贴板镜像用的是原始选择项：文本与附件混排时的文本同样要保留。
+        let clipboard_text = items.iter().find_map(|item| match item {
+            LanSelectionItemDto::Text { text } => Some(text.clone()),
+            _ => None,
+        });
         let files = items
             .iter()
             .zip(picked.iter())
@@ -1157,6 +1167,9 @@ impl LanTransferHandle {
             });
         }
         emit_state(app, self, &settings);
+
+        // 送出的文本与图片按设置镜像进本机剪贴板与历史。
+        remember_sent_content(app, shared, &settings, clipboard_text.as_deref(), &picked);
 
         let advertised_protocol = self.advertised_protocol();
         send::spawn_send(
@@ -1584,6 +1597,47 @@ fn resolve_pin(inner: &Inner, fingerprint: &str, pin: Option<String>) -> Option<
     pin.map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .or_else(|| inner.device_pins.get(fingerprint).cloned())
+}
+
+// 按设置把本次送出的内容写入本机剪贴板与历史：文本走文本项、图片走图片项，
+// 其余文件不是剪贴板内容，直接跳过。写入失败只记 warning，不打断发送本身。
+fn remember_sent_content(
+    app: &AppHandle,
+    shared: &Arc<SharedState>,
+    settings: &AppSettings,
+    text: Option<&str>,
+    picked: &[send::SendFile],
+) {
+    if !settings.lan_transfer_save_sent_to_clipboard {
+        return;
+    }
+
+    if let Some(text) = text {
+        receive::record_text_in_clipboard(app, shared, settings, text);
+    }
+
+    for entry in picked {
+        if !entry.file.file_type.starts_with("image/") {
+            continue;
+        }
+        let loaded;
+        let bytes: &[u8] = match &entry.source {
+            send::SendSource::Bytes(bytes) => bytes,
+            send::SendSource::Path(path) => match std::fs::read(path) {
+                Ok(bytes) => {
+                    loaded = bytes;
+                    &loaded
+                }
+                // 源文件在发送前已不可读：跳过剪贴板镜像，不影响这次发送。
+                Err(_) => continue,
+            },
+        };
+        if let Err(error) =
+            receive::record_image_in_clipboard(app, shared, settings, &entry.file.file_type, bytes)
+        {
+            shared.lan_transfer.inner.lock().unwrap().warning = Some(error.to_string());
+        }
+    }
 }
 
 // 把底层错误归为稳定错误码，供前端本地化展示；未识别时回退到通用码。
