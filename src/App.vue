@@ -522,6 +522,13 @@ async function leaveLanTransferRoute() {
     await router.push({ name: "home" });
 }
 
+// 移除已信任设备后同时刷新设置缓存：设置对象里保留着旧列表，
+// 否则下次在设置页保存任何一项都会把被移除的设备写回后端。
+async function removeLanTrustedDevice(fingerprint) {
+    await lanTransferState.removeTrustedDevice(fingerprint);
+    await settingsState.refreshSettings();
+}
+
 function closeConfirmDialog() {
     confirmDialogState.value = {
         cancelLabel: "",
@@ -815,6 +822,7 @@ function openResetSettingsConfirm() {
                         :on-read-clipboard="lanTransferState.readClipboard"
                         :on-read-transfer-preview="lanTransferState.readTransferPreview"
                         :on-refresh-devices="lanTransferState.refreshDevices"
+                        :on-remove-trusted-device="removeLanTrustedDevice"
                         :on-resend-transfer="lanTransferState.resendTransfer"
                         :on-reveal-file="lanTransferState.revealReceivedFile"
                         :on-scan-subnets="lanTransferState.scanSubnets"
@@ -853,9 +861,6 @@ function openResetSettingsConfirm() {
                         :on-check-updates="updaterState.runUpdateCheck"
                         :on-clear-update-debug-status="updaterState.clearUpdateDebugStatus"
                         :on-install-update="updaterState.runUpdateInstall"
-                        :on-remove-trusted-device="
-                            lanTransferState.removeTrustedDevice
-                        "
                         :on-set-update-debug-status-with-overrides="
                             updaterState.setUpdateDebugStatusWithOverrides
                         "

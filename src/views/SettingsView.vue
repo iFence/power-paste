@@ -38,7 +38,6 @@ const props = defineProps({
   onCheckUpdates: { type: Function, required: true },
   onClearUpdateDebugStatus: { type: Function, required: true },
   onInstallUpdate: { type: Function, required: true },
-  onRemoveTrustedDevice: { type: Function, required: true },
   onSetUpdateDebugStatusWithOverrides: { type: Function, required: true },
   openSelectKey: { type: String, default: null },
   pendingSettingKey: { type: String, default: '' },
@@ -138,9 +137,6 @@ const selectMenuStyle = ref({})
 const SELECT_MENU_GAP = 8
 // 触发元素不参与响应式，仅用于滚动/缩放时重新定位。
 const selectTriggerElements = {}
-const lanTrustedDevices = computed(() =>
-  Array.isArray(props.settings.lanTrustedDevices) ? props.settings.lanTrustedDevices : [],
-)
 const hasClipboardWriteSupport = computed(
   () =>
     props.platformCapabilities.supportsTextWrite ||
@@ -330,10 +326,6 @@ async function saveLanTransferPin() {
     return
   }
   await updateSetting('lanTransferPin', value || null, 'lanTransferPin')
-}
-
-async function removeLanTrustedDevice(fingerprint) {
-  await props.onRemoveTrustedDevice(fingerprint)
 }
 
 async function updateWebdavSetting(field, value, key = `webdavSync.${field}`) {
@@ -1767,34 +1759,6 @@ watch(
                 </button>
               </div>
             </div>
-          </section>
-
-          <section v-if="lanTrustedDevices.length" class="setting-card wide">
-            <div class="setting-head">
-              <span class="setting-label-row">
-                <span class="meta-label">{{ t('lanTrustedDevices') }}</span>
-                <span class="setting-help-icon" :data-tooltip="t('lanTrustedDevicesTip')" :aria-label="t('lanTrustedDevicesTip')" tabindex="0">
-                  <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                    <path d="M512 96a416 416 0 1 0 0 832 416 416 0 0 0 0-832z m0 768a352 352 0 1 1 0-704 352 352 0 0 1 0 704z m64-160a32 32 0 0 1-32 32 64 64 0 0 1-64-64V512a32 32 0 0 1 0-64 64 64 0 0 1 64 64v160a32 32 0 0 1 32 32z m-128-368.042667a47.957333 47.957333 0 1 1 96 0 47.957333 47.957333 0 0 1-96 0z" />
-                  </svg>
-                </span>
-              </span>
-            </div>
-            <ul class="lan-trusted-list">
-              <li v-for="device in lanTrustedDevices" :key="device.fingerprint">
-                <span>
-                  <strong>{{ device.alias || t('lanTrustedUnknownDevice') }}</strong>
-                  <small>{{ device.fingerprint.slice(-8) }}</small>
-                </span>
-                <button
-                  class="ghost compact"
-                  type="button"
-                  @click="removeLanTrustedDevice(device.fingerprint)"
-                >
-                  {{ t('removeAction') }}
-                </button>
-              </li>
-            </ul>
           </section>
 
           <section class="setting-card wide">

@@ -129,6 +129,7 @@ export const messages = {
     lanTrustedDevices: "已信任设备",
     lanTrustedDevicesTip: "来自这些设备的传输请求会直接接受，不再弹出确认。",
     lanTrustedUnknownDevice: "未知设备",
+    lanTrustedDevicesEmpty: "还没有已信任的设备。",
     globalShortcutTip: "按下这个全局快捷键可唤起或隐藏主窗口。",
     lanTransferShortcutTip:
       "按下这个全局快捷键可直接唤起面板并进入 LocalSend 互传页面，默认 Ctrl+Shift+L。",
@@ -286,6 +287,7 @@ export const messages = {
     lanTrustedDevicesTip:
       "Transfers from these devices are accepted without a confirmation prompt.",
     lanTrustedUnknownDevice: "Unknown device",
+    lanTrustedDevicesEmpty: "No trusted devices yet.",
     globalShortcutTip:
       "Use this global shortcut to show or hide the main window.",
     lanTransferShortcutTip:

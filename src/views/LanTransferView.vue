@@ -10,6 +10,7 @@ import LanConversationList from "./lan-transfer/LanConversationList.vue";
 import LanConversationPanel from "./lan-transfer/LanConversationPanel.vue";
 import LanIdlePanel from "./lan-transfer/LanIdlePanel.vue";
 import LanLinkDialog from "./lan-transfer/LanLinkDialog.vue";
+import LanTrustedDevicesDialog from "./lan-transfer/LanTrustedDevicesDialog.vue";
 
 const props = defineProps({
   busy: { type: Boolean, required: true },
@@ -26,6 +27,7 @@ const props = defineProps({
   onReadClipboard: { type: Function, required: true },
   onReadTransferPreview: { type: Function, required: true },
   onRefreshDevices: { type: Function, required: true },
+  onRemoveTrustedDevice: { type: Function, required: true },
   onResendTransfer: { type: Function, required: true },
   onRevealFile: { type: Function, required: true },
   onScanSubnets: { type: Function, required: true },
@@ -51,6 +53,7 @@ const dropTargetFingerprint = ref("");
 const subnetMenuOpen = ref(false);
 const subnetItems = ref([]);
 const lastSubnet = ref("");
+const trustedOpen = ref(false);
 const localIps = ref([]);
 // 每个对端一份未发送草稿：切换会话时不丢失已输入的内容与附件。
 const drafts = reactive({});
@@ -71,6 +74,10 @@ const receivedFiles = computed(() =>
 const running = computed(() => props.state.status === "running");
 const failed = computed(() => props.state.status === "error");
 const scanRunning = computed(() => Boolean(props.state.scan?.running));
+// 已信任设备：由后端状态下发，移除后会随新状态立即消失。
+const trustedDevices = computed(() =>
+  Array.isArray(props.state.trustedDevices) ? props.state.trustedDevices : [],
+);
 // 刷新按钮的最短旋转时长：网络很快时后端扫描瞬间结束，
 // 没有这段兜底就几乎看不到“正在刷新”的反馈。
 const REFRESH_SPIN_MIN_MS = 900;
@@ -522,6 +529,15 @@ async function revealReceivedFile(id) {
   }
 }
 
+// 移除一台已信任设备；列表由后端推送的新状态刷新，失败时页面顶部给出提示。
+async function removeTrustedDevice(fingerprint) {
+  try {
+    await props.onRemoveTrustedDevice(fingerprint);
+  } catch (error) {
+    reportError(error);
+  }
+}
+
 async function submitManual() {
   const address = manualAddress.value.trim();
   if (!address) {
@@ -819,6 +835,31 @@ onUnmounted(() => {
           />
         </svg>
       </button>
+      <button
+        class="toolbar-icon-button lan-transfer-trusted-button"
+        type="button"
+        :title="t('lanTrustedDevices')"
+        :aria-label="t('lanTrustedDevices')"
+        @click="trustedOpen = true"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 3.5 5.5 6v6c0 4 2.8 7 6.5 8.5 3.7-1.5 6.5-4.5 6.5-8.5V6L12 3.5z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linejoin="round"
+          />
+          <path
+            d="m9.2 12.1 2 2 3.6-3.9"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
     </header>
 
     <div class="lan-transfer-shell">
@@ -952,6 +993,15 @@ onUnmounted(() => {
       :t="t"
       @close="closeLink"
     />
+
+    <LanTrustedDevicesDialog
+      v-if="trustedOpen"
+      :busy="busy"
+      :devices="trustedDevices"
+      :t="t"
+      @close="trustedOpen = false"
+      @remove="removeTrustedDevice"
+    />
   </section>
 </template>
 
@@ -1046,6 +1096,11 @@ onUnmounted(() => {
   flex: 0 0 auto;
 }
 
+/* 已信任设备入口：弹窗里查看与移除被信任的对端。 */
+.lan-transfer-trusted-button {
+  flex: 0 0 auto;
+}
+
 /* 刷新发现：按钮在顶栏二维码左侧，扫描期间持续旋转，再点即取消扫描。 */
 .lan-transfer-refresh-button {
   flex: 0 0 auto;
@@ -1093,8 +1148,8 @@ onUnmounted(() => {
 .lan-subnet-popover {
   position: absolute;
   top: 38px;
-  /* 右侧还有二维码、服务开关与设置三个按钮：每多一个按钮右移一个按钮宽 + 间距。 */
-  right: 102px;
+  /* 右侧还有二维码、服务开关、设置与已信任设备四个按钮：每多一个按钮右移一个按钮宽 + 间距。 */
+  right: 138px;
   z-index: 30;
   width: min(320px, calc(100% - 20px));
   border-radius: 10px;

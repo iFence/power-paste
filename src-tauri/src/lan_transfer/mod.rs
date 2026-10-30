@@ -114,6 +114,8 @@ pub(crate) struct LanStateDto {
     pub(crate) transfers: Vec<LanTransferDto>,
     pub(crate) incoming: Option<LanIncomingRequestDto>,
     pub(crate) received_files: Vec<LanReceivedFileDto>,
+    // 已信任设备：LocalSend 页面的弹窗据此展示与移除，随状态一起推送。
+    pub(crate) trusted_devices: Vec<LanTrustedDevice>,
     pub(crate) web_mode: String,
     pub(crate) web_url: Option<String>,
     pub(crate) web_qr_svg: Option<String>,
@@ -650,6 +652,7 @@ impl LanTransferHandle {
                     received_at_ms: entry.received_at_ms,
                 })
                 .collect(),
+            trusted_devices: settings.lan_trusted_devices.clone(),
             web_mode: inner.web.mode.clone(),
             web_url: inner.web.url.clone(),
             web_qr_svg: inner.web.qr_svg.clone(),
@@ -1966,7 +1969,7 @@ mod tests {
         advertised_device, client_timeout_for, normalize_hostname, ClientPurpose, DeviceEntry,
         LanSelectionItemDto, LanTransferHandle, TransferEntry, TransferKind,
     };
-    use crate::models::AppSettings;
+    use crate::models::{AppSettings, LanTrustedDevice};
     use localsend::model::discovery::ProtocolType;
     use std::sync::{atomic::AtomicU64, Arc};
 
@@ -2045,6 +2048,27 @@ mod tests {
     fn always_resolves_a_default_device_name() {
         // 任何平台上都不能出现空设备名，否则对端列表里会出现无名设备。
         assert!(!super::default_alias().is_empty());
+    }
+
+    // 已信任设备随状态一起下发：LocalSend 页面据此展示，移除后列表立即变空。
+    #[test]
+    fn state_exposes_trusted_devices() {
+        let handle = LanTransferHandle::new();
+        let mut settings = AppSettings::default();
+        settings.lan_trusted_devices.push(LanTrustedDevice {
+            fingerprint: "ABCDEF12".into(),
+            alias: "Phone".into(),
+            last_seen_at: 1_700_000_000_000,
+        });
+
+        let state = handle.state(&settings);
+        assert_eq!(state.trusted_devices.len(), 1);
+        assert_eq!(state.trusted_devices[0].alias, "Phone");
+
+        assert!(handle
+            .state(&AppSettings::default())
+            .trusted_devices
+            .is_empty());
     }
 
     #[test]

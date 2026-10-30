@@ -41,6 +41,7 @@ function emptyState() {
     transfers: [],
     incoming: null,
     receivedFiles: [],
+    trustedDevices: [],
     webMode: "none",
     webUrl: null,
     webQrSvg: null,
@@ -253,9 +254,12 @@ export function useLanTransfer() {
     await revealLanReceivedFile(id);
   }
 
+  // 移除已信任设备：后端会推送新状态，这里再取一次，保证弹窗列表立即刷新。
   async function removeTrustedDevice(fingerprint) {
-    await removeLanTrustedDevice(fingerprint);
-    await refreshState();
+    return run(async () => {
+      await removeLanTrustedDevice(fingerprint);
+      return getLanTransferState();
+    });
   }
 
   async function stopLanTransferService() {

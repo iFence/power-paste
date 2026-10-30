@@ -283,7 +283,7 @@
     padding: 9px;
     border: 1px solid var(--app-panel-border);
     border-radius: 10px;
-    background: color-mix(in srgb, var(--app-input-bg) 88%, transparent);
+    background: var(--app-select-menu-bg);
 }
 
 .lan-subnet-picker-head {
