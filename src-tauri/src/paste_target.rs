@@ -14,7 +14,7 @@ use crate::models::{SharedState, StoredClipboardItem};
 #[cfg(target_os = "macos")]
 use crate::clipboard::wait_for_clipboard_payload;
 #[cfg(windows)]
-use crate::clipboard::{write_image_to_clipboard, write_image_with_plugin, write_text_with_plugin};
+use crate::clipboard::{write_image_to_clipboard, write_text_with_plugin};
 #[cfg(windows)]
 use crate::models::{HwndRaw, PANEL_LABEL};
 #[cfg(target_os = "macos")]
@@ -1027,8 +1027,7 @@ fn paste_mixed_segments(
                 write_text_with_plugin(app, text)?;
             }
             crate::clipboard_html::MixedPasteSegment::Image => {
-                write_image_with_plugin(app, png_bytes)
-                    .or_else(|_| write_image_to_clipboard(png_bytes))?;
+                write_image_to_clipboard(png_bytes)?;
             }
             crate::clipboard_html::MixedPasteSegment::Text(_) => continue,
         }

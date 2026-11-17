@@ -21,6 +21,8 @@ pub(crate) fn preferred_backend_for_payload(payload: &ClipboardPayload) -> Clipb
         ClipboardPayload::Mixed { .. } if cfg!(target_os = "macos") => {
             ClipboardBackend::NativeFallback
         }
+        // clipboard-rs 在 Windows 写图片时会重复打开剪贴板；图片统一走原生写入。
+        ClipboardPayload::Image { .. } if cfg!(windows) => ClipboardBackend::NativeFallback,
         ClipboardPayload::Html { .. } if cfg!(windows) => ClipboardBackend::NativeFallback,
         ClipboardPayload::RichText { html, .. } if cfg!(windows) && html.is_some() => {
             ClipboardBackend::NativeFallback
@@ -58,6 +60,21 @@ mod tests {
             text: Some("text".into()),
             html: Some("<b>text</b>".into()),
             png_bytes: Some(vec![1, 2, 3]),
+        };
+
+        let backend = preferred_backend_for_payload(&payload);
+
+        if cfg!(windows) || cfg!(target_os = "macos") {
+            assert!(matches!(backend, ClipboardBackend::NativeFallback));
+        } else {
+            assert!(matches!(backend, ClipboardBackend::Plugin));
+        }
+    }
+
+    #[test]
+    fn prefers_native_fallback_for_image_payload_on_windows() {
+        let payload = ClipboardPayload::Image {
+            png_bytes: vec![1, 2, 3],
         };
 
         let backend = preferred_backend_for_payload(&payload);

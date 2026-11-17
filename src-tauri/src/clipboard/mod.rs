@@ -26,9 +26,7 @@ pub(crate) use capture_router::capture_clipboard;
 #[cfg(windows)]
 pub(crate) use native_writer::write_image_to_clipboard;
 #[cfg(windows)]
-pub(crate) use plugin_writer::{
-    write_image as write_image_with_plugin, write_text as write_text_with_plugin,
-};
+pub(crate) use plugin_writer::write_text as write_text_with_plugin;
 
 pub(crate) fn write_item_to_clipboard_with_profile(
     app: &AppHandle,
@@ -43,9 +41,16 @@ pub(crate) fn write_item_to_clipboard_with_profile(
             plugin_writer::write_payload(app, &payload)
         }
         crate::models::ClipboardBackend::NativeFallback => {
-            native_writer::write_payload(item, profile, &payload)
-                .map(|_| payload.clone())
-                .or_else(|_| plugin_writer::write_payload(app, &plugin_fallback_payload(payload)))
+            match native_writer::write_payload(item, profile, &payload) {
+                Ok(()) => Ok(payload),
+                // Windows 图片写入不再回退到会重复打开剪贴板的 clipboard-rs 实现。
+                Err(error)
+                    if cfg!(windows) && matches!(&payload, ClipboardPayload::Image { .. }) =>
+                {
+                    Err(error)
+                }
+                Err(_) => plugin_writer::write_payload(app, &plugin_fallback_payload(payload)),
+            }
         }
     }
 }

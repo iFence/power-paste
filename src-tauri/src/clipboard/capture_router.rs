@@ -12,14 +12,18 @@ use super::plugin_reader::{read_snapshot, PluginClipboardImage, PluginClipboardS
 #[cfg(windows)]
 mod windows_native_reader {
     use super::*;
+    use image::codecs::bmp::BmpDecoder;
     use std::{ffi::OsStr, os::windows::ffi::OsStrExt, thread, time::Duration};
-    use windows_sys::Win32::System::{
-        DataExchange::{
-            CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
-            RegisterClipboardFormatW,
+    use windows_sys::Win32::{
+        System::{
+            DataExchange::{
+                CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
+                RegisterClipboardFormatW,
+            },
+            Memory::{GlobalLock, GlobalSize, GlobalUnlock},
+            Ole::{CF_DIB, CF_DIBV5, CF_HDROP, CF_UNICODETEXT},
         },
-        Memory::{GlobalLock, GlobalSize, GlobalUnlock},
-        Ole::CF_UNICODETEXT,
+        UI::Shell::DragQueryFileW,
     };
 
     struct ClipboardGuard;
@@ -95,6 +99,10 @@ mod windows_native_reader {
         }
 
         let image = image::load_from_memory(bytes).ok()?;
+        encode_png(image)
+    }
+
+    fn encode_png(image: image::DynamicImage) -> Option<Vec<u8>> {
         let mut png_bytes = Vec::new();
         image
             .write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
@@ -153,7 +161,67 @@ mod windows_native_reader {
             });
         }
 
+        read_dib_image()
+    }
+
+    fn read_dib_image() -> Option<PluginClipboardImage> {
+        for format in [CF_DIBV5 as u32, CF_DIB as u32] {
+            let Some(bytes) = read_format_bytes(format) else {
+                continue;
+            };
+            let Ok(decoder) = BmpDecoder::new_without_file_header(Cursor::new(bytes.as_slice()))
+            else {
+                continue;
+            };
+            let Ok(image) = image::DynamicImage::from_decoder(decoder) else {
+                continue;
+            };
+            let width = image.width();
+            let height = image.height();
+            let Some(png_bytes) = encode_png(image) else {
+                continue;
+            };
+
+            return Some(PluginClipboardImage {
+                png_bytes,
+                original_bytes: Some(bytes),
+                original_mime: Some("image/bmp".to_string()),
+                width,
+                height,
+            });
+        }
+
         None
+    }
+
+    fn read_file_paths() -> Vec<String> {
+        if unsafe { IsClipboardFormatAvailable(CF_HDROP as u32) } == 0 {
+            return Vec::new();
+        }
+
+        let handle = unsafe { GetClipboardData(CF_HDROP as u32) };
+        if handle.is_null() {
+            return Vec::new();
+        }
+
+        let count = unsafe { DragQueryFileW(handle, u32::MAX, std::ptr::null_mut(), 0) };
+        (0..count)
+            .filter_map(|index| {
+                let length =
+                    unsafe { DragQueryFileW(handle, index, std::ptr::null_mut(), 0) } as usize;
+                if length == 0 {
+                    return None;
+                }
+
+                let mut buffer = vec![0u16; length + 1];
+                let written = unsafe {
+                    DragQueryFileW(handle, index, buffer.as_mut_ptr(), buffer.len() as u32)
+                } as usize;
+                (written > 0)
+                    .then(|| String::from_utf16_lossy(&buffer[..written]))
+                    .filter(|path| !path.is_empty())
+            })
+            .collect()
     }
 
     pub(super) fn read_snapshot() -> Option<PluginClipboardSnapshot> {
@@ -163,7 +231,7 @@ mod windows_native_reader {
             html: read_html(),
             rtf: None,
             image: read_encoded_image(),
-            files: Vec::new(),
+            files: read_file_paths(),
         })
     }
 }
@@ -221,7 +289,11 @@ pub(crate) fn capture_clipboard(
     #[cfg(windows)]
     let snapshot = {
         let mut snapshot = windows_native_reader::read_snapshot().unwrap_or_default();
-        if snapshot.text.is_none() && snapshot.html.is_none() && snapshot.image.is_none() {
+        if snapshot.text.is_none()
+            && snapshot.html.is_none()
+            && snapshot.image.is_none()
+            && snapshot.files.is_empty()
+        {
             snapshot = read_snapshot(app, true);
         }
         snapshot
