@@ -1,6 +1,6 @@
 <script setup>
 // 会话消息气泡：文本正文、图片预览、文件清单、传输进度与失败重发都在这里渲染。
-import { computed, onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { formatBytes, formatMessageTime } from "../../utils/format";
 import { lanErrorCode, lanErrorText } from "../../utils/lanError";
 
@@ -29,10 +29,16 @@ const showPreview = computed(() => Boolean(props.preview));
 const textOnly = computed(
   () => Boolean(props.message.text) && props.message.kind === "text",
 );
-// 已经用图片预览展示的文件不再重复列出文件名，其余文件照常显示。
+// 缩略图属于传输中的第一张图片；其他图片仍需保留在文件清单里。
+const previewFileIndex = computed(() =>
+  files.value.findIndex((file) => String(file.mimeType || "").startsWith("image/")),
+);
+const previewFile = computed(() =>
+  previewFileIndex.value >= 0 ? files.value[previewFileIndex.value] : null,
+);
 const listedFiles = computed(() =>
   files.value.filter(
-    (file) => !(showPreview.value && String(file.mimeType || "").startsWith("image/")),
+    (_, index) => !(showPreview.value && index === previewFileIndex.value),
   ),
 );
 const active = computed(() => props.message.status === "active");
@@ -77,17 +83,34 @@ const canResend = computed(
 );
 const receivedFile = computed(() => props.message.receivedFile || null);
 
-onMounted(async () => {
-  if (props.preview || !props.message.hasPreview || !props.onLoadPreview) {
+let previewLoading = false;
+
+async function loadPreviewIfAvailable() {
+  if (
+    props.preview ||
+    !props.message.hasPreview ||
+    !props.onLoadPreview ||
+    previewLoading
+  ) {
     return;
   }
+  previewLoading = true;
   try {
     await props.onLoadPreview(props.message.id);
   } catch (error) {
     // 预览属于锦上添花：取不到时回退到文件清单，不影响消息本身。
     console.error("Failed to load the transfer preview", error);
+  } finally {
+    previewLoading = false;
   }
-});
+}
+
+onMounted(loadPreviewIfAvailable);
+// 接收中的图片先产生传输记录、完成后才生成预览，状态变化时要补取一次。
+watch(
+  () => [props.message.id, props.message.hasPreview],
+  loadPreviewIfAvailable,
+);
 </script>
 
 <template>
@@ -104,7 +127,7 @@ onMounted(async () => {
           v-if="showPreview"
           class="lan-bubble-image"
           :src="preview"
-          :alt="files[0]?.fileName || ''"
+          :alt="previewFile?.fileName || ''"
         />
 
         <div v-if="listedFiles.length && !textOnly" class="lan-bubble-files">

@@ -102,7 +102,7 @@ The current implementation is local-first. Clipboard history is stored in SQLite
 - Refreshing follows official LocalSend: one subnet refreshes directly, several subnets are offered in a list to scan one of them, while the refresh button spins and can be clicked again to cancel
 - Nearby-device list with manual IP entry, file/folder sending, text sending (shown as a message on the peer), clipboard sending, and transfer progress
 - Incoming requests can be accepted, declined, or accepted-and-trusted; trusted devices skip the prompt
-- Received text and images go to the clipboard and history, other files land in the configured download folder and can be opened or revealed
+- Received text and images go to the clipboard and history; received images are also saved to the configured download folder, where they can be opened or revealed
 - Sent text and images can be written to the local clipboard and history as well (Settings → Transfer), so what you send stays available on this device
 - Transfer records and received files are grouped in the Receive page history panel, where active transfers can be cancelled
 - Optional browser QR pages: share files to a phone (text shown inline) or receive uploads and typed text from a phone

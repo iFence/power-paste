@@ -387,7 +387,7 @@ fn clear_incoming(handle: &Arc<LanTransferHandle>, session_id: &str, drop_pendin
     }
 }
 
-// 处理单个文件的上传：文本包与图片进内存还原，其余直接写入保存目录。
+// 处理单个文件的上传：文本包进内存还原，其余文件（包括图片）先写入保存目录。
 fn handle_file_upload(
     app: &AppHandle,
     handle: &Arc<LanTransferHandle>,
@@ -417,8 +417,7 @@ fn handle_file_upload(
     let settings = shared.settings.lock().unwrap().clone();
     let is_text_file = is_text_package(&file_name);
     let is_image = file.file_type.starts_with("image/");
-    let in_memory = (is_text_file && file.size <= TEXT_RESTORE_MAX_BYTES as u64)
-        || (is_image && file.size as usize <= settings.max_image_bytes);
+    let in_memory = is_text_file && file.size <= TEXT_RESTORE_MAX_BYTES as u64;
 
     if in_memory {
         let (binary_tx, mut binary_rx) = mpsc::channel::<Bytes>(16);
@@ -429,7 +428,7 @@ fn handle_file_upload(
         let transfer_id_for_task = transfer_id.clone();
         // 记录历史时内部会再次获取 settings 锁（自动同步等），必须先取出快照再进入任务，
         // 否则在同一线程上重复加锁会自锁，进而冻结整个应用。
-        let settings_for_task = settings;
+        let settings_for_task = settings.clone();
         tokio::spawn(async move {
             let mut buffer: Vec<u8> = Vec::new();
             while let Some(chunk) = binary_rx.recv().await {
@@ -451,57 +450,20 @@ fn handle_file_upload(
                 return;
             }
 
-            // 文本包与图片都在内存里还原：文本折叠成消息，图片额外留一张缩略预览。
-            let text_payload =
-                is_text_file.then(|| String::from_utf8_lossy(&buffer).to_string());
-            let outcome = match &text_payload {
-                Some(text) => {
-                    record_text_in_clipboard(&app, &shared_for_task, &settings_for_task, text);
-                    Ok(())
-                }
-                None => record_image_in_clipboard(
-                    &app,
-                    &shared_for_task,
-                    &settings_for_task,
-                    &file.file_type,
-                    &buffer,
-                ),
-            };
-
-            match outcome {
-                Ok(()) => {
-                    match &text_payload {
-                        Some(text) => handle
-                            .inner
-                            .lock()
-                            .unwrap()
-                            .mark_transfer_as_text(&transfer_id_for_task, text),
-                        None => {
-                            let preview = util::image_preview_from_bytes(&buffer);
-                            handle
-                                .inner
-                                .lock()
-                                .unwrap()
-                                .set_transfer_preview(&transfer_id_for_task, preview);
-                        }
-                    }
-                    let _ = result_tx.send(Ok(()));
-                    handle.inner.lock().unwrap().finish_transfer(
-                        &transfer_id_for_task,
-                        "done",
-                        None,
-                    );
-                }
-                Err(error) => {
-                    let message = error.to_string();
-                    let _ = result_tx.send(Err(message.clone()));
-                    handle.inner.lock().unwrap().finish_transfer(
-                        &transfer_id_for_task,
-                        "failed",
-                        Some(message),
-                    );
-                }
-            }
+            // 文本包在内存里还原后折叠成消息，不创建接收文件。
+            let text = String::from_utf8_lossy(&buffer).to_string();
+            record_text_in_clipboard(&app, &shared_for_task, &settings_for_task, &text);
+            handle
+                .inner
+                .lock()
+                .unwrap()
+                .mark_transfer_as_text(&transfer_id_for_task, &text);
+            let _ = result_tx.send(Ok(()));
+            handle
+                .inner
+                .lock()
+                .unwrap()
+                .finish_transfer(&transfer_id_for_task, "done", None);
             emit_state_with(&app, &handle, &Arc::downgrade(&shared_for_task));
         });
 
@@ -554,8 +516,11 @@ fn handle_file_upload(
     let app = app.clone();
     let handle = handle.clone();
     let shared_for_task = shared.clone();
+    let settings_for_task = settings;
     let path_for_task = path.clone();
     let size = file.size;
+    let mime_type = file.file_type;
+    let max_image_bytes = settings_for_task.max_image_bytes;
     let stored_name = path
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
@@ -568,6 +533,24 @@ fn handle_file_upload(
             .unwrap_or_else(|_| Err("upload aborted".into()));
         match result {
             Ok(()) => {
+                // 原图已完整落盘。剪贴板与历史属于附加能力，转换失败只提示，不回滚传输。
+                if is_image && size <= max_image_bytes as u64 {
+                    let clipboard_result = match tokio::fs::read(&path_for_task).await {
+                        Ok(bytes) => record_image_in_clipboard(
+                            &app,
+                            &shared_for_task,
+                            &settings_for_task,
+                            &mime_type,
+                            &bytes,
+                        ),
+                        Err(error) => Err(error.into()),
+                    };
+                    if let Err(error) = clipboard_result {
+                        let mut inner = handle.inner.lock().unwrap();
+                        inner.warning = Some(error.to_string());
+                    }
+                }
+
                 // 落盘的图片额外生成一张缩略预览，会话里可以直接看到图片。
                 let preview = if is_image {
                     util::image_preview_from_path(&path_for_task)

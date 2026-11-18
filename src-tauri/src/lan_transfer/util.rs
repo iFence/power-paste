@@ -29,7 +29,8 @@ pub(crate) fn image_preview_from_path(path: &Path) -> Option<Vec<u8>> {
     encode_preview(image::open(path).ok()?)
 }
 
-// 与按路径生成预览一致，但源数据已在内存中（小图接收链路不会落盘）。
+// 测试用：验证内存中的图片也能走同一套缩放与 PNG 编码逻辑。
+#[cfg(test)]
 pub(crate) fn image_preview_from_bytes(bytes: &[u8]) -> Option<Vec<u8>> {
     if bytes.len() as u64 > PREVIEW_MAX_SOURCE_BYTES {
         return None;
@@ -227,10 +228,16 @@ pub(crate) fn infer_mime_type(path: &Path) -> String {
         .as_str()
     {
         "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
+        "jpg" | "jpeg" | "jfif" => "image/jpeg",
         "gif" => "image/gif",
         "bmp" => "image/bmp",
         "webp" => "image/webp",
+        "avif" => "image/avif",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "tif" | "tiff" => "image/tiff",
+        "svg" | "svgz" => "image/svg+xml",
+        "ico" => "image/x-icon",
         "txt" | "log" | "md" => "text/plain",
         "json" => "application/json",
         "pdf" => "application/pdf",
@@ -319,6 +326,10 @@ mod tests {
     #[test]
     fn infers_common_mime_types() {
         assert_eq!(infer_mime_type(Path::new("a/b/c.png")), "image/png");
+        assert_eq!(infer_mime_type(Path::new("photo.HEIC")), "image/heic");
+        assert_eq!(infer_mime_type(Path::new("photo.avif")), "image/avif");
+        assert_eq!(infer_mime_type(Path::new("scan.tiff")), "image/tiff");
+        assert_eq!(infer_mime_type(Path::new("diagram.svg")), "image/svg+xml");
         assert_eq!(infer_mime_type(Path::new("notes.txt")), "text/plain");
         assert_eq!(
             infer_mime_type(Path::new("data.bin")),
