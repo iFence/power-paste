@@ -6,6 +6,7 @@ import {
   getHistory,
   openExternalUrl as openExternalUrlRequest,
   pasteItem as pasteItemRequest,
+  restartAsAdmin as restartAsAdminRequest,
   toggleFavorite as toggleFavoriteRequest,
   togglePin as togglePinRequest,
   updateItemTags as updateItemTagsRequest,
@@ -20,14 +21,16 @@ import {
 
 const HISTORY_PAGE_SIZE = 30;
 
-function formatActionError(error, t) {
-  const message =
-    typeof error === "string"
-      ? error
-      : error && typeof error === "object" && typeof error.message === "string"
-        ? error.message
-        : "";
+function actionErrorMessage(error) {
+  return typeof error === "string"
+    ? error
+    : error && typeof error === "object" && typeof error.message === "string"
+      ? error.message
+      : "";
+}
 
+function formatActionError(error, t) {
+  const message = actionErrorMessage(error);
   if (message === "unsupported_clipboard_write") {
     return t("unsupportedClipboardWrite");
   }
@@ -48,6 +51,18 @@ function formatActionError(error, t) {
   }
   if (message === "paste_target_permission_denied") {
     return t("pasteTargetPermissionDenied");
+  }
+  if (message === "paste_target_elevation_required") {
+    return t("pasteTargetElevationRequired");
+  }
+  if (message === "paste_shortcut_failed") {
+    return t("pasteShortcutFailed");
+  }
+  if (message === "restart_as_admin_failed") {
+    return t("restartAsAdminFailed");
+  }
+  if (message === "unsupported_restart_as_admin") {
+    return t("unsupportedRestartAsAdmin");
   }
   if (message === "paste_portal_denied") {
     return t("pastePortalDenied");
@@ -118,7 +133,12 @@ function compareHistoryItems(left, right, statsMode = "") {
   return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
 }
 
-export function useHistory({ platformCapabilities, settings, t }) {
+export function useHistory({
+  platformCapabilities,
+  settings,
+  t,
+  onElevationRequired,
+}) {
   const history = ref([]);
   const loading = ref(true);
   const relativeTimeVersion = ref(0);
@@ -379,6 +399,19 @@ export function useHistory({ platformCapabilities, settings, t }) {
       await pasteItemRequest(id);
     } catch (error) {
       actionFeedback.value = formatActionError(error, t);
+      if (actionErrorMessage(error) === "paste_target_elevation_required") {
+        const shouldRestart = await onElevationRequired?.();
+        if (!shouldRestart) {
+          return;
+        }
+        actionFeedback.value = t("restartingAsAdmin");
+        try {
+          await restartAsAdminRequest();
+        } catch (restartError) {
+          actionFeedback.value = formatActionError(restartError, t);
+        }
+        return;
+      }
       throw error;
     }
   }

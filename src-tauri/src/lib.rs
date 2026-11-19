@@ -45,13 +45,12 @@ use commands::{
     get_lan_transfer_state, get_platform_capabilities, get_settings, get_shortcut_status,
     get_webdav_sync_state, inspect_lan_selection, list_installed_apps, list_lan_subnets,
     open_external_url, open_lan_received_file, paste_item, prepare_image_drag_file,
-    read_lan_clipboard, read_lan_transfer_preview, refresh_lan_devices,
-    remove_lan_trusted_device, reset_settings, resend_lan_transfer, respond_lan_request,
-    retry_shortcut_registration, reveal_lan_received_file,
-    save_main_panel_size, scan_lan_subnets, send_lan_files, send_lan_items, send_lan_text,
-    set_lan_web_mode, start_lan_transfer, stop_lan_transfer, sync_webdav_now, test_webdav_sync,
-    toggle_favorite, toggle_pin, update_item_tags, update_settings, update_text_item,
-    update_webdav_credential,
+    read_lan_clipboard, read_lan_transfer_preview, refresh_lan_devices, remove_lan_trusted_device,
+    resend_lan_transfer, reset_settings, respond_lan_request, restart_as_admin,
+    retry_shortcut_registration, reveal_lan_received_file, save_main_panel_size, scan_lan_subnets,
+    send_lan_files, send_lan_items, send_lan_text, set_lan_web_mode, start_lan_transfer,
+    stop_lan_transfer, sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin,
+    update_item_tags, update_settings, update_text_item, update_webdav_credential,
 };
 use history_preview::{handle_history_preview_request, HISTORY_PREVIEW_PROTOCOL};
 use models::{
@@ -341,6 +340,7 @@ pub fn run() {
             clear_history,
             copy_item,
             paste_item,
+            restart_as_admin,
             prepare_image_drag_file,
             open_external_url,
             start_lan_transfer,

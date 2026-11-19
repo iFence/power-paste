@@ -45,6 +45,7 @@ const historyState = useHistory({
     platformCapabilities: settingsState.platformCapabilities,
     settings: settingsState.settings,
     t: settingsState.t,
+    onElevationRequired: requestElevationRestart,
 });
 // 互传页与设置页都按需加载；加载函数单独保留，便于启动后预取代码。
 const loadLanTransferView = () => import("./views/LanTransferView.vue");
@@ -133,6 +134,7 @@ const confirmDialogState = ref({
     cancelLabel: "",
     confirmLabel: "",
     message: "",
+    onCancel: null,
     onConfirm: null,
     show: false,
     title: "",
@@ -529,21 +531,31 @@ async function removeLanTrustedDevice(fingerprint) {
     await settingsState.refreshSettings();
 }
 
-function closeConfirmDialog() {
+function resetConfirmDialog() {
     confirmDialogState.value = {
         cancelLabel: "",
         confirmLabel: "",
         message: "",
+        onCancel: null,
         onConfirm: null,
         show: false,
         title: "",
     };
 }
 
+async function closeConfirmDialog() {
+    const action = confirmDialogState.value.onCancel;
+    resetConfirmDialog();
+    if (typeof action === "function") {
+        await action();
+    }
+}
+
 function openConfirmDialog({
     cancelLabel,
     confirmLabel,
     message,
+    onCancel = null,
     onConfirm,
     title,
 }) {
@@ -551,6 +563,7 @@ function openConfirmDialog({
         cancelLabel,
         confirmLabel,
         message,
+        onCancel,
         onConfirm,
         show: true,
         title,
@@ -559,10 +572,23 @@ function openConfirmDialog({
 
 async function confirmDialogAction() {
     const action = confirmDialogState.value.onConfirm;
-    closeConfirmDialog();
+    resetConfirmDialog();
     if (typeof action === "function") {
         await action();
     }
+}
+
+function requestElevationRestart() {
+    return new Promise((resolve) => {
+        openConfirmDialog({
+            cancelLabel: settingsState.t("copyOnlyAction"),
+            confirmLabel: settingsState.t("restartAsAdmin"),
+            message: settingsState.t("pasteTargetElevationRestartPrompt"),
+            onCancel: () => resolve(false),
+            onConfirm: () => resolve(true),
+            title: settingsState.t("administratorRequired"),
+        });
+    });
 }
 
 function openClearHistoryConfirm() {

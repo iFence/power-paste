@@ -249,13 +249,23 @@ pub(crate) fn execute_paste_item(
     }
 
     let item = load_item_by_id(&state, &id)?;
+    let target = DefaultTargetTracker.resolve(&state);
+    crate::capture::mark_clipboard_suppressed(&state, item.hash.clone());
+
+    // Windows 的 UIPI 会阻止普通权限进程向管理员窗口注入键盘输入。
+    // 此时保留面板并把内容复制好，让用户按一次 Ctrl+V，避免自动粘贴静默失效。
+    #[cfg(windows)]
+    if crate::paste_target::target_requires_elevation(&state) {
+        DefaultClipboardWriter
+            .write_item(&app, &item, &target)
+            .map_err(AppError::from)?;
+        return Err(AppError::Message("paste_target_elevation_required".into()));
+    }
 
     if let Some(window) = app.get_webview_window(PANEL_LABEL) {
         let _ = window.hide();
     }
 
-    let target = DefaultTargetTracker.resolve(&state);
-    crate::capture::mark_clipboard_suppressed(&state, item.hash.clone());
     paste.prepare_target(&state).map_err(AppError::from)?;
     paste
         .dispatch_paste(&app, &state, &item, &target)

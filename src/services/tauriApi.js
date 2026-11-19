@@ -166,6 +166,10 @@ export function pasteItem(id) {
   return invoke("paste_item", { id });
 }
 
+export function restartAsAdmin() {
+  return invoke("restart_as_admin");
+}
+
 export function prepareImageDragFile(id) {
   return invoke("prepare_image_drag_file", { id });
 }

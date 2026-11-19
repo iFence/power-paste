@@ -72,6 +72,15 @@ export const messages = {
     deleteItem: "删除条目",
     saveChanges: "保存更改",
     launchOnStartup: "开机启动",
+    administratorMode: "管理员模式",
+    restartAsAdmin: "以管理员身份重启",
+    restartAsAdminTip:
+      "向管理员终端或管理员应用自动粘贴时，Power Paste 需要相同权限。重启会显示一次 UAC 确认，之后可自动粘贴。",
+    restartAsAdminFailed: "未能以管理员身份重启，可能是取消了 UAC 授权。",
+    unsupportedRestartAsAdmin: "当前平台不支持以管理员身份重启。",
+    restartingAsAdmin: "正在以管理员身份重启…",
+    administratorRequired: "需要管理员权限",
+    copyOnlyAction: "仅复制",
     pollingInterval: "轮询间隔 (ms)",
     maxHistoryItems: "最大历史数量",
     maxHistoryDays: "最大保留天数",
@@ -221,6 +230,17 @@ export const messages = {
     toggleOn: "On",
     toggleOff: "Off",
     launchOnStartup: "Launch on startup",
+    administratorMode: "Administrator mode",
+    restartAsAdmin: "Restart as administrator",
+    restartAsAdminTip:
+      "Automatic paste into administrator terminals or apps requires matching privileges. Restarting asks for UAC approval once; later pastes can run automatically.",
+    restartAsAdminFailed:
+      "Power Paste could not restart as administrator. The UAC prompt may have been cancelled.",
+    unsupportedRestartAsAdmin:
+      "Restarting as administrator is not supported on this platform.",
+    restartingAsAdmin: "Restarting as administrator…",
+    administratorRequired: "Administrator required",
+    copyOnlyAction: "Copy only",
     pollingInterval: "Polling interval (ms)",
     maxHistoryItems: "Max history items",
     maxHistoryDays: "Max retention days",
@@ -416,6 +436,12 @@ Object.assign(messages["zh-CN"], {
     "未能恢复目标窗口焦点，已取消本次粘贴",
   pasteTargetPermissionDenied:
     "系统未授予 Power Paste 辅助功能或自动化权限，请在“系统设置 > 隐私与安全性 > 辅助功能 / 自动化”中允许后重试",
+  pasteTargetElevationRequired:
+    "目标窗口以管理员权限运行，系统会阻止 Power Paste 自动粘贴。内容已复制到剪贴板，请切回目标窗口按 Ctrl+V；如需直接粘贴，请以管理员身份启动 Power Paste。",
+  pasteTargetElevationRestartPrompt:
+    "目标窗口以管理员权限运行。内容已经复制，你也可以立即以管理员身份重启 Power Paste，重启后再次粘贴即可自动完成。是否现在重启？",
+  pasteShortcutFailed:
+    "未能发送粘贴快捷键，内容已复制到剪贴板，请手动按 Ctrl+V 重试",
   pastePortalDenied:
     "桌面没有允许远程输入，自动粘贴被系统拒绝。请在系统授权窗口里打开「Allow Remote Interaction」再确认，或改为复制到剪贴板后手动粘贴。",
   pastePortalUnavailable:
@@ -654,6 +680,12 @@ Object.assign(messages["en-US"], {
     "The target window could not be focused. Paste was cancelled.",
   pasteTargetPermissionDenied:
     "Power Paste does not have the required Accessibility or Automation permission. Allow it in System Settings > Privacy & Security > Accessibility / Automation and try again.",
+  pasteTargetElevationRequired:
+    "The target window is running as administrator, so Windows blocks automatic paste from Power Paste. The item is already copied; switch back and press Ctrl+V. To paste directly, start Power Paste as administrator.",
+  pasteTargetElevationRestartPrompt:
+    "The target window is running as administrator. The item is already copied, or you can restart Power Paste as administrator now and paste again to complete it automatically. Restart now?",
+  pasteShortcutFailed:
+    "The paste shortcut could not be sent. The item has been copied; press Ctrl+V manually to retry.",
   pastePortalDenied:
     "The desktop did not allow remote input, so the paste shortcut was rejected. Turn on “Allow Remote Interaction” in the system dialog and confirm, or copy to the clipboard and paste manually.",
   pastePortalUnavailable:

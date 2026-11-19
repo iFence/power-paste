@@ -3373,6 +3373,20 @@ select {
     grid-template-columns: minmax(148px, 0.9fr) minmax(240px, 1.3fr);
 }
 
+.privilege-setting-card .setting-note,
+.privilege-setting-card .setting-error {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin: 0;
+}
+
+.setting-error {
+  color: #d76f67;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .setting-card > :nth-child(2) {
     justify-self: end;
 }

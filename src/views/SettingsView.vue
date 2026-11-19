@@ -4,7 +4,12 @@ import { useRoute } from 'vue-router'
 import { open } from '@tauri-apps/plugin-dialog'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { getInstalledAppIcon, listInstalledApps, openExternalUrl } from '../services/tauriApi'
+import {
+  getInstalledAppIcon,
+  listInstalledApps,
+  openExternalUrl,
+  restartAsAdmin,
+} from '../services/tauriApi'
 import { normalizeShortcutKey, shortcutIssueMessage } from '../utils/shortcut'
 import { HISTORY_TAG_COLORS, resolveTagLabel } from '../utils/constants'
 import checkIcon from '../assets/check.svg'
@@ -95,12 +100,29 @@ const appPickerLoading = ref(false)
 const appPickerError = ref('')
 const appSearchQuery = ref('')
 const installedApps = ref([])
+const restartingAsAdmin = ref(false)
+const adminRestartError = ref('')
 let updateFeedbackTimer = null
 let appIconHydrationRun = 0
 const appIconLoadingKeys = new Set()
 const appIconResolvedKeys = new Set()
 const APP_ICON_HYDRATION_BATCH_SIZE = 16
 const APP_ICON_HYDRATION_CONCURRENCY = 3
+
+async function requestAdminRestart() {
+  if (restartingAsAdmin.value) {
+    return
+  }
+  restartingAsAdmin.value = true
+  adminRestartError.value = ''
+  try {
+    await restartAsAdmin()
+  } catch {
+    adminRestartError.value = props.t('restartAsAdminFailed')
+  } finally {
+    restartingAsAdmin.value = false
+  }
+}
 
 const categories = computed(() => [
   { key: 'general', label: props.t('settingsCategoryGeneral') },
@@ -1152,6 +1174,27 @@ watch(
                 {{ t('toggleOff') }}
               </button>
             </div>
+          </section>
+
+          <section
+            v-if="platformCapabilities.platform === 'windows'"
+            class="setting-card wide privilege-setting-card"
+          >
+            <div class="setting-head">
+              <span class="meta-label">{{ t('administratorMode') }}</span>
+            </div>
+            <button
+              class="primary compact"
+              type="button"
+              :disabled="restartingAsAdmin"
+              @click="requestAdminRestart"
+            >
+              {{ restartingAsAdmin ? t('restartingAsAdmin') : t('restartAsAdmin') }}
+            </button>
+            <p class="setting-note">{{ t('restartAsAdminTip') }}</p>
+            <p v-if="adminRestartError" class="setting-error">
+              {{ adminRestartError }}
+            </p>
           </section>
 
           <section class="setting-card wide">

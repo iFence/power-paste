@@ -34,15 +34,19 @@ use std::mem;
 use std::path::PathBuf;
 #[cfg(windows)]
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, HWND},
+    Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED, HANDLE, HWND},
+    Security::{
+        GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TokenIntegrityLevel,
+        TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+    },
     System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
-        PROCESS_QUERY_LIMITED_INFORMATION,
+        GetCurrentProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
+        PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
     },
     UI::{
         Input::KeyboardAndMouse::{
             SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL,
-            VK_V,
+            VK_SHIFT, VK_V,
         },
         WindowsAndMessaging::{
             GetWindowThreadProcessId, IsIconic, SetForegroundWindow, ShowWindow,
@@ -63,6 +67,13 @@ pub(crate) enum TargetProfile {
     Chat,
 }
 
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativePasteShortcut {
+    CtrlV,
+    CtrlShiftV,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ResolvedPasteTarget {
     pub(crate) profile: TargetProfile,
@@ -77,14 +88,120 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
-fn process_name_for_window(hwnd: HwndRaw) -> Option<String> {
+fn process_id_for_window(hwnd: HwndRaw) -> Option<u32> {
     let mut process_id = 0u32;
     unsafe {
         GetWindowThreadProcessId(hwnd as HWND, &mut process_id);
     }
-    if process_id == 0 {
+    (process_id != 0).then_some(process_id)
+}
+
+#[cfg(windows)]
+fn token_integrity_level(token: HANDLE) -> Option<u32> {
+    let mut required_size = 0u32;
+    unsafe {
+        GetTokenInformation(
+            token,
+            TokenIntegrityLevel,
+            std::ptr::null_mut(),
+            0,
+            &mut required_size,
+        );
+    }
+    if required_size == 0 {
         return None;
     }
+
+    // 使用 usize 缓冲区保证 TOKEN_MANDATORY_LABEL 所需的对齐。
+    let word_size = std::mem::size_of::<usize>();
+    let word_count = (required_size as usize).div_ceil(word_size);
+    let mut buffer = vec![0usize; word_count];
+    let ok = unsafe {
+        GetTokenInformation(
+            token,
+            TokenIntegrityLevel,
+            buffer.as_mut_ptr().cast(),
+            required_size,
+            &mut required_size,
+        )
+    };
+    if ok == 0 {
+        return None;
+    }
+
+    // TokenIntegrityLevel 返回的 SID 最后一个子权限就是完整性级别。
+    let label = unsafe { &*buffer.as_ptr().cast::<TOKEN_MANDATORY_LABEL>() };
+    if label.Label.Sid.is_null() {
+        return None;
+    }
+    let count = unsafe { GetSidSubAuthorityCount(label.Label.Sid) };
+    if count.is_null() {
+        return None;
+    }
+    let count = unsafe { *count };
+    if count == 0 {
+        return None;
+    }
+    let sub_authority = unsafe { GetSidSubAuthority(label.Label.Sid, u32::from(count - 1)) };
+    if sub_authority.is_null() {
+        return None;
+    }
+    Some(unsafe { *sub_authority })
+}
+
+#[cfg(windows)]
+fn process_integrity_level(process: HANDLE) -> Option<u32> {
+    let mut token = std::ptr::null_mut();
+    if unsafe { OpenProcessToken(process, TOKEN_QUERY, &mut token) } == 0 {
+        return None;
+    }
+    let level = token_integrity_level(token);
+    unsafe {
+        CloseHandle(token);
+    }
+    level
+}
+
+#[cfg(windows)]
+fn integrity_level_is_higher(target_level: u32, current_level: u32) -> bool {
+    target_level > current_level
+}
+
+#[cfg(windows)]
+pub(crate) fn target_requires_elevation(state: &Arc<SharedState>) -> bool {
+    let target = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_window
+    };
+    let Some(target) = target else {
+        return false;
+    };
+    let Some(process_id) = process_id_for_window(target) else {
+        return false;
+    };
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
+    if process.is_null() {
+        return false;
+    }
+    let target_level = process_integrity_level(process);
+    unsafe {
+        CloseHandle(process);
+    }
+    let current_level = process_integrity_level(unsafe { GetCurrentProcess() });
+    let (Some(target_level), Some(current_level)) = (target_level, current_level) else {
+        return false;
+    };
+    integrity_level_is_higher(target_level, current_level)
+}
+
+#[cfg(not(windows))]
+pub(crate) fn target_requires_elevation(_state: &Arc<SharedState>) -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn process_name_for_window(hwnd: HwndRaw) -> Option<String> {
+    let process_id = process_id_for_window(hwnd)?;
 
     let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
     if process.is_null() {
@@ -132,6 +249,28 @@ fn target_profile_for_process_name(process_name: Option<&str>) -> TargetProfile 
         TargetProfile::Chat
     } else {
         TargetProfile::Generic
+    }
+}
+
+#[cfg(windows)]
+fn native_paste_shortcut_for_process_name(process_name: Option<&str>) -> NativePasteShortcut {
+    let Some(process_name) = process_name else {
+        return NativePasteShortcut::CtrlV;
+    };
+    if [
+        "windowsterminal",
+        "conhost",
+        "openconsole",
+        "cmd",
+        "powershell",
+        "pwsh",
+    ]
+    .iter()
+    .any(|name| process_name.contains(name))
+    {
+        NativePasteShortcut::CtrlShiftV
+    } else {
+        NativePasteShortcut::CtrlV
     }
 }
 
@@ -749,26 +888,49 @@ pub(crate) fn wait_for_paste_target_focus(state: &Arc<SharedState>) {
 }
 
 #[cfg(windows)]
-pub(crate) fn send_native_paste_shortcut(
-    _app: &AppHandle,
-    _state: &Arc<SharedState>,
-) -> Result<()> {
-    let mut inputs = [
-        keyboard_input(VK_CONTROL as u16, 0),
-        keyboard_input(VK_V as u16, 0),
-        keyboard_input(VK_V as u16, KEYEVENTF_KEYUP),
-        keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
-    ];
+pub(crate) fn send_native_paste_shortcut(_app: &AppHandle, state: &Arc<SharedState>) -> Result<()> {
+    if target_requires_elevation(state) {
+        anyhow::bail!("paste_target_elevation_required");
+    }
 
-    unsafe {
-        let _ = SendInput(
+    let target = {
+        let monitor = state.monitor.lock().unwrap();
+        monitor.last_target_window
+    };
+    let shortcut =
+        native_paste_shortcut_for_process_name(target.and_then(process_name_for_window).as_deref());
+    let mut inputs = match shortcut {
+        NativePasteShortcut::CtrlV => vec![
+            keyboard_input(VK_CONTROL as u16, 0),
+            keyboard_input(VK_V as u16, 0),
+            keyboard_input(VK_V as u16, KEYEVENTF_KEYUP),
+            keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
+        ],
+        NativePasteShortcut::CtrlShiftV => vec![
+            keyboard_input(VK_CONTROL as u16, 0),
+            keyboard_input(VK_SHIFT as u16, 0),
+            keyboard_input(VK_V as u16, 0),
+            keyboard_input(VK_V as u16, KEYEVENTF_KEYUP),
+            keyboard_input(VK_SHIFT as u16, KEYEVENTF_KEYUP),
+            keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
+        ],
+    };
+
+    let inserted = unsafe {
+        SendInput(
             inputs.len() as u32,
             inputs.as_mut_ptr(),
             mem::size_of::<INPUT>() as i32,
-        );
+        )
+    };
+    if inserted == inputs.len() as u32 {
+        return Ok(());
     }
 
-    Ok(())
+    if unsafe { GetLastError() } == ERROR_ACCESS_DENIED {
+        anyhow::bail!("paste_target_elevation_required");
+    }
+    anyhow::bail!("paste_shortcut_failed")
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
@@ -1121,4 +1283,34 @@ pub(crate) fn paste_item_to_target(
     }
     send_native_paste_shortcut(app, state)?;
     Ok(true)
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::{
+        integrity_level_is_higher, native_paste_shortcut_for_process_name, NativePasteShortcut,
+    };
+
+    #[test]
+    fn higher_target_integrity_requires_elevation() {
+        assert!(integrity_level_is_higher(0x3000, 0x2000));
+        assert!(!integrity_level_is_higher(0x2000, 0x2000));
+        assert!(!integrity_level_is_higher(0x1000, 0x2000));
+    }
+
+    #[test]
+    fn terminal_targets_use_ctrl_shift_v() {
+        assert_eq!(
+            native_paste_shortcut_for_process_name(Some("windowsterminal")),
+            NativePasteShortcut::CtrlShiftV
+        );
+        assert_eq!(
+            native_paste_shortcut_for_process_name(Some("conhost")),
+            NativePasteShortcut::CtrlShiftV
+        );
+        assert_eq!(
+            native_paste_shortcut_for_process_name(Some("notepad")),
+            NativePasteShortcut::CtrlV
+        );
+    }
 }
