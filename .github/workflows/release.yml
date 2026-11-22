@@ -96,7 +96,10 @@ jobs:
 
       - name: Upload Windows portable zip
         if: matrix.platform == 'windows-latest'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: src-tauri/target/release/Power-Paste_${{ github.ref_name }}_windows-portable.zip
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zipPath = "src-tauri/target/release/Power-Paste_${tag}_windows-portable.zip"
+          gh release upload "$tag" "$zipPath" --clobber
