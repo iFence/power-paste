@@ -9,7 +9,10 @@
 //! as long as the application is busy.
 
 use localsend::crypto::cert::generate_self_signed;
-use localsend::discovery::{self, DeviceIdentity, DiscoveryConfig, DiscoveryEvent};
+use localsend::discovery::{
+    self, DeviceChannel, DeviceIdentity, DiscoveredDevice, DiscoveryConfig, DiscoveryEvent,
+    HttpChannel,
+};
 use localsend::http::client::LsHttpClientV2;
 use localsend::http::dto_v2::RegisterDtoV2;
 use localsend::http::server::v2::ServerEventV2;
@@ -38,6 +41,23 @@ fn register_dto(port: u16) -> RegisterDtoV2 {
         fingerprint: "probe-fingerprint".to_string(),
         port,
         protocol: ProtocolType::Http,
+        download: false,
+    }
+}
+
+/// 创建一个只写入发现存储、不会实际连接的设备，用于预先填满事件通道。
+fn queued_device(index: usize, port: u16) -> DiscoveredDevice {
+    DiscoveredDevice {
+        alias: format!("Queued {index}"),
+        version: PROTOCOL_VERSION_V2.to_string(),
+        device_model: None,
+        device_type: Some(DeviceType::Headless),
+        fingerprint: format!("queued-fingerprint-{index}"),
+        channel: DeviceChannel::Http(HttpChannel {
+            host: format!("198.51.100.{}", index + 1),
+            port,
+            protocol: ProtocolType::Http,
+        }),
         download: false,
     }
 }
@@ -100,12 +120,9 @@ async fn register_keeps_answering_when_events_are_not_consumed() {
     }
 }
 
-/// A scan that confirms more devices than the event channel holds must still
-/// finish and return them, even though the application reads no event.
+/// 事件通道已满时，扫描仍应完成，并把确认结果写入发现存储。
 #[tokio::test(flavor = "multi_thread")]
 async fn subnet_scan_finishes_when_events_are_not_consumed() {
-    // Every 127.0.0.x address reaches this server, so the scan confirms the
-    // whole subnet at once.
     let (port, _stop_tx, _server_event_rx) = start_server_with_stalled_events().await;
 
     let cert = generate_self_signed().expect("Failed to generate an identity");
@@ -139,6 +156,11 @@ async fn subnet_scan_finishes_when_events_are_not_consumed() {
     )
     .await;
 
+    // 先填满通道，确保后续扫描中的事件发送无法依赖剩余容量。
+    for index in 0..CHANNEL_CAPACITY {
+        assert!(handle.add_device(queued_device(index, port)).await);
+    }
+
     let found = tokio::time::timeout(
         Duration::from_secs(30),
         handle.scan_subnet(Ipv4Addr::new(127, 0, 0, 99), port, ProtocolType::Http),
@@ -148,8 +170,14 @@ async fn subnet_scan_finishes_when_events_are_not_consumed() {
     .expect("Subnet scan failed");
 
     assert!(
-        found.len() > CHANNEL_CAPACITY,
-        "the scan must return every confirmed device, got {} for a channel of {CHANNEL_CAPACITY}",
-        found.len()
+        found
+            .iter()
+            .any(|device| device.device.fingerprint == "target-fingerprint"),
+        "the scan must return the server it confirmed"
+    );
+    assert_eq!(
+        handle.devices().len(),
+        CHANNEL_CAPACITY + 1,
+        "dropping events must not drop confirmed devices"
     );
 }

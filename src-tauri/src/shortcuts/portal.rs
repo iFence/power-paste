@@ -765,6 +765,7 @@ fn pending_status(issues: Vec<ShortcutIssueDto>) -> ShortcutStatusDto {
     ShortcutStatusDto {
         global_shortcut_registered: false,
         quick_paste_shortcut_registered: false,
+        lan_transfer_shortcut_registered: false,
         issues,
     }
 }
