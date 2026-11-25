@@ -266,11 +266,14 @@ pub(crate) fn execute_paste_item(
         let _ = window.hide();
     }
 
-    paste.prepare_target(&state).map_err(AppError::from)?;
-    paste
-        .dispatch_paste(&app, &state, &item, &target)
-        .map(|_| ())
-        .map_err(AppError::from)?;
+    if let Err(error) = paste.prepare_target(&state) {
+        restore_panel_after_paste_failure(&app);
+        return Err(AppError::from(error));
+    }
+    if let Err(error) = paste.dispatch_paste(&app, &state, &item, &target) {
+        restore_panel_after_paste_failure(&app);
+        return Err(AppError::from(error));
+    }
     if state.settings.lock().unwrap().paste_stats_enabled {
         let updated_item = state
             .history_store
@@ -281,4 +284,14 @@ pub(crate) fn execute_paste_item(
         let _ = app.emit(crate::models::HISTORY_UPDATED_EVENT, updated_item);
     }
     Ok(())
+}
+
+// 自动粘贴失败时重新显示面板，让前端能够展示错误，避免窗口只闪一下就消失。
+fn restore_panel_after_paste_failure(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(PANEL_LABEL) else {
+        return;
+    };
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
 }

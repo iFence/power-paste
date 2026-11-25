@@ -51,6 +51,7 @@ use commands::{
     send_lan_files, send_lan_items, send_lan_text, set_lan_web_mode, start_lan_transfer,
     stop_lan_transfer, sync_webdav_now, test_webdav_sync, toggle_favorite, toggle_pin,
     update_item_tags, update_settings, update_text_item, update_webdav_credential,
+    wait_for_restart_parent,
 };
 use history_preview::{handle_history_preview_request, HISTORY_PREVIEW_PROTOCOL};
 use models::{
@@ -179,6 +180,7 @@ fn create_main_window(
 
 // The crate root only assembles modules, shared state and Tauri plugins.
 pub fn run() {
+    wait_for_restart_parent();
     tauri::Builder::default()
         .register_uri_scheme_protocol(HISTORY_PREVIEW_PROTOCOL, handle_history_preview_request)
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
@@ -288,6 +290,7 @@ pub fn run() {
             }
 
             configure_window(app.handle(), shared.clone())?;
+            paste_target::start_target_window_tracking();
             let locale = settings.lock().unwrap().locale.clone();
             runtime::build_tray(app.handle(), &locale)?;
 

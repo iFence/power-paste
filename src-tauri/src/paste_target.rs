@@ -4,12 +4,12 @@ use anyhow::Result;
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "linux")]
-use tauri::Emitter;
-#[cfg(target_os = "linux")]
 use crate::clipboard::{
     linux_direct_paste_backend, linux_wayland_tooling_available, linux_x11_tooling_available,
 };
 use crate::models::{SharedState, StoredClipboardItem};
+#[cfg(target_os = "linux")]
+use tauri::Emitter;
 
 #[cfg(target_os = "macos")]
 use crate::clipboard::wait_for_clipboard_payload;
@@ -33,6 +33,8 @@ use std::mem;
 #[cfg(windows)]
 use std::path::PathBuf;
 #[cfg(windows)]
+use std::sync::atomic::{AtomicIsize, Ordering};
+#[cfg(windows)]
 use windows_sys::Win32::{
     Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED, HANDLE, HWND},
     Security::{
@@ -40,16 +42,19 @@ use windows_sys::Win32::{
         TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
     },
     System::Threading::{
-        GetCurrentProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
-        PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+        AttachThreadInput, GetCurrentProcess, GetCurrentProcessId, OpenProcess, OpenProcessToken,
+        QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
     },
     UI::{
+        Accessibility::{SetWinEventHook, HWINEVENTHOOK},
         Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL,
-            VK_SHIFT, VK_V,
+            MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
+            KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC, VK_CONTROL, VK_SHIFT, VK_V,
         },
         WindowsAndMessaging::{
-            GetWindowThreadProcessId, IsIconic, SetForegroundWindow, ShowWindow,
+            BringWindowToTop, DispatchMessageW, GetClassNameW, GetMessageW,
+            GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow,
+            TranslateMessage, EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT,
         },
     },
 };
@@ -86,6 +91,9 @@ unsafe extern "system" {
     fn GetForegroundWindow() -> HwndRaw;
     fn IsWindow(hwnd: HwndRaw) -> i32;
 }
+
+#[cfg(windows)]
+static TRACKED_TARGET_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
 #[cfg(windows)]
 fn process_id_for_window(hwnd: HwndRaw) -> Option<u32> {
@@ -233,6 +241,13 @@ fn process_name_for_window(hwnd: HwndRaw) -> Option<String> {
 }
 
 #[cfg(windows)]
+fn window_class_name(hwnd: HwndRaw) -> Option<String> {
+    let mut buffer = [0u16; 256];
+    let length = unsafe { GetClassNameW(hwnd as HWND, buffer.as_mut_ptr(), buffer.len() as i32) };
+    (length > 0).then(|| String::from_utf16_lossy(&buffer[..length as usize]))
+}
+
+#[cfg(windows)]
 // Different targets expect different clipboard payload shapes, especially Office/Markdown/chat apps.
 fn target_profile_for_process_name(process_name: Option<&str>) -> TargetProfile {
     let Some(process_name) = process_name else {
@@ -253,26 +268,116 @@ fn target_profile_for_process_name(process_name: Option<&str>) -> TargetProfile 
 }
 
 #[cfg(windows)]
-fn native_paste_shortcut_for_process_name(process_name: Option<&str>) -> NativePasteShortcut {
-    let Some(process_name) = process_name else {
-        return NativePasteShortcut::CtrlV;
-    };
-    if [
-        "windowsterminal",
-        "conhost",
-        "openconsole",
-        "cmd",
-        "powershell",
-        "pwsh",
-    ]
-    .iter()
-    .any(|name| process_name.contains(name))
-    {
+fn native_paste_shortcut_for_target(
+    process_name: Option<&str>,
+    class_name: Option<&str>,
+) -> NativePasteShortcut {
+    let terminal_process = process_name.map(str::to_lowercase).is_some_and(|name| {
+        [
+            "windowsterminal",
+            "conhost",
+            "openconsole",
+            "cmd",
+            "powershell",
+            "pwsh",
+        ]
+        .iter()
+        .any(|candidate| name.contains(candidate))
+    });
+    let terminal_window = class_name.is_some_and(|name| {
+        name.eq_ignore_ascii_case("ConsoleWindowClass")
+            || name.eq_ignore_ascii_case("CASCADIA_HOSTING_WINDOW_CLASS")
+    });
+    if terminal_process || terminal_window {
         NativePasteShortcut::CtrlShiftV
     } else {
         NativePasteShortcut::CtrlV
     }
 }
+
+#[cfg(windows)]
+fn native_paste_shortcut_for_window(hwnd: HwndRaw) -> NativePasteShortcut {
+    native_paste_shortcut_for_target(
+        process_name_for_window(hwnd).as_deref(),
+        window_class_name(hwnd).as_deref(),
+    )
+}
+
+#[cfg(windows)]
+fn is_user_paste_target(hwnd: HwndRaw) -> bool {
+    if hwnd == 0 || unsafe { IsWindow(hwnd) == 0 } {
+        return false;
+    }
+    if unsafe { IsIconic(hwnd as HWND) == 0 && IsWindowVisible(hwnd as HWND) == 0 } {
+        return false;
+    }
+    let mut process_id = 0u32;
+    unsafe {
+        GetWindowThreadProcessId(hwnd as HWND, &mut process_id);
+    }
+    if process_id == unsafe { GetCurrentProcessId() } {
+        return false;
+    }
+    !matches!(
+        window_class_name(hwnd).as_deref(),
+        Some(
+            "Shell_TrayWnd"
+                | "Shell_SecondaryTrayWnd"
+                | "TrayNotifyWnd"
+                | "NotifyIconOverflowWindow"
+                | "ReBarWindow32"
+                | "MSTaskSwWClass"
+                | "TaskSwitcherWnd"
+                | "MultitaskingViewFrame"
+        )
+    )
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn remember_tracked_target_window(
+    _hook: HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    _id_object: i32,
+    _id_child: i32,
+    _event_thread: u32,
+    _event_time: u32,
+) {
+    if event == EVENT_SYSTEM_FOREGROUND && is_user_paste_target(hwnd as HwndRaw) {
+        TRACKED_TARGET_WINDOW.store(hwnd as HwndRaw, Ordering::Relaxed);
+    }
+}
+
+// 持续记录最后一个普通应用窗口，避免从托盘或任务栏打开面板时丢失管理员终端目标。
+#[cfg(windows)]
+pub(crate) fn start_target_window_tracking() {
+    thread::Builder::new()
+        .name("power-paste-target-tracking".into())
+        .spawn(|| unsafe {
+            let hook = SetWinEventHook(
+                EVENT_SYSTEM_FOREGROUND,
+                EVENT_SYSTEM_FOREGROUND,
+                std::ptr::null_mut(),
+                Some(remember_tracked_target_window),
+                0,
+                0,
+                WINEVENT_OUTOFCONTEXT,
+            );
+            if hook.is_null() {
+                return;
+            }
+
+            let mut message = std::mem::zeroed::<MSG>();
+            while GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+            }
+        })
+        .ok();
+}
+
+#[cfg(not(windows))]
+pub(crate) fn start_target_window_tracking() {}
 
 #[cfg(windows)]
 fn last_target_profile(state: &Arc<SharedState>) -> TargetProfile {
@@ -472,28 +577,30 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
         return;
     };
     let panel_hwnd = panel_hwnd.0 as HwndRaw;
-    let Some(foreground) = current_foreground_window() else {
-        debug_log_target_event(shared.inner(), "remember-skip", None, None, "no-foreground");
-        return;
-    };
-    if foreground == panel_hwnd {
+    let foreground = current_foreground_window();
+    let tracked = TRACKED_TARGET_WINDOW.load(Ordering::Relaxed);
+    let target = foreground
+        .filter(|hwnd| *hwnd != panel_hwnd && is_user_paste_target(*hwnd))
+        .or_else(|| is_user_paste_target(tracked).then_some(tracked));
+
+    let Some(target) = target else {
         debug_log_target_event(
             shared.inner(),
             "remember-skip",
-            Some(panel_hwnd),
-            Some(foreground),
-            "panel-foreground",
+            None,
+            foreground,
+            "no-valid-target",
         );
         return;
-    }
+    };
 
     let mut monitor = shared.inner().monitor.lock().unwrap();
-    monitor.last_target_window = Some(foreground);
+    monitor.last_target_window = Some(target);
     debug_log_target_event(
         shared.inner(),
         "remember-target",
-        Some(foreground),
-        Some(foreground),
+        Some(target),
+        foreground,
         "target-updated",
     );
 }
@@ -600,7 +707,21 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
         if IsIconic(hwnd as HWND) != 0 {
             ShowWindow(hwnd as HWND, SW_RESTORE);
         }
+
+        let foreground = GetForegroundWindow();
+        let foreground_thread = GetWindowThreadProcessId(foreground as HWND, std::ptr::null_mut());
+        let target_thread = GetWindowThreadProcessId(hwnd as HWND, std::ptr::null_mut());
+        let attached = foreground_thread != 0
+            && target_thread != 0
+            && foreground_thread != target_thread
+            && AttachThreadInput(foreground_thread, target_thread, 1) != 0;
+
         SetForegroundWindow(hwnd as HWND);
+        BringWindowToTop(hwnd as HWND);
+
+        if attached {
+            AttachThreadInput(foreground_thread, target_thread, 0);
+        }
     }
     for _ in 0..FOCUS_RETRY_COUNT {
         if current_foreground_window() == Some(hwnd) {
@@ -897,40 +1018,47 @@ pub(crate) fn send_native_paste_shortcut(_app: &AppHandle, state: &Arc<SharedSta
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_window
     };
-    let shortcut =
-        native_paste_shortcut_for_process_name(target.and_then(process_name_for_window).as_deref());
-    let mut inputs = match shortcut {
+    let shortcut = target
+        .map(native_paste_shortcut_for_window)
+        .unwrap_or(native_paste_shortcut_for_target(None, None));
+
+    // 先释放可能仍被按住的修饰键，避免快速粘贴组合键被目标窗口识别错。
+    send_windows_inputs(&mut [
+        keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
+        keyboard_input(VK_SHIFT as u16, KEYEVENTF_KEYUP),
+    ])?;
+    thread::sleep(Duration::from_millis(20));
+
+    let ctrl_scan = unsafe { MapVirtualKeyW(VK_CONTROL as u32, MAPVK_VK_TO_VSC) as u16 };
+    let shift_scan = unsafe { MapVirtualKeyW(VK_SHIFT as u32, MAPVK_VK_TO_VSC) as u16 };
+    let v_scan = unsafe { MapVirtualKeyW(VK_V as u32, MAPVK_VK_TO_VSC) as u16 };
+
+    let mut key_down = match shortcut {
         NativePasteShortcut::CtrlV => vec![
-            keyboard_input(VK_CONTROL as u16, 0),
-            keyboard_input(VK_V as u16, 0),
-            keyboard_input(VK_V as u16, KEYEVENTF_KEYUP),
-            keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
+            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE),
+            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE),
         ],
         NativePasteShortcut::CtrlShiftV => vec![
-            keyboard_input(VK_CONTROL as u16, 0),
-            keyboard_input(VK_SHIFT as u16, 0),
-            keyboard_input(VK_V as u16, 0),
-            keyboard_input(VK_V as u16, KEYEVENTF_KEYUP),
-            keyboard_input(VK_SHIFT as u16, KEYEVENTF_KEYUP),
-            keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
+            keyboard_scan_input(shift_scan, KEYEVENTF_SCANCODE),
+            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE),
+            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE),
+        ],
+    };
+    let mut key_up = match shortcut {
+        NativePasteShortcut::CtrlV => vec![
+            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+        ],
+        NativePasteShortcut::CtrlShiftV => vec![
+            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+            keyboard_scan_input(shift_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
         ],
     };
 
-    let inserted = unsafe {
-        SendInput(
-            inputs.len() as u32,
-            inputs.as_mut_ptr(),
-            mem::size_of::<INPUT>() as i32,
-        )
-    };
-    if inserted == inputs.len() as u32 {
-        return Ok(());
-    }
-
-    if unsafe { GetLastError() } == ERROR_ACCESS_DENIED {
-        anyhow::bail!("paste_target_elevation_required");
-    }
-    anyhow::bail!("paste_shortcut_failed")
+    send_windows_inputs(&mut key_down)?;
+    thread::sleep(Duration::from_millis(40));
+    send_windows_inputs(&mut key_up)
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
@@ -1026,10 +1154,7 @@ fn post_macos_keyboard_event(
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn send_native_paste_shortcut(
-    _app: &AppHandle,
-    state: &Arc<SharedState>,
-) -> Result<()> {
+pub(crate) fn send_native_paste_shortcut(_app: &AppHandle, state: &Arc<SharedState>) -> Result<()> {
     let bundle_id = {
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_app_bundle_id.clone()
@@ -1160,6 +1285,41 @@ fn keyboard_input(virtual_key: u16, flags: u32) -> INPUT {
 }
 
 #[cfg(windows)]
+fn keyboard_scan_input(scan_code: u16, flags: u32) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: 0,
+                wScan: scan_code,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+#[cfg(windows)]
+fn send_windows_inputs(inputs: &mut [INPUT]) -> Result<()> {
+    let inserted = unsafe {
+        SendInput(
+            inputs.len() as u32,
+            inputs.as_mut_ptr(),
+            mem::size_of::<INPUT>() as i32,
+        )
+    };
+    if inserted == inputs.len() as u32 {
+        return Ok(());
+    }
+
+    if unsafe { GetLastError() } == ERROR_ACCESS_DENIED {
+        anyhow::bail!("paste_target_elevation_required");
+    }
+    anyhow::bail!("paste_shortcut_failed")
+}
+
+#[cfg(windows)]
 fn item_has_image(item: &StoredClipboardItem) -> bool {
     item.image_png
         .as_ref()
@@ -1287,9 +1447,7 @@ pub(crate) fn paste_item_to_target(
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::{
-        integrity_level_is_higher, native_paste_shortcut_for_process_name, NativePasteShortcut,
-    };
+    use super::{integrity_level_is_higher, native_paste_shortcut_for_target, NativePasteShortcut};
 
     #[test]
     fn higher_target_integrity_requires_elevation() {
@@ -1301,15 +1459,22 @@ mod tests {
     #[test]
     fn terminal_targets_use_ctrl_shift_v() {
         assert_eq!(
-            native_paste_shortcut_for_process_name(Some("windowsterminal")),
+            native_paste_shortcut_for_target(Some("windowsterminal"), None),
             NativePasteShortcut::CtrlShiftV
         );
         assert_eq!(
-            native_paste_shortcut_for_process_name(Some("conhost")),
+            native_paste_shortcut_for_target(Some("conhost"), None),
             NativePasteShortcut::CtrlShiftV
         );
         assert_eq!(
-            native_paste_shortcut_for_process_name(Some("notepad")),
+            native_paste_shortcut_for_target(
+                Some("unrelated"),
+                Some("CASCADIA_HOSTING_WINDOW_CLASS")
+            ),
+            NativePasteShortcut::CtrlShiftV
+        );
+        assert_eq!(
+            native_paste_shortcut_for_target(Some("notepad"), Some("Notepad")),
             NativePasteShortcut::CtrlV
         );
     }
