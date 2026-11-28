@@ -33,8 +33,6 @@ use std::mem;
 #[cfg(windows)]
 use std::path::PathBuf;
 #[cfg(windows)]
-use std::sync::atomic::{AtomicIsize, Ordering};
-#[cfg(windows)]
 use windows_sys::Win32::{
     Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED, HANDLE, HWND},
     Security::{
@@ -42,19 +40,17 @@ use windows_sys::Win32::{
         TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
     },
     System::Threading::{
-        AttachThreadInput, GetCurrentProcess, GetCurrentProcessId, OpenProcess, OpenProcessToken,
-        QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+        GetCurrentProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
+        PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
     },
     UI::{
-        Accessibility::{SetWinEventHook, HWINEVENTHOOK},
         Input::KeyboardAndMouse::{
-            MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP,
-            KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC, VK_CONTROL, VK_SHIFT, VK_V,
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL,
+            VK_INSERT, VK_SHIFT, VK_V,
         },
         WindowsAndMessaging::{
-            BringWindowToTop, DispatchMessageW, GetClassNameW, GetMessageW,
-            GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow,
-            TranslateMessage, EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT,
+            GetClassNameW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+            SetForegroundWindow, ShowWindow,
         },
     },
 };
@@ -76,7 +72,7 @@ pub(crate) enum TargetProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NativePasteShortcut {
     CtrlV,
-    CtrlShiftV,
+    ShiftInsert,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,9 +87,6 @@ unsafe extern "system" {
     fn GetForegroundWindow() -> HwndRaw;
     fn IsWindow(hwnd: HwndRaw) -> i32;
 }
-
-#[cfg(windows)]
-static TRACKED_TARGET_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
 #[cfg(windows)]
 fn process_id_for_window(hwnd: HwndRaw) -> Option<u32> {
@@ -268,39 +261,17 @@ fn target_profile_for_process_name(process_name: Option<&str>) -> TargetProfile 
 }
 
 #[cfg(windows)]
-fn native_paste_shortcut_for_target(
-    process_name: Option<&str>,
-    class_name: Option<&str>,
+fn native_paste_shortcut_for_settings<'a>(
+    configured_shortcuts: impl IntoIterator<Item = &'a str>,
 ) -> NativePasteShortcut {
-    let terminal_process = process_name.map(str::to_lowercase).is_some_and(|name| {
-        [
-            "windowsterminal",
-            "conhost",
-            "openconsole",
-            "cmd",
-            "powershell",
-            "pwsh",
-        ]
-        .iter()
-        .any(|candidate| name.contains(candidate))
-    });
-    let terminal_window = class_name.is_some_and(|name| {
-        name.eq_ignore_ascii_case("ConsoleWindowClass")
-            || name.eq_ignore_ascii_case("CASCADIA_HOSTING_WINDOW_CLASS")
-    });
-    if terminal_process || terminal_window {
-        NativePasteShortcut::CtrlShiftV
+    if configured_shortcuts
+        .into_iter()
+        .any(|shortcut| shortcut.eq_ignore_ascii_case("Ctrl+V"))
+    {
+        NativePasteShortcut::ShiftInsert
     } else {
         NativePasteShortcut::CtrlV
     }
-}
-
-#[cfg(windows)]
-fn native_paste_shortcut_for_window(hwnd: HwndRaw) -> NativePasteShortcut {
-    native_paste_shortcut_for_target(
-        process_name_for_window(hwnd).as_deref(),
-        window_class_name(hwnd).as_deref(),
-    )
 }
 
 #[cfg(windows)]
@@ -309,13 +280,6 @@ fn is_user_paste_target(hwnd: HwndRaw) -> bool {
         return false;
     }
     if unsafe { IsIconic(hwnd as HWND) == 0 && IsWindowVisible(hwnd as HWND) == 0 } {
-        return false;
-    }
-    let mut process_id = 0u32;
-    unsafe {
-        GetWindowThreadProcessId(hwnd as HWND, &mut process_id);
-    }
-    if process_id == unsafe { GetCurrentProcessId() } {
         return false;
     }
     !matches!(
@@ -332,52 +296,6 @@ fn is_user_paste_target(hwnd: HwndRaw) -> bool {
         )
     )
 }
-
-#[cfg(windows)]
-unsafe extern "system" fn remember_tracked_target_window(
-    _hook: HWINEVENTHOOK,
-    event: u32,
-    hwnd: HWND,
-    _id_object: i32,
-    _id_child: i32,
-    _event_thread: u32,
-    _event_time: u32,
-) {
-    if event == EVENT_SYSTEM_FOREGROUND && is_user_paste_target(hwnd as HwndRaw) {
-        TRACKED_TARGET_WINDOW.store(hwnd as HwndRaw, Ordering::Relaxed);
-    }
-}
-
-// 持续记录最后一个普通应用窗口，避免从托盘或任务栏打开面板时丢失管理员终端目标。
-#[cfg(windows)]
-pub(crate) fn start_target_window_tracking() {
-    thread::Builder::new()
-        .name("power-paste-target-tracking".into())
-        .spawn(|| unsafe {
-            let hook = SetWinEventHook(
-                EVENT_SYSTEM_FOREGROUND,
-                EVENT_SYSTEM_FOREGROUND,
-                std::ptr::null_mut(),
-                Some(remember_tracked_target_window),
-                0,
-                0,
-                WINEVENT_OUTOFCONTEXT,
-            );
-            if hook.is_null() {
-                return;
-            }
-
-            let mut message = std::mem::zeroed::<MSG>();
-            while GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {
-                TranslateMessage(&message);
-                DispatchMessageW(&message);
-            }
-        })
-        .ok();
-}
-
-#[cfg(not(windows))]
-pub(crate) fn start_target_window_tracking() {}
 
 #[cfg(windows)]
 fn last_target_profile(state: &Arc<SharedState>) -> TargetProfile {
@@ -548,6 +466,13 @@ fn debug_log_target_event(
     );
 }
 
+#[cfg(windows)]
+pub(crate) fn debug_log_paste_flow(state: &Arc<SharedState>, stage: &str) {
+    if paste_debug_enabled(state) {
+        eprintln!("[paste-flow] stage={stage}");
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn debug_log_macos_target_event(
     state: &Arc<SharedState>,
@@ -578,10 +503,8 @@ pub(crate) fn remember_last_target_window(app: &AppHandle) {
     };
     let panel_hwnd = panel_hwnd.0 as HwndRaw;
     let foreground = current_foreground_window();
-    let tracked = TRACKED_TARGET_WINDOW.load(Ordering::Relaxed);
     let target = foreground
-        .filter(|hwnd| *hwnd != panel_hwnd && is_user_paste_target(*hwnd))
-        .or_else(|| is_user_paste_target(tracked).then_some(tracked));
+        .filter(|hwnd| *hwnd != panel_hwnd && is_user_paste_target(*hwnd));
 
     let Some(target) = target else {
         debug_log_target_event(
@@ -707,21 +630,7 @@ pub(crate) fn focus_last_target_window(state: &Arc<SharedState>) -> Result<()> {
         if IsIconic(hwnd as HWND) != 0 {
             ShowWindow(hwnd as HWND, SW_RESTORE);
         }
-
-        let foreground = GetForegroundWindow();
-        let foreground_thread = GetWindowThreadProcessId(foreground as HWND, std::ptr::null_mut());
-        let target_thread = GetWindowThreadProcessId(hwnd as HWND, std::ptr::null_mut());
-        let attached = foreground_thread != 0
-            && target_thread != 0
-            && foreground_thread != target_thread
-            && AttachThreadInput(foreground_thread, target_thread, 1) != 0;
-
         SetForegroundWindow(hwnd as HWND);
-        BringWindowToTop(hwnd as HWND);
-
-        if attached {
-            AttachThreadInput(foreground_thread, target_thread, 0);
-        }
     }
     for _ in 0..FOCUS_RETRY_COUNT {
         if current_foreground_window() == Some(hwnd) {
@@ -1018,9 +927,24 @@ pub(crate) fn send_native_paste_shortcut(_app: &AppHandle, state: &Arc<SharedSta
         let monitor = state.monitor.lock().unwrap();
         monitor.last_target_window
     };
-    let shortcut = target
-        .map(native_paste_shortcut_for_window)
-        .unwrap_or(native_paste_shortcut_for_target(None, None));
+    let shortcut = {
+        let settings = state.settings.lock().unwrap();
+        native_paste_shortcut_for_settings([
+            settings.global_shortcut.as_str(),
+            settings.quick_paste_shortcut.as_str(),
+            settings.lan_transfer_shortcut.as_str(),
+        ])
+    };
+    debug_log_target_event(
+        state,
+        "paste-shortcut",
+        target,
+        current_foreground_window(),
+        match shortcut {
+            NativePasteShortcut::CtrlV => "ctrl-v",
+            NativePasteShortcut::ShiftInsert => "shift-insert",
+        },
+    );
 
     // 先释放可能仍被按住的修饰键，避免快速粘贴组合键被目标窗口识别错。
     send_windows_inputs(&mut [
@@ -1029,30 +953,24 @@ pub(crate) fn send_native_paste_shortcut(_app: &AppHandle, state: &Arc<SharedSta
     ])?;
     thread::sleep(Duration::from_millis(20));
 
-    let ctrl_scan = unsafe { MapVirtualKeyW(VK_CONTROL as u32, MAPVK_VK_TO_VSC) as u16 };
-    let shift_scan = unsafe { MapVirtualKeyW(VK_SHIFT as u32, MAPVK_VK_TO_VSC) as u16 };
-    let v_scan = unsafe { MapVirtualKeyW(VK_V as u32, MAPVK_VK_TO_VSC) as u16 };
-
     let mut key_down = match shortcut {
         NativePasteShortcut::CtrlV => vec![
-            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE),
-            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE),
+            keyboard_input(VK_CONTROL as u16, 0),
+            keyboard_input(VK_V as u16, 0),
         ],
-        NativePasteShortcut::CtrlShiftV => vec![
-            keyboard_scan_input(shift_scan, KEYEVENTF_SCANCODE),
-            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE),
-            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE),
+        NativePasteShortcut::ShiftInsert => vec![
+            keyboard_input(VK_SHIFT as u16, 0),
+            keyboard_input(VK_INSERT as u16, 0),
         ],
     };
     let mut key_up = match shortcut {
         NativePasteShortcut::CtrlV => vec![
-            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
-            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+            keyboard_input(VK_V as u16, KEYEVENTF_KEYUP),
+            keyboard_input(VK_CONTROL as u16, KEYEVENTF_KEYUP),
         ],
-        NativePasteShortcut::CtrlShiftV => vec![
-            keyboard_scan_input(v_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
-            keyboard_scan_input(ctrl_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
-            keyboard_scan_input(shift_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+        NativePasteShortcut::ShiftInsert => vec![
+            keyboard_input(VK_INSERT as u16, KEYEVENTF_KEYUP),
+            keyboard_input(VK_SHIFT as u16, KEYEVENTF_KEYUP),
         ],
     };
 
@@ -1215,6 +1133,8 @@ pub(crate) fn send_native_paste_shortcut(_app: &AppHandle, state: &Arc<SharedSta
 }
 
 pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
+    #[cfg(windows)]
+    debug_log_paste_flow(state, "prepare-start");
     #[cfg(target_os = "macos")]
     {
         ensure_macos_direct_paste_permissions(state)?;
@@ -1265,6 +1185,8 @@ pub(crate) fn prepare_target_for_paste(state: &Arc<SharedState>) -> Result<()> {
             anyhow::bail!("paste_target_focus_failed");
         }
     }
+    #[cfg(windows)]
+    debug_log_paste_flow(state, "prepare-complete");
     Ok(())
 }
 
@@ -1276,22 +1198,6 @@ fn keyboard_input(virtual_key: u16, flags: u32) -> INPUT {
             ki: KEYBDINPUT {
                 wVk: virtual_key,
                 wScan: 0,
-                dwFlags: flags,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    }
-}
-
-#[cfg(windows)]
-fn keyboard_scan_input(scan_code: u16, flags: u32) -> INPUT {
-    INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: 0,
-                wScan: scan_code,
                 dwFlags: flags,
                 time: 0,
                 dwExtraInfo: 0,
@@ -1423,6 +1329,8 @@ pub(crate) fn paste_item_to_target(
     item: &StoredClipboardItem,
     target: &ResolvedPasteTarget,
 ) -> Result<bool> {
+    #[cfg(windows)]
+    debug_log_paste_flow(state, "dispatch-start");
     if paste_mixed_item_for_profile(app, state, item, target.profile)? {
         return Ok(true);
     }
@@ -1441,13 +1349,19 @@ pub(crate) fn paste_item_to_target(
     {
         thread::sleep(Duration::from_millis(180));
     }
+    #[cfg(windows)]
+    debug_log_paste_flow(state, "clipboard-ready");
     send_native_paste_shortcut(app, state)?;
+    #[cfg(windows)]
+    debug_log_paste_flow(state, "shortcut-sent");
     Ok(true)
 }
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::{integrity_level_is_higher, native_paste_shortcut_for_target, NativePasteShortcut};
+    use super::{
+        integrity_level_is_higher, native_paste_shortcut_for_settings, NativePasteShortcut,
+    };
 
     #[test]
     fn higher_target_integrity_requires_elevation() {
@@ -1457,25 +1371,14 @@ mod tests {
     }
 
     #[test]
-    fn terminal_targets_use_ctrl_shift_v() {
+    fn ctrl_v_is_used_unless_the_app_owns_it() {
         assert_eq!(
-            native_paste_shortcut_for_target(Some("windowsterminal"), None),
-            NativePasteShortcut::CtrlShiftV
-        );
-        assert_eq!(
-            native_paste_shortcut_for_target(Some("conhost"), None),
-            NativePasteShortcut::CtrlShiftV
-        );
-        assert_eq!(
-            native_paste_shortcut_for_target(
-                Some("unrelated"),
-                Some("CASCADIA_HOSTING_WINDOW_CLASS")
-            ),
-            NativePasteShortcut::CtrlShiftV
-        );
-        assert_eq!(
-            native_paste_shortcut_for_target(Some("notepad"), Some("Notepad")),
+            native_paste_shortcut_for_settings(["Ctrl+Shift+V", "Ctrl+Backquote"]),
             NativePasteShortcut::CtrlV
+        );
+        assert_eq!(
+            native_paste_shortcut_for_settings(["ctrl+v"]),
+            NativePasteShortcut::ShiftInsert
         );
     }
 }

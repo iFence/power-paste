@@ -290,7 +290,6 @@ pub fn run() {
             }
 
             configure_window(app.handle(), shared.clone())?;
-            paste_target::start_target_window_tracking();
             let locale = settings.lock().unwrap().locale.clone();
             runtime::build_tray(app.handle(), &locale)?;
 

@@ -166,6 +166,7 @@ pub(crate) fn linux_remote_input_portal_available() -> bool {
     remote_input_portal_available_in(&portal_data_roots())
 }
 
+#[cfg(target_os = "linux")]
 const REMOTE_DESKTOP_IMPL_INTERFACE: &str = "org.freedesktop.impl.portal.RemoteDesktop";
 
 #[cfg(target_os = "linux")]

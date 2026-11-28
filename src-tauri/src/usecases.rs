@@ -262,9 +262,13 @@ pub(crate) fn execute_paste_item(
         return Err(AppError::Message("paste_target_elevation_required".into()));
     }
 
+    #[cfg(windows)]
+    crate::paste_target::debug_log_paste_flow(&state, "hide-start");
     if let Some(window) = app.get_webview_window(PANEL_LABEL) {
         let _ = window.hide();
     }
+    #[cfg(windows)]
+    crate::paste_target::debug_log_paste_flow(&state, "hide-complete");
 
     if let Err(error) = paste.prepare_target(&state) {
         restore_panel_after_paste_failure(&app);
@@ -274,6 +278,8 @@ pub(crate) fn execute_paste_item(
         restore_panel_after_paste_failure(&app);
         return Err(AppError::from(error));
     }
+    #[cfg(windows)]
+    crate::paste_target::debug_log_paste_flow(&state, "dispatch-complete");
     if state.settings.lock().unwrap().paste_stats_enabled {
         let updated_item = state
             .history_store
